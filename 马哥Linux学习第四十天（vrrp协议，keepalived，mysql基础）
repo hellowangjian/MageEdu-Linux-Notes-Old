@@ -1,0 +1,743 @@
+马哥Linux学习第四十天（vrrp协议及keepalived，mysql基础）
+
+keepalived：
+	
+	HA的开源解决方案：
+		Heartbeat：haresources，crm
+		corosync：pacemaker
+
+		keepalived
+
+	vrrp：Virtual Redundent Route protocol
+		相关术语：
+			vrouter：虚拟路由器；
+			VRID：虚拟路由器标识；0-255；
+			Master
+			Backup
+			vip
+			vmac：00-00-5e-00-01-{VRID}；
+			priority：优先级，1-254，数字越小优先级越低；
+			抢占方式
+			非抢占方式
+
+		认证方式：
+			简单字符认证
+			MD5认证
+
+		工作模式：
+			master-backup模式
+			master-master模式
+				vroute1：master-backup
+				vroute2：backup-master
+
+	keeplived：在Linux主机上，以daemon方式实现了vrrp协议，并提供了完成配置ipvs规则及实现响应real server状态检测能力；
+		调用外部脚本：
+
+		使用场景：ipvs, haproxy, nging(serverse proxy)
+
+		CentOS 6.4+：由系统安装树直接提供；
+			yum install keepalived
+
+		配置：
+			# man keepalived.conf
+			global_defs：全局配置
+			vrrp_instance：一个vroute的配置
+			lvs：ipvs的相关配置
+
+            virtual_ipaddress {
+               <IPADDR>/<MASK> brd <IPADDR> dev <STRING> scope <SCOPE> label <LABEL>
+               192.168.200.17/24 dev eth1
+               192.168.200.18/24 dev eth2 label eth2:1
+            }
+
+        如果有其它资源可用于作为主备节点角色判断的标准，可以通过如下配置实现：
+        	vrrp_script{
+
+        	}
+
+        	vrrp_instance NAME{
+        		track_script{
+
+        		}
+        	}
+
+        	实例：
+				vrrp_script chk_mt_down {
+				        script "[[ -f /etc/keepalived/down ]] && exit 1 || exit 0"
+				        interval 1
+				        weight -5
+				}
+
+				vrrp_instance VI_1 {
+				    state MASTER
+				    interface eth0
+				    virtual_router_id 51
+				    priority 100
+				    advert_int 1
+				    authentication {
+				        auth_type PASS
+				        auth_pass 1111
+				    }
+				    virtual_ipaddress {
+				        192.168.10.100
+				    }
+
+				    track_script {
+				        chk_mt_down
+				    }
+				}
+
+		健康状态检测方法：
+			pick one healthchecker
+                # HTTP_GET|SSL_GET|TCP_CHECK|SMTP_CHECK|MISC_CHECK
+
+        ipvs配置实例：
+        	server1：
+				! Configuration File for keepalived
+
+				global_defs {
+				   notification_email {
+				        kaadmin@magedu.com
+				   }
+				   notification_email_from kaadmin@magedu.com
+				   smtp_server 127.0.0.1
+				   smtp_connect_timeout 30
+				   router_id LVS_DEVEL
+				}
+
+				vrrp_script chk_mt_down {
+				    script "[[ -f /etc/keepalived/down ]] && exit 1 || exit 0"
+				    interval 1
+				    weight -5
+				}
+
+				vrrp_instance VI_1 {
+				    state MASTER
+				    interface eth0
+				    virtual_router_id 51
+				    priority 100
+				    advert_int 1
+				    authentication {
+				        auth_type PASS
+				        auth_pass 1111
+				    }
+				    virtual_ipaddress {
+				        192.168.10.200/32 brd 192.168.10.200 dev eth0 label eth0:0
+				    }
+
+				    track_script {
+				    chk_mt_down
+				    }
+				}
+
+				virtual_server 192.168.10.200 80 {
+				    delay_loop 6
+				    lb_algo rr
+				    lb_kind DR
+				    nat_mask 255.255.255.0
+				!    persistence_timeout 50
+				    protocol TCP
+
+				    real_server 192.168.10.66 80 {
+				        weight 1
+				   	#基于http url做健康检测
+				        HTTP_GET {
+				            url {
+				              path /index.html
+				              status_code 200
+				            }
+				            connect_timeout 3
+				            nb_get_retry 3
+				            delay_before_retry 1
+				        }
+				    }
+				    real_server 192.168.10.77 80 {
+				        weight 1
+				        HTTP_GET {
+				            url {
+				              path /index.html
+				              status_code 200
+				            }
+				            connect_timeout 3
+				            nb_get_retry 3
+				            delay_before_retry 1
+				        }
+				    }
+				}
+
+			server2：
+				! Configuration File for keepalived
+
+				global_defs {
+				   notification_email {
+				        kaadmin@magedu.com
+				   }
+				   notification_email_from kaadmin@magedu.com
+				   smtp_server 127.0.0.1
+				   smtp_connect_timeout 30
+				   router_id LVS_DEVEL
+				}
+
+				vrrp_script chk_mt_down {
+				        script "[[ -f /etc/keepalived/down ]] && exit 1 || exit 0"
+				        interval 1
+				        weight -5
+				}
+
+
+				vrrp_instance VI_1 {
+				    state BACKUP
+				    interface eth0
+				    virtual_router_id 51
+				    priority 99
+				    advert_int 1
+				    authentication {
+				        auth_type PASS
+				        auth_pass 1111
+				    }
+				    virtual_ipaddress {
+				        192.168.10.200/32 brd 192.168.10.200 dev eth0 label eth0:0
+				    }
+
+				    track_script {
+				        chk_mt_down
+				    }
+				}
+
+
+				virtual_server 192.168.10.200 80 {
+				    delay_loop 6
+				    lb_algo rr
+				    lb_kind DR
+				    nat_mask 255.255.255.0
+				!    persistence_timeout 50
+				    protocol TCP
+
+				    real_server 192.168.10.66 80 {
+				        weight 1
+				    #基于http url做健康检测
+				        HTTP_GET {
+				            url {
+				              path /index.html
+				              status_code 200
+				            }
+				            connect_timeout 3
+				            nb_get_retry 3
+				            delay_before_retry 1
+				        }
+				    }
+				    real_server 192.168.10.77 80 {
+				        weight 1
+				        HTTP_GET {
+				            url {
+				              path /index.html
+				              status_code 200
+				            }
+				            connect_timeout 3
+				            nb_get_retry 3
+				            delay_before_retry 1
+				        }
+				    }
+				}
+
+					#基于TCP 端口做健康检测
+				         TCP_CHECK {
+				            connect_ip 192.168.10.66
+				            connect_port 80
+				            connect_timeout 3
+				        }
+
+
+		haproxy双主示例：
+			（1）脚本
+				#!/bin/bash
+				# Author: MageEdu <linuxedu@foxmail.com>
+				# description: An example of notify script
+				# 
+
+				vip=172.16.100.52
+				contact='kaadmin@localhost'
+
+				notify() {
+				    mailsubject="`hostname` to be $1: $vip floating"
+				    mailbody="`date '+%F %H:%M:%S'`: vrrp transition, `hostname` changed to be $1"
+				    echo $mailbody | mail -s "$mailsubject" $contact
+				}
+
+				case "$1" in
+				    master)
+				        notify master
+					/etc/rc.d/init.d/haproxy start
+				        exit 0
+				    ;;
+				    backup)
+				        notify backup
+					/etc/rc.d/init.d/haproxy restart
+				        exit 0
+				    ;;
+				    fault)
+				        notify fault
+					/etc/rc.d/init.d/haproxy stop
+				        exit 0
+				    ;;
+				    *)
+				        echo 'Usage: `basename $0` {master|backup|fault}'
+				        exit 1
+				    ;;
+				esac
+
+			（2）节点1配置
+				! Configuration File for keepalived
+
+				global_defs {
+				   notification_email {
+					kaadmon@magedu.com
+				   }
+				   notification_email_from kaadmin@magedu.com
+				   smtp_server 127.0.0.1
+				   smtp_connect_timeout 30
+				   router_id LVS_DEVEL
+				}
+
+				vrrp_script chk_mt_down {
+				    script "[[ -f /etc/keepalived/down ]] && exit 1 || exit 0"
+				    interval 1
+				    weight -5 
+				}
+
+				vrrp_script chk_haproxy {
+				    script "killall -0 haproxy &> /dev/null"
+				    interval 1
+				    weight -5
+				}
+
+				vrrp_instance VI_1 {
+				    state MASTER
+				    interface eth0
+				    virtual_router_id 57
+				    priority 100
+				    advert_int 1
+				    authentication {
+				        auth_type PASS
+				        auth_pass VI1pass
+				    }
+				    virtual_ipaddress {
+					172.16.100.52/32 brd 172.16.100.52 dev eth0 label eth0:0
+				    }
+				    track_script {
+					chk_mt_down
+				  	chk_haproxy
+				    }
+				    notify_master "/etc/keepalived/notify.sh master"
+				    notify_backup "/etc/keepalived/notify.sh backup"
+				    notify_fault "/etc/keepalived/notify.sh fault"
+				}
+				vrrp_instance VI_2 {
+				    state BACKUP
+				    interface eth0
+				    virtual_router_id 58
+				    priority 99
+				    advert_int 1
+				    authentication {
+				        auth_type PASS
+				        auth_pass VI2pass
+				    }
+				    virtual_ipaddress {
+					172.16.100.53/32 brd 172.16.100.53 dev eth0 label eth0:1
+				    }
+				    track_script {
+					chk_mt_down
+				  	chk_haproxy
+				    }
+				    notify_master "/etc/keepalived/notify.sh master"
+				    notify_backup "/etc/keepalived/notify.sh backup"
+				    notify_fault "/etc/keepalived/notify.sh fault"
+				}
+
+			（3）节点2配置
+				! Configuration File for keepalived
+
+				global_defs {
+				   notification_email {
+					kaadmon@magedu.com
+				   }
+				   notification_email_from kaadmin@magedu.com
+				   smtp_server 127.0.0.1
+				   smtp_connect_timeout 30
+				   router_id LVS_DEVEL
+				}
+
+				vrrp_script chk_mt_down {
+				    script "[[ -f /etc/keepalived/down ]] && exit 1 || exit 0"
+				    interval 1
+				    weight -5 
+				}
+
+				vrrp_script chk_haproxy {
+				    script "killall -0 haproxy &> /dev/null"
+				    interval 1
+				    weight -5
+				}
+
+				vrrp_instance VI_1 {
+				    state BACKUP
+				    interface eth0
+				    virtual_router_id 57
+				    priority 99
+				    advert_int 1
+				    authentication {
+				        auth_type PASS
+				        auth_pass VI1pass
+				    }
+				    virtual_ipaddress {
+					172.16.100.52/32 brd 172.16.100.52 dev eth0 label eth0:0
+				    }
+				    track_script {
+					chk_mt_down
+					chk_haproxy
+				    }
+
+				    notify_master "/etc/keepalived/notify.sh master"
+				    notify_backup "/etc/keepalived/notify.sh backup"
+				    notify_fault "/etc/keepalived/notify.sh fault"
+				}
+
+				vrrp_instance VI_2 {
+				    state MASTER
+				    interface eth0
+				    virtual_router_id 58
+				    priority 100
+				    advert_int 1
+				    authentication {
+				        auth_type PASS
+				        auth_pass VI2pass
+				    }
+				    virtual_ipaddress {
+				        172.16.100.53/32 brd 172.16.100.53 dev eth0 label eth0:1
+				    }
+				    track_script {
+				        chk_mt_down
+				        chk_haproxy
+				    }
+				    notify_master "/etc/keepalived/notify.sh master"
+				    notify_backup "/etc/keepalived/notify.sh backup"
+				    notify_fault "/etc/keepalived/notify.sh fault"
+				}
+
+	博客作业：
+		keepalived+ipvs, health check
+		keepalived+nginx （reverse proxy），health check
+		keepalived+haproxy，health check
+
+
+
+MairaDB or MySQL：
+	DBMS
+	RDBMS：关系型数据库管理系统
+		C/S：通过专有协议
+		关系模型：表（行，列），二维关系
+
+		范式：第一范式、第二范式、第三范式；
+		关系运算：
+			选择
+			投影
+
+		数据库：表，索引，视图（虚表）
+			SQL：Structure Query Language
+				DDL, DML
+				编程接口：
+					存储过程：无返回值
+					存储函数：有返回值
+					触发器：
+					事件调度器：定期执行特定的任务
+					过程式编程：选择、循环
+
+		三层模型：
+			物理层
+			逻辑层
+			视图层
+
+		解决方案：
+			Oracle, Sybase, Infomix, DB2
+			MySQL, MariaDB, PostgreSQL, SQLite
+
+		MySQL --> 5.1 --> 5.5 --> 5.6 --> 5.7
+		MariaDB
+			插件式存储引擎
+			单进程多线程
+				连接线程
+				守护线程
+
+		配置文件：集中式的配置，能够为mysql的各应用程序提供配置信息
+			[mysqld]
+			[mysqld_safe]
+			[mysqld_mult]
+			[server]
+			[mysql]
+			[mysqldump]
+			[client]
+
+				parameter=value
+
+				skip-name-resolve
+				skip_name_resolve
+
+			查找路径：/etc/my.cnf -- /etc/mysql/my.cnf --> $MYSQL_HOME/my.cnf --> --default-extra-file=/path/to/somedir/my.cnf --> ~/.my.cnf
+
+		安装方法：
+			os vendor：rpm
+			MySQL：
+				rpm
+				展开可用
+				源码
+
+			安装后的设定：
+				（1）为所有root用户设定密码；
+					mysql> SET PASSWORD FOR 'root'@'localhost' = PASSWORD('your_pass');
+					mysql> UPDATE mysql.user SET password=PASSWORD('your_pass') WHERE cluase;
+					# mysqladmin
+
+				（2）删除所有匿名用户
+					mysql> DROP USER ''@'localhost';
+
+					上述两步骤可运行命令：mysql_secure_installation
+
+				（3）建议关闭主机名反解功能；
+					skip-name-resolve=on
+
+		元数据数据库：mysql
+			user, host等；
+
+		mysql --> mysqld
+			客户端程序：
+				mysql：交互式的CLI工具；
+				mysqldump：备份工具，基于mysql协议向mysqld发起查询请求，并将查到的所有数据转换成insert等写操作语句保存文本文件中；
+				mysqladmin：基于mysql协议管理mysqld；
+				mysqlimport：数据导入工具；
+			非客户端类的管理工具：
+				myisamchk，myisampack
+
+			如何获取程序默认使用的配置：
+				mysql --print-defaults
+				msqld --print-defaults
+
+			客户端类应用程序的可用选项：
+				-u, --user=
+				-h, --host=
+				-p, --password=
+				-P, --port
+				--protocol=
+				-S, --socket=
+				-D, --database=
+				-C, --compress
+
+				mysql -e "SQL"
+					# mysql -e "SHOW DATABASES;"
+
+			mysql的使用模式：
+				交互式模式：
+					可运行命令有两类：
+						客户端命令：
+							\h, help
+						服务器端命令:
+							SQL, 需要语句结束符；
+				脚本模式：
+					# mysql -uUSERNAME -hHOST -pPASSWOrD < /path/from/somefile.sql
+					mysql> source /path/from/somefile.sql
+
+			服务器端（mysqld）：工作特性有多种定义方式
+				命令行选项
+				配置文件参数
+
+					获取可用参数列表：
+						mysqld --help --verbose
+
+				获取运行中的mysql进程使用的各服务器参数及其值；
+					mysql> SHOW GLOBAL VARIABLES;
+					mysql> SHOW [SESSION] VARIABLES;
+
+					注意：其中有些参数支持运行时修改，会立即生效；有些参数不支持，且只能通过修改配置文件，并重启服务器程序生效；
+						 有些参数作用域是全局的，且不可改变；有些可以为每个用户提供单独的设置；
+
+				修改服务器变量的值：
+					mysql> help SET
+
+						全局：
+							mysql> SET GLOBAL system_var_name=value;
+							mysql> SET @@global.system_var_name=value;
+						会话：
+							mysql> SET [SESSION] system_var_name=value;
+							mysql> SET @@[session.]system_var_name=value;
+
+				状态变量：用于保存mysqld运行中的统计数据的变量；
+					mysql> SHOW GLOBAL STATUS;
+					mysql> SHOW [SESSION] STATUS;
+
+	SQL：ANSI SQL
+		SQL-86，SQL-89，SQL-92，SQL-99，SQL-03
+
+	MySQL 数据类型：
+		字符型
+		数值型
+		日期时间型
+		内建类型
+
+		字符型：
+			CHAR, BINARY：定长数据类型；
+			VARCHAR, VARBINARY：变长数据类型；需要结束符；
+			TEXT：TINYTEXT，TEXT，MEDIUMTEXT，LONGTEXT
+			BLOB：TINYBLOB，BLOB，MEDIUMBLOB，LONGBLOB
+			ENUM，SET
+		数值型：
+			精确数值型：
+				整型：TININT，SMALLINT，MEDIUMINT，INT，BIGINT
+				十进制型：DECIMAL
+			近似数值型：
+				浮点型：
+					FLOAT
+					DOUBLE
+
+				BIT
+
+		日期时间型：
+			DATE
+			TIME
+			DATETIME
+			TIMESTAMP
+			YEAR(2), YEAR(4)
+
+		字符型的修饰符：
+			NOT NULL：非空约束；
+			NULL：可以为空；
+			DEFAULT ‘STRING’：指明默认值；
+			CHARACTER SET ''：使用的字符集；
+			COLLATION：使用的排序规则；
+
+			mysql> SHOW CHARACTER SET;
+			mysql> SHOW COLLATION;
+
+		整型的修饰符：
+			NOT NULL
+			NULL
+			DEFAULT NUMBER
+
+			AUTO_INCREMENT:
+				UNSIGNED
+				PRIMARY KEY|UNIQUE KEy
+				NOT NULL
+
+				mysql> SELECT LAST_INSERT_ID();
+
+		日期时间型修饰符：
+			NOT NULL
+			NULL
+			DEFAULT
+
+		内建类型SET和ENUM的修饰符：
+			NOT NULL
+			NULL
+			DEFAULT
+
+	SQL MODE：定义mysqld对约束等的响应行为：
+		修改方式：
+			mysql> SET GLOBAL sql_mode='MODE';
+			mysql> SET @@global.sql_mod='MODE';
+
+			需要修改权限，仅对修改后新创建的会话有效；对已经建立的会话无效；
+
+			mysql> SET SESSION sql_mode='MODE';
+			mysql> SET @@session.sql_mode='MODE';
+
+		常用MODE：
+			TRADITIONAL，STRICT_TRANS，or STRICT_ALL_TABLES
+
+	SQL：DDL, DML
+		DDL：数据定义语言：
+			CREATE, ALTER, DROP
+
+			DB组件：数据库、表、索引、视图、用户、存储过程、存储函数、触发器、时间调度器等
+
+			CREATE相关的常用命令：
+				   CREATE DATABASE
+				   CREATE EVENT
+				   CREATE FUNCTION
+				   CREATE FUNCTION UDF
+				   CREATE INDEX
+				   CREATE LOGFILE GROUP
+				   CREATE PROCEDURE
+				   CREATE SERVER
+				   CREATE TABLE
+				   CREATE TABLESPACE
+				   CREATE TRIGGER
+				   CREATE USER
+   				   CREATE VIEW
+
+		DML：数据库操纵语言：
+			SELECT, INSERT, DELETE, UPDATE
+
+		数据库：
+			CREATE, ALTER, DROP
+				{DATABASE|SCHEMA}
+				[IF EXISTS]
+				[IF NOT EXISTS]
+
+		表：二维关系
+			设计表：遵循规范；
+
+			定义：字段，索引
+				字段：字段名，字段数据类型，修饰符
+				约束，索引；应该创建在经常用作查询条件的字段上；
+					索引：实现级别在存储引擎；
+						分类：
+							稠密索引、稀疏索引
+							B+索引、hash索引、R树索引、FULLTEXT索引
+							聚集索引、非聚集索引
+							简单索引、组合索引
+
+			创建表：CREATE TABLE
+				（1）直接创建；
+					CREATE [TEMPORARY] TABLE [IF NOT EXISTS] tbl_name
+				    (create_definition,...)
+				    [table_options]
+				    [partition_options]
+
+				    	MariaDB [mydb]> CREATE TABLE t1 (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY NOT NULL, name VARCHAR(5) NOT NULL);
+
+				（2）通过查询现存的表创建；新表会被直接插入查询而来的数据；
+					CREATE [TEMPORARY] TABLE [IF NOT EXISTS] tbl_name
+					    [(create_definition,...)]
+					    [table_options]
+					    [partition_options]
+					    select_statement
+
+				（3）通过复制现存的表的表结构创建；不复制数据；
+					CREATE [TEMPORARY] TABLE [IF NOT EXISTS] tbl_name
+					    { LIKE old_tbl_name | (LIKE old_tbl_name) }
+
+				注意：Storage Engine是指表类型，也即在表创建时指明其使用的存储引擎；
+					 同一个数据库中表要使用同一种存储引擎类型；
+
+			查看表结构：
+				DESCRIBE tbl_name;
+
+			查看表状态信息：
+				SHOW [FULL] TABLES [{FROM | IN} db_name]
+			    [LIKE 'pattern' | WHERE expr]
+
+			    	MariaDB [mydb]> SHOW TABLE STATUS LIKE 't1'\G
+
+			修改表：ALTER TABLE
+			删除表：DROP TABLE
+
+
+
+
+
+
+
+
+
+
+
+
+

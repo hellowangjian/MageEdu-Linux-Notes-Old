@@ -1,0 +1,519 @@
+bash特性及bash脚本编程初步
+	
+	终端，附着在终端的接口程序；
+		GUI：KDE，GNome，Xface
+		CLI：/etc/shells
+
+	bash的特性：
+		命令行展开：~，{}
+		命令别名：alias，unalias
+		命令历史：history
+		文件名通配：glob
+		快捷键：Ctrl+a,e,u,k,l
+		命令补全：$PATH
+		路径补全：
+
+	bash特性之：命令hash
+		缓存此前命令的查找结果：key-value
+			key：搜索键
+			value：值
+
+		hash命令：
+			hash：列车
+			hash -d COMMAND：删除
+			hash -r：清空
+
+	bash的特性之：变量
+		程序：指令＋数据
+			指令：由程序文件提供；
+			数据：IO设备、文件、管道、变量
+
+		程序：算法＋数据结构
+
+		变量名＋指向的内存空间
+
+		变量赋值：name=value
+		变量类型：存储格式、表示数据范围、参与的运算
+			编程语言：
+				强类型变量
+				弱类型变量：
+					bash把所有变量统统视作字符类型；不支持浮点数据，除非借助外在工具。
+					bash中的变量无需事先声明；相当于，把声明和赋值过程同时实现；
+						声明：类型，变量名
+		变量替换：把变量名出线的位置替换为其所指向的内存空间中数据；
+		变量引用：${var_name}，$var_name
+		变量名：变量名只能包含数字、字母和下划线，而且不能以数字开头；
+			见名知义，命名机制遵循某种法则；不能使用程序的保留字(关键字)，例如if，else，then，while等等
+					
+四大皆空，菩提本无树，明镜亦非台，本来无一物，何处惹尘埃
+
+			bash变量类型：
+				本地变量：作用域仅为当前shell进程；
+				环境变量：作用域为当前shell进程及其子进程；
+				局部变量：作用域仅为某代码片段(函数上下文)；
+
+				位置参数变量：向执行脚本的shell进程传递的参数；
+				特殊变量：shell内置的有特殊功用的变量；
+					$?：存储上一次命令执行状态
+						0：成功
+						1－255：失败
+
+				本地变量：
+					变量赋值：name=value
+					变量引用：$(name)，$name
+						""：弱引用，变量名会替换为其值；
+						''：强引用，变量名不会替换为其值；
+					查看变量：set
+					撤销变量：unset name
+						注意：此处非变量引用；
+
+				环境变量：
+					变量赋值：
+						(1)export name=value
+						(2)name=value
+							export name
+						(3)declare -x name=value
+						(4)name=value
+							declare -x name
+					变量引用：${name}，$name
+
+					注意：bash内嵌了许多环境变量(通常为全大写字母)，用于定义bash的工作环境
+						PATH，HISTFILE，HISTSIZE，HISTFILESIZE，HISTCONTROL，SHELL，HOME，UID，PWD，OLDPWD
+
+					查看环境变量：export，declare -x，printenv，env
+					撤销环境变量：unset name
+
+				只读变量：
+					(1)declare －r name
+					(2)readonly name
+
+					只读变量无法重新赋值，并且不支持撤销；存活时间为当前shell进程的生命周期，随shell进程终止而终止；
+
+	bash特性之多命令执行：
+		~]# COMMAND1; COMMAND2; COMMAND3; ...
+
+		逻辑运算：
+			运算数：真(true, yes, on, 1)
+				   假(false, no, off, 0)
+
+			与：逻辑乘，同为真时为真
+				1 && 1 = 1
+				1 && 0 = 0
+				0 && 1 = 0
+				0 && 0 = 0
+			或：逻辑加，同为假时为假
+				1 || 1 = 1
+				1 || 0 = 1
+				0 || 1 = 1
+				0 || 0 = 0
+			非：逻辑取反
+				! 1 = 0
+				! 0 =1
+			异或：运算数两者相同为0，不同为1
+
+		短路法则：
+		~]# COMMAND1 && COMMAND2
+			COMMAND1为“假”，则COMMAND2不会再执行；
+			否则，COMMAND1为“真”，则COMMAND2必须执行；
+
+			[root@localhost ~]# touch /tmp/test.etc && ls /etc > /tmp/test.etc
+			[root@localhost ~]# cat //tmp/test.etc
+
+			[root@localhost ~]# touchabc /tmp/test.etc2 && ls /etc > /tmp/test.etc2
+			-bash: touchabc: 未找到命令
+			[root@localhost ~]# cat /tmp/test.etc2
+			cat: /tmp/test.etc2: 没有那个文件或目录
+
+		~]# COMMAND1 || COMMAND2
+			COMMAND1为“真”，则COMMAND2不会再执行；
+			否则，COMMAND1为“假”，则COMMAND2必须执行；
+
+			[root@localhost ~]# id user1
+			id: user1: no such user
+			[root@localhost ~]# id user1 || useradd user1
+			id: user1: no such user
+			[root@localhost ~]# id user1
+			uid=1003(user1) gid=1003(user1) 组=1003(user1)
+			[root@localhost ~]# id user1 || useradd user1
+			uid=1003(user1) gid=1003(user1) 组=1003(user1)
+
+	shell脚本编程：
+		编程语言的分类：根据运行方式
+			编译运行：源代码-->编译器（编译）-->程序文件
+			解释运行：源代码-->运行时启动解释器，由解释器边解释边运行；
+
+		根据其编程过程中功能的实现是调用库还是外部的程序文件；
+			shell脚步编程：
+				利用系统上的命令及编程组件进行编程；
+			完整编程：
+				利用库或编程组件进行编程；
+
+		编程模型：过程式编程语言，面向对象的编程语言
+			程序＝指令＋数据
+				过程式：以指令为中心来组织代码，数据是服务于代码；
+					顺序执行
+					选择执行
+					循环执行
+					代表：C，bash
+				对象式：以数据为中心来组织代码，围绕数据来组织指令；
+					类(class)：实例化对象，method；
+					代表：java，C++，Python
+
+		shell脚本编程：过程式编程，解释运行，依赖于外部程序文件运行;
+
+			如何写shell脚本：
+				脚本文件的第一行，顶格：给出shebang，解释器路径，用于指明解释执行当前脚本的解释器程序文件
+					常见的解释器：
+						#!/bin/bash
+						#!/usr/bin/python
+						#!/usr/bin/perl
+
+			文本编辑器：nano
+				行编辑器：sed
+				全屏幕编辑器：nano，vi，vim
+
+			shell脚步是什么？
+				命令的堆积；
+				但很多命令不具有幂等性，需要用程序逻辑来判断运行条件是否满足，以避免其运行中发生错误；
+
+			运行脚本：
+				(1)赋予执行权限，并直接运行此程序文件；
+					chmod +x /PATH/TO/SCRIPT_FILE
+					/PATH/TO/SCRIPT_FILE
+				(2)直接运行解释器，讲脚本以命令行参数传递给解释器程序；
+					bash /PATH/TO/SCRIPT_FILE
+
+			注意：脚本中的空白行会被解释器忽略；
+				脚本中，除了shebang，余下所有#开头的行，都会被视作注释行而被忽略；此即为注释行；
+				shell脚本的运行是通过运行一个子shell进程实现的；
+
+		练习1：写一个脚本，实现如下功能；
+			(1)显示/etc/目录下所有以大写P或小写p开头的文件或目录本身；
+			(2)显示/var目录下的所有文件或目录本身，并将显示结果中的小写字母转换为大写后显示；
+			(3)创建临时文件/tmp/myfile.XXX
+				[root@localhost ~]# cat test.sh 
+				#!/bin/bash
+
+				ls -d /etc/[Pp]*
+				ls -d /var/* | tr 'a-z' 'A-Z'
+				mktemp /tmp/myfile.XXX
+
+		bash的配置文件：
+			两类：
+				profile类：为交互式登录的shell进程提供配置
+				bashrc类：非交互式登录的shell进程提供配置
+
+			登录类型：
+				交互式登录shell进程：
+					直接通过某终端输入账号和密码登录打开的shell进程；
+					使用su命令：su - USERNAME，或者使用su -l USERNAME执行的登录切换；
+
+				非交互式登录shell进程：
+					su USERNAME执行的登录切换；
+					图形界面下打开的终端；
+					运行脚本
+
+			profile类：
+				全局：对所有用户都生效；
+					/etc/profile
+					/ect/profild.d/*.sh
+
+				用户个人：仅对当前用户有效；
+					~/.bash_profile
+
+				功用：
+					1、用于定义环境变量；
+					2、运行命令或脚本；
+
+
+			bashrc类：
+				全局：
+					/etc/bashrc
+				用户个人：
+					~/.bashrc
+
+				功用：
+					1、定义本地变量；
+					2、定义命令别名；
+
+			注意：仅管理员可修改全局配置文件；
+
+			交互式登录shell进程：
+				/etc/profile --> /etc/profile.d/* --> ~/.bash_profile --> ~/.bashrc --> /etc/bashrc
+
+			非交互式登录shell进程：
+				~/.bashrc --> /etc/bashrc --> /etc/profile.d/*
+
+			命令行中定义的特性，例如变量和别名作用域为当前shell进程的生命周期；
+			配置文件定义的特性，只对随后新启动的shell进程有效；
+
+			让通过配置文件定义的特性立即生效；
+				(1)通过命令行重复定义一次；
+				(2)让shell进程重读配置文件；
+					~]# source /PATH/FROM/CONF_FILE
+					~]# . /PATH/FORM/CONF_FILE
+
+			问题1：定义对所有用户都生效的命令别名，例如lftps='lftp 172.16.0.1/pub'?
+			问题2：让centos用户登录时，提示其已经登录，并显示当前系统时间？
+				[root@localhost ~]# nano /etc/profile.d/welcome.sh
+				[root@localhost ~]# cat /etc/profile.d/welcome.sh
+				alias lftps='lftp 172.16.0.1/pub'
+				echo 
+				echo "Welcome $USER, You're login, Now time is $(date)" 。
+				echo 
+
+文本处理工具：
+	
+	Linux上文本处理三剑客：
+		grep，egrep，fgrep：文本过滤工具（模式：pattern）工具；
+			grep：基本正则表达式，-E，-F
+			egrp：扩展正则表达式，-G，-F
+			fgrep：不支持正则表达式，-E，-G
+		sed：stream editor，流编辑器；文本编辑工具；
+		awk：Linux上的实现为gwak，文本报告生成器（格式化文本）；
+
+		正则表达式：Regual Expression，REGEXP
+			由一类特殊字符及文本字符所编写的模式，其中有些字符不表示其字面意义，而是用于表示控制或通配的功能；
+				分两类：
+					基本正则表达式：BRE
+					扩展正则表达式：ERE
+
+			元字符：\(hell0[[:space:]]\+\)\+
+
+	grep：Global search REgular expression and Print out the line
+		作用：文本搜索工具，根据用户指定的“模式（过滤条件）“ 对目标文逐行进行匹配检查；打印匹配到的行；
+		模式：由正则表达式的原字符及文本字符所编写的过滤条件；
+
+		正则表达式引擎：
+			perl最强
+
+		grep [OPTIONS] PATTERN [FILE...]
+		grep [OPTIONS] [-e PATTERN | -f FILE] [FILE...]
+
+			OPTIONS：
+				--color=auto：对匹配到的文本着色后高粱显示；
+				-i, --ignore-case：忽略字符的大小写；
+				-o：仅显示匹配到的字符串本身；
+				-v, --invert-match：显示不能被模式匹配到的行；
+				-E：支持使用扩展的正则表达式元字符；
+				-q, --quiet, --silent：静默模式，即不输出任何信息；
+
+				-A #：after，后#行
+				-B #：before，前#行
+				-C #：context，前后各#行
+
+			基本正则表达式元字符：
+				字符匹配：
+					. ：匹配任意单个字符；
+					[]：匹配指定范围内的任意单个字符；
+					[^]：匹配指定范围外的任意单个字符；
+						[:digit:]、[:lower:]、[:upper:]、[:alpha:]、[:alnum:]、[:punct:]、[:space:]
+
+				匹配次数：用在要指定其出现的次数的字符的后面，用于限制其前面字符出现的次数；默认工作于贪婪模式；
+					*：匹配其前面的字符任意次；0，1，多次；
+						例如：grep "x*y"
+							abxy
+							aby
+							xxxxxy
+							yab
+					.*：匹配任意长度的任意字符
+					\?：匹配其前面的字符0次或1次；即其前面的字符是可有可无的；
+						例如：grep "x\?y"
+							abxy
+							aby
+							xxxxxy
+							yab
+					\+：匹配其前面的字符1次或多次；即其前面的字符要出现出现至少1次；
+						例如：grep "x\+y"
+							abxy
+							xxxxxy
+					\{m\}：匹配其前面的字符m次；
+						例如：grep "x\{2\}y"
+							xxxxxy
+					\{m,n\}：匹配其前面的字符至少m次，至多n次；
+						\{0,n}：至多n次
+						\{m,\}：至少m次
+						例如：grep "x\{1,5\}y"
+							abxy
+							xxxxxy
+
+				位置锚定
+					^：行首锚定；由于模式的最左侧；
+					$：行尾锚定；用于模式的最右侧；
+					^PATTERN$：用PATTERN来匹配整行；
+						^$：空白行；
+						^[[:space:]]*$：空行或包含空白字符的行；
+
+					单词：非特殊字符组成的连续字符（字符串）都称为单词；
+
+					\<或\b：词首锚定，用于单词模式的左侧；
+					\>或\b：词尾锚定，用于单词模式的右侧；
+					\<PATTERN\>：匹配完整单词；
+
+				练习：
+					1、显示/ect/passwd文件中不以/bin/bash结尾的行；
+					[root@localhost ~]# grep -v "/bin/bash$" /etc/passwd
+					2、找出/etc/passwd文件中两位数或三位数；
+					[root@localhost ~]# grep "\<[[:digit:]]\{2,3\}\>" /etc/passwd
+					[root@localhost ~]# egrep "\<[0-9]{2,3}\>" /etc/passwd
+					3、找出/etc/rc.d/rc.sysinit或/etc/group2.cfg文件中，以至少一个空白字符开头，且后面非空白字符的行；
+					[root@localhost ~]# grep "^[[:space:]]\+[^[:space:]]" /etc/grub2.cfg
+					4、找出"netstat -tan"命令的结构中以'LISTEN'后跟0、1或多个空白字符结尾的行；
+					[root@localhost ~]# netstat -tan | grep "LISTEN[[:space:]]*$"
+
+				分组及引用
+					\(\)：将一个或多个字符捆绑在一起，当作一个整体进行处理；
+						\(xy\)*ab
+
+					Note：分组括号中的模式匹配到的内容会被正则表达式引擎自动记录于内部的变量中，这些变量为：
+						\1：模式从左侧起，第一个左括号以及与之匹配的右括号之间的模式所匹配到的字符；
+						\2：模式从左侧起，第二个左括号以及与之匹配的右括号之间的模式所匹配到的字符；
+						\3
+						...
+							He likes his lover.
+							He loves his lover.
+							She likes her liker.
+							She loves her lover.
+
+						grep "\(l..e\).*\1" lovers.txt
+
+						后向引用：引用前面的分组括号中的模式所匹配到的字符；
+
+	egrep：
+		支持扩展的正则表达式实现类似grep文本过滤功能；grep -E
+
+		egrep [OPTIONS] PATTERN [FILE...]
+			选项：
+				-i, -o, -v, -q, -A, -B, -C
+				-G：支持基本正则表达式
+
+			扩展正则表达式的元字符：
+				字符匹配
+					. ：任意单个字符
+					[]：指定范围内的任意单个字符
+					[^]：指定范围外的任意单个字符
+
+				次数匹配
+					*：任意次，0，1或多次；
+					?：0次或1次，其前的字符是可有可无的；
+					+：其前字符至少1次
+					{m}：其前的字符m次
+					{m,n}：至少m次，至多n次；
+						{0,n}
+						{m,}
+				位置锚定
+					^：行首锚定；
+					$：行尾锚定；
+					\<,\b：词首锚定；
+					\>,\b：词尾锚定；
+				分组及引用
+					()：分组；括号内的模式匹配到的字符会被记录于正则表达式引擎内部变量中；
+					后向引用：\1, \2 ...
+				或
+					a|b：a或者b；
+						C|car：C或者cat
+						(C|c)at：Cat或者cat
+
+	练习：
+		1、找出/proc/meminfo文件中，所有以大写或小写s开头的行，至少有三种实现方式；
+			~]# grep -i "^s"  /proc/meminfo
+			~]# grep "^[sS]" /proc/meminfo
+			~]# grep -E "^(s|S)" /proc/meminfo 
+
+		2、显示当前系统上root、centos或user1用户的相关信息；
+			~]# grep -E "^(root|centos|user1)\>" /etc/passwd
+
+		3、找出/etc/rc.d/init.d/functions文件中某单词后面跟一个小括号的行；
+			~]# grep -E "[_[:alnum:]]+\(\)" /etc/rc.d/init.d/functions
+
+		4、使用echo命令输出一绝对路径，使用egrep取出基名；
+			~]# echo /etc/sysconfig/ | egrep -o "[^/]+/?$"
+			~]# echo /etc/sysconfig/network-scripts/ | egrep -o "[[:alnum:]-]+/?$"
+
+		进一步：取出其路径名；类似于对其执行dirname命令的结果；
+			~]# echo /etc/sysconfig/network-scripts/ | egrep -o "^/.*(/[[:alnum:]])" | egrep -o "^/.*/" | egrep -o  "^.*[-[:alnum:]]"
+
+		5、找出ifconfig命令结果中的1-255之间的数值；
+			~]# ifconfig | egrep -o "\<([1-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\>"
+
+		6、课外作业：找出ifconfig命令结果中的ip地址；
+			~]# ifconfig |egrep "(\<([0,1]?[0-9]?[0-9]|2[0-4][0-9]|25[0-5])\>\.){3}\<([0,1]?[0-9]?[0-9]|2[0-4][0-9]|25[0-5])\>"
+
+		7、添加用户bash，testbash，basher以及nologin（其shell为/sbin/nologin）；而后找出/etc/passwd文件中用户名同shell名的行；
+			~]# cat /etc/passwd | egrep "(\<[[:alnum:]]+\>).*\1$"
+			~]# grep -E "^([^:]+\>).*\1$" /etc/passwd
+
+	fgrep：不支持正则表达式元字符；
+		当无需要用到元字符去编写模式时，使用fgrep必能更好；
+
+文本查看及处理工具：wc,cut,sort,uniq,diff,patch
+
+	wc：word count
+		wc [OPTION]... [FILE]...
+			-l：lines
+			-w：words
+			-c：bytes
+
+	cut：
+		cut - remove sections from each line of files
+
+		cut OPTION... [FILE]...
+			OPTIOJ：
+				-d CHAR：以指定的字符为分隔符；
+				-f FILDS：挑选出的字段；
+					#：指定的单个字段；
+					##：连续的多个字段；
+					#,#：离散的多个字段；
+					~]# cut -d: -f1,7 /etc/passwd
+
+	sort：排序
+		sort [OPTION]... [FILE]...
+			-n：基于数值大小而非字符进行排序；
+			-t CHAR：指定分隔符；
+			-k #：用于排序比较的字段；
+				~]# sort -t: -k3 -n /etc/passwd
+			-r：逆向排序;
+			-f：忽略字符大小写；
+			-u：重复的行只保留一份；
+				重复行：连续且相同；
+				~]# cut -d: -f7 /etc/passwd | sort -u 
+
+	uniq：报告或移除重复的行
+		uniq [OPTION]... [INPUT [OUTPUT]]
+		-c：显示每行的重复次数；
+			~]# cut -d: -f7 /etc/passwd | sort | uniq -c
+		-u：仅显示未曾重复过的行；
+		-d：仅显示重复过的行；
+
+	diff：Compare FILES line by line.
+		diff [OPTION]... FILES
+			[root@localhost ~]# diff fstab fstab.new 
+			2c2
+			< #
+			---
+			> # comment
+
+		diff /PATH/TO/OLDFILE /PATH/TO/NEWFILE > /PATH/TO/PATCH_FILE
+			~]# diff fstab fstab.new > fstab.patch
+
+			-u：使用unifiled机制，即显示要修改的行的上下文，默认为3行；
+				[root@localhost ~]# diff -u fstab fstab.new 
+				--- fstab	2016-07-13 00:28:33.114010339 -0400
+				+++ fstab.new	2016-07-13 00:13:37.217016213 -0400
+				@@ -1,5 +1,5 @@
+				 
+				-#
+				+# comment
+				 # /etc/fstab
+				 # Created by anaconda on Fri May 20 10:53:18 2016
+				 #
+
+
+	patch：向文件打补丁
+		（1）patch [OPTIONS] -i /PATH/TO/PATCH_FILE /PATH/TO/OLDFILE
+			[root@localhost ~]# patch -i fstab.patch fstab
+			patching file fstab
+
+		（1）patch /PATH/TO/OLDFILE < /PATH/TO/PATCH_FILE
+
+	练习：取出ifconfig eno16777736命令结果中的ip地址；

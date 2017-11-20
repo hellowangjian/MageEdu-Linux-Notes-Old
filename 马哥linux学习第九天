@@ -1,0 +1,589 @@
+马哥linux学习第九天
+
+回顾：lvm
+	
+	pv, vg, lv
+	功用：空间动态变化、快照
+
+	pv --> vg --> lv
+
+	dd命令：dd if= of= bs= count=
+
+	Linux：diff & patch
+
+思考：
+	patch如何还原打了补丁以后的文件至原来的版本？
+
+Linux网络属性管理(1)
+
+	Bell(AT&T)，PARC(Xerox)
+		以太网
+
+	计算机网络：共享底层通信信道
+
+		CSMA/CD算法：（Carrier Sense Multiple Access with Collision Detection）
+		token
+
+		IANA：互联网地址编码分配机构（Internet Assigned Numbers Authority）
+
+		MAC：Media Access Control
+
+		IP网络：Internet Protocol
+
+			32bits：每8bits一段，共4段
+				8bits：0-255
+					0000 0000 - 1111 11111
+					1.1.1.1
+
+				地址被切割为两部分：
+					左侧：区域标识，网络标识
+					右侧：主机标识
+
+		网桥：分割冲突域
+		路由器：分割广播域
+			将一个大网络分割成多个小网络，每个网络都有自己的网络地址；
+			每个网络中可以存在多个主机，每个主机都有自己在本网络内唯一地址标识；
+
+			完整地址：网络地址 主机地址
+
+			IP地址分类：
+				A, B, C, D, E
+
+
+					0000 0000 - 1111 1111
+
+				A类网络：
+					0000 0001 - 0111 1111 1-127
+					N.H.H.H
+				B类网络：
+					1000 0000 - 1011 1111 128-191
+					N.N.H.H
+				C类网络：
+					1100 0000 - 1101 1111 192-223
+					N.N.N.H
+				D类网络：
+					1110 0000 - 1110 1111 224-239
+				E类网络：
+					1111 0000 - 1111 1111 240-255
+
+
+				子网掩码：网络位部分全为1，主机位部分全位0
+					子网掩码：
+						用于通过计算得出网络地址
+						IP & Netmask
+
+						1.1.1.1
+
+						0000 0001. 0000.0001. 0000 0001. 0000 0001
+						1111 1111. 0000 0000. 0000 0000. 0000 0000
+
+						0000 0001. 0000 0000. 0000 0000. 0000 0000
+						1.0.0.0
+
+			网络间转发：IP地址中获取出的网络地址来进行的；
+			本地主机间通信：MAC地址；
+
+			ARP：地址解析 Address Resolve Protocol
+				IP --> MAC
+
+			进程地址：端口号
+				1.1.1.1:80
+
+			资源地址：具体的应用协议来各自定义具体的实现方式
+
+			局域网：本地网络
+				网络地址：路由器
+
+		协议栈：分层设计
+			OSI模型：
+				物理层(PL)：定义物理设备规范及电器信号特性；
+				数据链路层(DLL)：本地网络通信，定义MAC地址；
+				网络层(NL)：定义网络间通信，定义IP地址；
+				传输层(TL)：进程间通信，定义进程地址；
+				回话层(SL)：会话建立和拆除；
+				表示层(PresentationL)：数据的标识方式；
+				应用层(AL)：完成数据交换；
+			TCP/IP模型：
+				物理层
+				互联网层
+				传输层	
+					UDP：User Data Protocol
+						无连接的协议
+					TCP：Transport Control Protcol
+						有链接的协议
+				应用层
+
+		IP首部格式和TCP首部格式
+
+		子网划分，路由协议（OSPF，rip2）
+
+			交换机：switch，MAC地址表
+				单工
+				半双工
+				全双工：没有冲突域
+			路由器：路由表
+				目标网络 经由的路径 开销
+
+				OSPF：路由协议
+					学习生成路由表
+				IP：可路由协议
+
+			传输层：
+				进程启动时向内核注册试用某端口，所以，当网络报文到达时，首先到达内核；
+
+			应用层：
+				进程负责处理应用层协议；
+
+回顾：网络基础知识
+	OSI：PL,DLL,NL,TL,SL,RL,AL
+	TCP/IP：AL,TL,NL,DLL
+
+	本地网络中的主机间通信:MAC
+	跨网络的主机间通信：
+		网络间数据报文转发；网络地址（IP，Netmask），Router
+		本地网络中的主机间通信:MAC
+		路由器：路由表 routing table
+			生成方式：
+				静态方式：手动添加
+				动态方式：路由协议学习生存，OSPF
+	进程间通信：
+		Socket,IP:PORT
+			Client(ip:port) <--> Server(ip:port)
+		应用层间通信：
+			应用层协议：
+				smtp: simple mail transfer protocol
+				http: hyper text transfer prtocol
+
+		通信子王，资源子网
+
+Linux网络基础（2）
+
+	IANA,ICANN
+
+	ipv4:
+		A类：
+			0 000 0000 - 0 111 1111: 1-127
+			特性：N.H.H.H
+			默认掩码：255.0.0.0
+			网络数：126个
+				每个网络中的主机位：
+					全1为：广播地址
+					全零为：网络地址
+				每个网络中可以容纳多少个主机：2^24-2
+			回环：127.0.0.0/8
+			私有地址：10.0.0.0/8
+		B类：
+			10 00 0000 - 10 11 1111:128-191
+			特性：N.N.H.H
+			默认掩码：255.255.0.0
+			网络数：2^14
+				每个网络中的主机：
+					每个网络中可以容纳多少个主机：2^16-2
+			私有地址：172.16.0.0/16-172.31.0.0/16
+		C类：
+			110 0 0000 110 1 1111：192－223
+			特性：N.N.N.H
+			掩码：255.255.255.0
+			网络数：2^21
+				每个网络中的主机：
+					每个网络中可以容纳多少个主机：2^8-2
+			私有地址：192.168.0.0/24-192.168.255.0/24
+		D类：组播地址
+		E类：预留地址
+
+		NAT：Network Address Translation
+
+	FQDN：Full Qualified Domain Name
+		http://www.magedu.com
+
+	Linux主机接入到TCP/IP网络：
+		IP/Netmask
+		路由：建立路由条目
+			网络路由：目标是一个网络
+			主机路由：目标是一个主机
+			默认路由：目标是所有的非本地网络
+
+			注意：下一跳路由接口的地址必须与本地主机的某个地址在同一网络中；
+
+		DNS服务器指向：
+			主DNS服务器：
+			备用DNS服务器：
+			第三备用DNS服务器
+
+		配置IP及Netmask：
+			静态
+			动态（DHCP）
+				前提：本地物理网络要有一个DHCP服务器动态提供地址；
+
+			静态配置地址：
+				ifconfig命令
+				ip命令
+				GUI工具
+				TUI工具
+				编辑配置文件
+
+			Interface名称：
+				以太网：ethX，例如eth0，eth1
+					   ensX
+					   emX
+				PPP网络：pppX
+				本地环回接口：lo
+					仅用于本机上进程间基于内核完成通信
+						127.0.0.1
+
+			ifconfig命令：
+				查看借口信息：
+					ifconfig ［Interface］
+						-a：包括未激活状态的所有接口
+
+					MTU：最大传输单元
+				启用或禁用：ifconfig IFNAME up|down
+					启用：ifup IFNAME
+					禁用：ifdown IFNAME
+
+				设定ip地址：
+					ifconfig IFNAME IP/Netask [up]
+							注意：CIDR格式的掩码
+						]# ifconfig eth0 10.0.0.1/8 up
+
+					ifconfig IFNAME IP
+						]# ifconfig eth0 172.16.100.11 netmask 255.255.255.0
+							注意：完整格式的掩码，即类似255.255.255.0
+					设定的地址会立即送往内核，因此，会立即生效；但不会永久有效；
+
+			ping命令：
+				用ICMP的ECHO_REQUEST报文测试主机间的连通性
+					ping [OPTION] DESTINATION
+						-c #：发送ping报文次数
+						-s #：发送的探测报文的大小
+						-w #：ping命令运行时长
+
+		练习：写一个脚本
+			1、使用ping命令探测172.16.250.1-172.16.250.254之间的所有主机的在线状态；
+				在线的主机使用绿色显示
+				不在线的主机使用红色显示
+
+		route命令：路由管理
+			查看本机内核路由表：
+				route
+					-n：numeric，数字格式显示地址
+			添加路由：新增路由条目，用户告诉本机至目标网络或要经由的下一跳路由；
+				route add [-net|host] TARGET gw GATWAY [dev IFNAME]
+
+					示例：到达192.168.0.0/24网络，经由172.16.0.1网关
+							# route add -net 192.168.0.0/24 gw 172.16.0.1
+						 到达192.168.1.1，经由172.16.0.1网关
+						 	# route add -host 192.168.1.1 gw 172.16.0.1
+						 设定默认网关：
+						 	# route add -net 0.0.0.0 gw 172.16.0.1
+						 	# route add default gw 172.16.0.1
+
+			删除路由：
+				route del [-net|-host] TARGET gw GETWAY [dev IFNAME]
+
+					示例：删除上述配置的默认路由
+						# route del -net 0.0.0.0 gw 172.16.0.1
+
+			注意：所有配置立即发往内核中的协议栈，所以立即生效，但不会永久有效；
+
+		配置DNS服务器指向：
+			/etc/resolv.conf
+
+			指令：
+				nameserver DNS_SERVER_IP
+
+			测试命令：
+				dig 
+
+				测试能否解析某个FQDN（正向解析）
+					dig -t A FQDN
+						[root@vBird ~]# dig -t A www.baidu.com						
+						; <<>> DiG 9.8.2rc1-RedHat-9.8.2-0.17.rc1.el6 <<>> -t A www.baidu.com
+						;; global options: +cmd
+						;; Got answer:
+						;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 13635
+						;; flags: qr rd ra; QUERY: 1, ANSWER: 3, AUTHORITY: 0, ADDITIONAL: 0
+
+						;; QUESTION SECTION:
+						;www.baidu.com.			IN	A
+
+						;; ANSWER SECTION:
+						www.baidu.com.		5	IN	CNAME	www.a.shifen.com.
+						www.a.shifen.com.	5	IN	A	115.239.211.112
+						www.a.shifen.com.	5	IN	A	115.239.210.27
+
+						;; Query time: 9 msec
+						;; SERVER: 172.16.227.2#53(172.16.227.2)
+						;; WHEN: Thu Sep 29 09:13:39 2016
+						;; MSG SIZE  rcvd: 90
+				测试能否解析某个IP为FQDN（反向解析）
+					dig -x ip_Address
+
+		配置IP、Netmask、网关、DNS服务指向的第二种方式
+			setup --> Network Configurations
+			system-config-network
+
+			注意：此种配置方式的配置结果是保存至配置文件；不会立即生效
+				生效：
+					重启系统
+					重启网络接口的相关服务
+
+			网络管理的相关服务有两个：
+				NetworkManager
+				network
+
+				建议使用network
+
+				查看其能否开机运行：
+				~]# chkconfig --list | grep -E "(NetworkManager|network)"
+				NetworkManager 	0:关闭	1:关闭	2:启用	3:启用	4:启用	5:启用	6:关闭
+				network        	0:关闭	1:关闭	2:启用	3:启用	4:启用	5:启用	6:关闭
+						 
+				启用或禁用开机自动运行：
+				~]# chkconfig SERVICE_NAME on|off
+
+				立即启动或关闭指定服务：
+				~]# services SERVICE_NAME start|stop|restart
+				~]# /etc/init.d/SERVICE_NAME start|stop|restart
+
+				[root@vBird ~]# chkconfig --list | grep -E "(NetworkManage|network)"
+				NetworkManager 	0:关闭	1:关闭	2:启用	3:启用	4:启用	5:启用	6:关闭
+				network        	0:关闭	1:关闭	2:启用	3:启用	4:启用	5:启用	6:关闭
+				[root@vBird ~]# chkconfig NetworkManager off
+				[root@vBird ~]# /etc/init.d/NetworkManager stop
+				停止 NetworkManager 守护进程：                             [确定]
+				[root@vBird ~]# chkconfig --list | grep -E "(NetworkManage|network)"
+				NetworkManager 	0:关闭	1:关闭	2:关闭	3:关闭	4:关闭	5:关闭	6:关闭
+				network        	0:关闭	1:关闭	2:启用	3:启用	4:启用	5:启用	6:关闭
+
+		配置IP、Netmask、网关、DNS服务指向的第三种方式
+
+			每个网络接口都有一个配置文件：/etc/sysconfig/network-scripts/ifcfg-IFNAME
+				PARAMENT=VALUE
+
+			DEVICE=eth0
+			HWADDR=00:0c:29:1e:db:69
+			TYPE=Ethernet
+			UUID=cb7f32df-f042-4be8-9aa0-13deb3b1a749
+			ONBOOT=yes
+			NM_CONTROLLED=yes
+			BOOTPROTO=dhcp
+			USERCTL=no
+			PEERDNS=yes
+			IPV6INIT=no
+
+
+				常用参数：
+					DEVICE：此配置文件所关联到的设备，其值通常应该是ifcfg-IFNAME中的IFNAME；
+					BOOTPROTO：启动此设备时使用的配置协议，取值有static（手动配置）、none（手动配置）、dhcp或bootp（动态配置）
+					HWADDR：网卡的MAC地址，此地址应该与网卡设备ROM中固定的地址保持一致；
+					NM_CONTROLLED：NM即NetworkManager的简写，建议设置为no
+					ONBOOT：此设备是否随os启动而激活；
+					TYPE：设备类型，通常有“Ethernet”，“Bridge”
+					UUID：设备的全局UID，可以删除，但不要随便修改
+					IPADDR：此接口的IP地址
+					NETMASK：子网掩码；
+					GATEWAY：网关；
+					DNS1：DNS服务器指向的主DNS服务器；
+					DNS2：
+					DNS3：
+					IPV6INIT：是否初始化ipv6协议地址；
+					USERCTL：是否允许普通用户管理此接口；
+					PEERDNS：当BOOTPROTO=dhcp时，是否允许dhcp服务器提供的dns服务指向覆盖本地手动配置的dns服务器指向；
+
+				注意：重启网络服务network服务后方能生效；
+
+			静态路由配置文件：
+				/etc/sysconfig/network-scripts/route-IFNAME
+				配置方式一：
+					每一行定义一个路由条目
+						DESTINATION via GATEWAY
+							例如：
+								192.168.0.0/24 via 172.16.0.2
+								192.168.1.1 via 172.16.0.3
+
+				配置方式二：
+					每三行定义一个路由条目：
+						ADDRESS#=
+						NETMASK#=
+						GATEWAY#=
+
+						例如：
+							ADDRESS1=192.168.0.0
+							NETMASK1=255.255.255.0
+							GATEWAY1=172.16.0.2
+
+							ADDRESS2=192.168.1.1
+							NETMASK1=255.255.255.255
+							GATEWAY1=172.16.0.2
+
+				注意：两种方式不能混合使用
+
+		配置IP、Netmask、网关的第四种方式
+
+			ip命令：
+				p [ OPTIONS ] OBJECT { COMMAND | help }
+      	 		OBJECT := { link | addr | route  }
+
+      	 				link：链接接口，如eth0
+      	 				addr：管理接口上的地址
+      	 				route：管理路由
+
+      	 			link：
+      	 				set：设定接口属性
+      	 					ip link set DEVICE 
+      	 						{up|down}：启用或禁用接口；
+      	 						promisc {on|off}：是否开启混杂模式
+      	 						name NEWNAME ：设定接口的新名字
+      	 				show：显示接口状态，例如启用的特性，HWADDR
+      	 					ip link show [ DEVICE ]
+
+      	 			addr：管理接口地址
+      	 				add：添加地址
+      	 				del：删除地址
+      	 					ip addr { add | del } IFADDR dev STRING
+      	 						root@vBird ~]# ip addr add 10.1.10.1/8 dev eth0
+      	 						[root@vBird ~]# ip addr show eth0
+								2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP qlen 1000
+								    link/ether 00:0c:29:1e:db:69 brd ff:ff:ff:ff:ff:ff
+								    inet 172.16.227.149/24 brd 172.16.227.255 scope global eth0
+								    inet 10.1.10.1/8 scope global eth0
+								    inet6 fe80::20c:29ff:fe1e:db69/64 scope link 
+								       valid_lft forever preferred_lft forever
+
+								[root@vBird ~]# ip add del 10.1.10.1/8 dev eth0
+								[root@vBird ~]# ip addr show eth0
+								2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP qlen 1000
+								    link/ether 00:0c:29:1e:db:69 brd ff:ff:ff:ff:ff:ff
+								    inet 172.16.227.149/24 brd 172.16.227.255 scope global eth0
+								    inet6 fe80::20c:29ff:fe1e:db69/64 scope link 
+								       valid_lft forever preferred_lft forever
+
+      	 				show：显示地址
+      	 					ip addr show [dev IFNAME]
+      	 				flush：清除接口所有IP地址
+      	 					ip addr flush [dev IFNAME]
+
+      	 			route：管理路由
+      	 				list|show：显示路由
+      	 					ip route list
+      	 				add：添加路由
+      	 					ip route add DESTINATION via GATEWAY [dev IFNAME]
+
+      	 					示例：设置默认网关
+      	 						~]# ip route add default via 172.16.0.1
+      	 				del；删除路由
+      	 					ip route del DESTINATION 
+      	 					例如：
+      	 						~]#ip route del 192.168.0.0/24
+
+      	 如何给接口配置多个地址的其它方式：
+      	 	（1）ifconfig命令
+      	 		网卡接口的别名：ethX:Y,例如eth0:0,eth0:1
+      	 		ifconfig IF_ALIAS IPADDR  netmask NETMASK [up]
+      	 			~]# ifconfig eth0:0 172.16.100.11/16 up
+      	 	（2）配置文件
+      	 		/etc/sysconfig/network-scripts/ifcfg-IF_ALIAS，例如：ifcfg-eth0:0
+      	 			DEVICE=IF_ALIAS
+      	 			BOOTPROTO={static|none}：别名的地址不能动态获取
+      	 			IPADDR=
+      	 			NETMASK=
+      	 			ONBOOT=
+      	 	（3）ip命令
+
+      	 配置主机名：
+      	 	man hostname里有这么一句话，”The host name is usually set once at system startup in /etc/rc.d/rc.inet1 or /etc/init.d/boot (normally by reading the contents of a file which contains the host name, e.g. /etc/hostname).” RedHat里没有这个文件，而是由/etc/rc.d/rc.sysinit这个脚本负责设置系统的hostname，它读取/etc /sysconfig/network这个文本文件，RedHat的hostname就是在这个文件里设置。 
+			所以，如果要永久修改RedHat的hostname，就修改/etc/sysconfig/network文件，将里面的HOSTNAME这一行修改成HOSTNAME=NEWNAME，其中NEWNAME就是你要设置的hostname。 
+			Debian发行版的hostname的配置文件是/etc/hostname。 
+			修该配置文件后，重启系统就会读取配置文件设置新的hostname。 
+			
+      	 	（1）hostname命令
+      	 		[root@vBird ~]# hostname
+				vBird.com
+				[root@vBird ~]# hostname www.vBird.com
+				[root@vBird ~]# hostname
+				www.vBird.com
+
+			（2）内核参数：/proc/sys/kernel/hostname 
+				~]# echo "HOSTNAME" > /proc/sys/kernel/hostname 
+
+			配置文件：
+				/etc/sysconfig/network
+					HOSTNAME=vBird.com
+
+		网络管理的几个常用工具：
+			(1) ping
+			(2) traceroute
+				探测到大目标主机中间所经过网关设备
+			(3) mtr
+				mtr HOST
+				合并了ping与traceroute命令的功能的网络诊断工具；
+
+		网络状态探测工具：
+			(1) nestat
+				-r：显示路由表
+					netstat -nr
+				-n：numeric，数字显示，不反解IP地址至主机名；
+
+				-l：显示处于监听状态（即等待别的进程链接访问）；
+				-t：tcp协议的相关链接
+					root@vBird ~]# netstat -tn ：显示tcp已经建立的链接
+					root@vBird ~]# netstat -tn ：显示tcp监听的端口
+				-u：udp协议的相关链接
+					[root@vBird ~]# netstat -unl ：显示udp监听的端口
+				-a：显示所有链接，对于tcp而言即处于各种状态；
+					[root@vBird ~]# netstat -tan
+				-p：显示相关链接的关联到的进程的名字及PID；
+					[root@vBird ~]# netstat -tanp
+
+				常用组合：-rn,-tnl,-unl,-tunl,-tan,-tnlp
+
+			(2) ss
+				-t：tcp协议的相关链接
+				-n：数字格式
+				-u：udp协议相关链接
+				-l：处于监听状态
+				-a：所有链接
+				-e：显示扩展信息
+				-m：内存使用信息
+				-o state {established|fin_wait_1|fin_wait_2|listening}
+					[root@vBird ~]# ss -o state established
+				常用组合：-rn,-tnl,-unl,-tunl,-tan,-tnlp
+
+			(3) iftop：
+					以链接为中心显示带宽占用情况
+					iftop [-i IFNAME]
+			(4) nethogs
+					以进程为中心显示带宽占用情况
+					nethogs [IFNAME]
+
+		网络安全工具：
+			(1) nmap
+			(2) ncat
+			(3) tcpdump
+
+
+
+
+
+						 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

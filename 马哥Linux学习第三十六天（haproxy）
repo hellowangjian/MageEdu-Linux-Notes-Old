@@ -1,0 +1,246 @@
+马哥Linux学习第三十六天（haproxy）
+
+haproxy:
+	
+	kv：key --> value
+		取模法：
+		一致性hash算法：consistent hashing
+			偏斜：虚拟服务器
+
+	LB：
+		tcp：
+			lvs，haproxy，nginx
+		application Layer：
+			http：haproxy，nginx，ats，apache
+			mysql：mysql-proxy
+
+	http代理：
+		正向代理
+		反向代理：Haproxy
+
+		私有代理、公共代理
+
+	代理的作用：
+		访问控制、web缓存(加速)、反向代理、内容路由(根据流量及内容类型等条件将请求转发至特定的服务器)、转码器
+
+		在代理服务器上添加Via首部
+
+	缓存的作用：
+		减少冗余内容的传输；
+		节省带宽、缓解网络瓶颈
+		降低了对原始服务器的请求压力
+		降低了传输延迟
+
+	HAProxy：只是http协议的反向代理，但支持tcp层对基于tcp的应用层做LB；
+
+	HAProxy：
+		安装：
+			CentOS 6.4+:
+				yum install haproxy
+
+				配置文件：/etc/haproxy/haproxy.cfg
+				服务脚本：/etc/rc.d/init.d/haproxy
+				主程序：/usr/sbin/haproxy
+
+		nginx：
+			upstream s1 {
+				ip_hash
+				server
+				server
+			}
+			upstream s2 {
+
+			}
+
+			server {
+				linsten
+				server_name
+				proxy_pass
+			}
+
+			server {
+
+			}
+
+		haproxy：
+			frontend
+			backend
+			listen
+			default
+
+			配置的组成部分：
+				全局配置
+					global
+				代理配置
+					defaults, frontend, backend, listen
+
+				优先级：
+					命令行参数、global、proxies
+
+回顾：
+	HAProxy：http reverse proxy, tcp lb
+		event-driven, ebtree, 
+		主要工作于单进程模式；
+
+	功能：
+		七层：http reverse proxy
+		tcp：https，mysql
+
+	配置：/etc/haproxy/haproxy.cfg
+		全局配置：
+			global
+		代理配置：
+			defaults，frontend，backend，listen
+
+HAProxy（2）
+	全局配置
+
+		“global”配置中的参数为进程级别的参数，且通常与其运行的OS相关。
+
+		 * 进程管理及安全相关的参数
+		   - chroot <jail dir>：修改haproxy的工作目录至指定的目录并在放弃权限之前执行chroot()操作，可以提升haproxy的安全级别，不过需要注意的是要确保指定的目录为空目录且任何用户均不能有写权限；
+		   - daemon：让haproxy以守护进程的方式工作于后台，其等同于“-D”选项的功能，当然，也可以在命令行中以“-db”选项将其禁用；
+		   - gid <number>：以指定的GID运行haproxy，建议使用专用于运行haproxy的GID，以免因权限问题带来风险；
+		   - group <group name>：同gid，不过指定的组名；
+		   - log  <address> <facility> [max level [min level]]：定义全局的syslog服务器，最多可以定义两个；
+		   - log-send-hostname [<string>]：在syslog信息的首部添加当前主机名，可以为“string”指定的名称，也可以缺省使用当前主机名；
+		   - nbproc <number>：指定启动的haproxy进程的个数，只能用于守护进程模式的haproxy；默认只启动一个进程，鉴于调试困难等多方面的原因，一般只在单进程仅能打开少数文件描述符的场景中才使用多进程模式；
+		   - pidfile：
+		   - uid：以指定的UID身份运行haproxy进程；
+		   - ulimit-n：设定每进程所能够打开的最大文件描述符数目，默认情况下其会自动进行计算，因此不推荐修改此选项；
+		   - user：同uid，但使用的是用户名；
+		   - stats：
+		   - node：定义当前节点的名称，用于HA场景中多haproxy进程共享同一个IP地址时；
+		   - description：当前实例的描述信息；
+
+		 * 性能调整相关的参数
+		   - maxconn <number>：设定每个haproxy进程所接受的最大并发连接数，其等同于命令行选项“-n”；“ulimit -n”自动计算的结果正是参照此参数设定的；
+		   - maxpipes <number>：haproxy使用pipe完成基于内核的tcp报文重组，此选项则用于设定每进程所允许使用的最大pipe个数；每个pipe会打开两个文件描述符，因此，“ulimit -n”自动计算时会根据需要调大此值；默认为maxconn/4，其通常会显得过大；
+		   - noepoll：在Linux系统上禁用epoll机制；
+		   - nokqueue：在BSD系统上禁用kqueue机制；
+		   - nopoll：禁用poll机制；
+		   - nosepoll：在Linux禁用启发式epoll机制；
+		   - nosplice：禁止在Linux套接字上使用内核tcp重组，这会导致更多的recv/send系统调用；不过，在Linux 2.6.25-28系列的内核上，tcp重组功能有bug存在；
+		   - spread-checks <0..50, in percent>：在haproxy后端有着众多服务器的场景中，在精确的时间间隔后统一对众服务器进行健康状况检查可能会带来意外问题；此选项用于将其检查的时间间隔长度上增加或减小一定的随机时长；
+		   - tune.bufsize <number>：设定buffer的大小，同样的内存条件下，较小的值可以让haproxy有能力接受更多的并发连接，较大的值可以让某些应用程序使用较大的cookie信息；默认为16384，其可以在编译时修改，不过强烈建议使用默认值；
+		   - tune.chksize <number>：设定检查缓冲区的大小，单位为字节；更大的值有助于在较大的页面中完成基于字符串或模式的文本查找，但也会占用更多的系统资源；不建议修改；
+		   - tune.maxaccept <number>：设定haproxy进程内核调度运行时一次性可以接受的连接的个数，较大的值可以带来较大的吞吐率，默认在单进程模式下为100，多进程模式下为8，设定为-1可以禁止此限制；一般不建议修改；
+		   - tune.maxpollevents  <number>：设定一次系统调用可以处理的事件最大数，默认值取决于OS；其值小于200时可节约带宽，但会略微增大网络延迟，而大于200时会降低延迟，但会稍稍增加网络带宽的占用量；
+		   - tune.maxrewrite <number>：设定为首部重写或追加而预留的缓冲空间，建议使用1024左右的大小；在需要使用更大的空间时，haproxy会自动增加其值；
+		   - tune.rcvbuf.client <number>：
+		   - tune.rcvbuf.server <number>：设定内核套接字中服务端或客户端接收缓冲的大小，单位为字节；强烈推荐使用默认值；
+		   - tune.sndbuf.client：
+		   - tune.sndbuf.server：
+
+		 * Debug相关的参数
+		   - debug
+		   - quiet
+
+	 代理
+
+		代理相关的配置可以如下配置段中。
+
+		 - defaults <name>
+		 - frontend <name>
+		 - backend  <name>
+		 - listen   <name>
+
+		 “defaults”段用于为所有其它配置段提供默认参数，这配置默认配置参数可由下一个“defaults”所重新设定。
+
+		 “frontend”段用于定义一系列监听的套接字，这些套接字可接受客户端请求并与之建立连接。
+
+		 “backend”段用于定义一系列“后端”服务器，代理将会将对应客户端的请求转发至这些服务器。
+
+		 “listen”段通过关联“前端”和“后端”定义了一个完整的代理，通常只对TCP流量有用。
+
+		 所有代理的名称只能使用大写字母、小写字母、数字、-(中线)、_(下划线)、.(点号)和:(冒号)。此外，ACL名称会区分字母大小写。
+
+	代理参数：
+		balance：指明调度算法，算法可分为动态（权重可动态调整）和静态（调整权重不会实时生效）两类
+			roundrobin：轮询
+			static-rr：静态轮询
+			leastconn：适用于有着较长会话的协议；动态；
+			source：
+				hash-type：
+					map-based：静态；
+					consistent：动态；
+			uri：
+				scheme：//host{port/path/to/some_resource? #
+			rul_param：
+				hdr(name)
+					header(host)
+			rdp-cookie
+			rdp-cookie(name)
+
+		defaults-backend <baxkend>：用于frontend中，用于指明为请求提供服务的backend；
+		use_backend <backend> [{if | unless} <condition>]：条件式后端指定；
+			<condition>由ACL定义的；
+
+		server <name> <address>[:[port]] [param*]
+			[param*]：
+				check：启用对server的健康状态检测功能，tcp层的检测；补充类的参数；
+					inter：时间间隔
+					rise：上线前的成功检查次数
+					fall：下线前的失败检查次数
+				cookie：分配给server的cookie信息；
+
+				disabled：设置服务器为“禁用状态”；
+				maxconn：最大并发连接数；
+				maxqueue：等待队列的最大长度；0表示无上限；
+				minconn：最少并发连接数；
+				weight：权重；
+
+		bind：用于frontend或listen中，指明监听的地址和端口；
+		mode：指明haproxy代理模式，默认为tcp；
+
+		haproxy cookie sticky：
+			cookie：Enable cookie-based persistence in a backend.
+
+			具体实现方式：
+			backend appservers
+		    balance     roundrobin
+		    option httpchk
+		    cookie SERVERID insert indirect nocache
+		    server  web1 172.16.100.6:80 check inter 2 rise 1 fall 3 cookie web1
+		    server  web2 172.16.100.7:80 check inter 2 rise 1 fall 3 cookie web2
+
+		option forwardfor [ except <network> ] [ header <name> ] [ if-none ]
+			enable insertion of the X-Forwarded-For header to requests sent to servers
+
+			默认default中有定义，需在后端服务器修改日志记录格式：
+				LogFormat "%{X-Forwarded-For}i %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
+
+		动静分离的示例：
+			frontend  main *:80
+			    acl url_static       path_beg       -i /static /images /javascript /stylesheets
+			    acl url_static       path_end       -i .jpg .gif .png .css .js
+
+			    use_backend static          if url_static
+			    default_backend             appservers
+
+			#---------------------------------------------------------------------
+			# static backend for serving up images, stylesheets and such
+			#---------------------------------------------------------------------
+			#backend static
+			    balance     roundrobin
+			    server      static1 172.16.100.9 check
+			    server      static1 172.16.100.10 check
+
+			#---------------------------------------------------------------------
+			# round robin balancing between the various backends
+			#---------------------------------------------------------------------
+			backend appservers
+			    balance     roundrobin
+			#    option httpchk
+			    server  web1 172.16.100.6:80 check inter 2 rise 1 fall 3
+			    server  web2 172.16.100.7:80 check inter 2 rise 1 fall 3
+
+	博客作业：haproxy
+
+
+
+
+
+
+
+

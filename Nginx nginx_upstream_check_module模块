@@ -1,0 +1,198 @@
+Nginx nginx_upstream_check_module模块
+
+nginx_upstream_check_module是淘宝技术团队开发的nginx模块，通过它可以用来检测后端 realserver 的健康状态。如果后端 realserver 不可用，则所以的请求就不会转发到该节点上。
+ 在淘宝自己的 tengine 上是自带了该模块的，大家可以访问淘宝tengine的官网来获取该版本的nginx，官方地址：http://tengine.taobao.org/。
+
+
+部署步骤：
+	1、下载nginx_upstream_check_module模块
+		~]# cd /usr/local/src/
+		src]# wget https://github.com/yaoweibin/nginx_upstream_check_module/archive/master.zip
+		src]# unzip master.zip 
+
+	2、为nginx打补丁
+		src]# cd nginx-1.8.1
+		nginx-1.8.1]# patch -p1 < ../nginx_upstream_check_module-master/check_1.7.5+.patch 
+		patching file src/http/modules/ngx_http_upstream_hash_module.c
+		Hunk #3 succeeded at 528 (offset 10 lines).
+		patching file src/http/modules/ngx_http_upstream_ip_hash_module.c
+		patching file src/http/modules/ngx_http_upstream_least_conn_module.c
+		patching file src/http/ngx_http_upstream_round_robin.c
+		patching file src/http/ngx_http_upstream_round_robin.h
+
+	3、编译安装
+		# useradd -r nginx
+		# ./configure --prefix=/usr/local/nginx --conf-path=/etc/nginx/nginx.conf --user=nginx --group=nginx --error-log-path=/var/log/nginx/error.log --http-log-path=/var/log/nginx/access.log --pid-path=/var/run/nginx/nginx.pid --lock-path=/var/lock/nginx.lock --with-http_ssl_module --with-http_stub_status_module --with-http_gzip_static_module --with-http_flv_module --with-http_mp4_module --http-client-body-temp-path=/var/tmp/nginx/client --http-proxy-temp-path=/var/tmp/nginx/proxy --http-fastcgi-temp-path=/var/tmp/nginx/fastcgi --http-uwsgi-temp-path=/var/tmp/nginx/uwsgi --add-module=/usr/local/src/nginx_upstream_check_module-master/
+		# make && make install
+		# mkdir -pv /var/tmp/nginx/{client,proxy,fastcgi,uwsgi}
+
+	4、测试：
+		在nginx.conf配置文件中的upstream加入健康检查，如下：
+			upstream websers {
+		        server 192.168.10.66:80;
+		        server 192.168.10.77:80;
+		        check interval=3000 rise=2 fall=5 timeout=1000 type=http;
+		    }
+
+			上面配置的意思是，对websers这个负载均衡条目中的所有节点，每个3秒检测一次，请求2次正常则标记 realserver状态为up，如果检测 5 次都失败，则标记 realserver的状态为down，超时时间为1秒。
+
+			check指令的用法：
+			Syntax: check interval=milliseconds [fall=count] [rise=count] [timeout=milliseconds] [default_down=true|false] [type=tcp|http|ssl_hello|mysql|ajp] [port=check_port]
+			Default: interval=30000 fall=5 rise=2 timeout=1000 default_down=true type=tcp
+			Context: upstream
+			    - interval：向后端发送的健康检查包的间隔。
+			    - fall(fall_count): 如果连续失败次数达到fall_count，服务器就被认为是down。
+			    - rise(rise_count): 如果连续成功次数达到rise_count，服务器就被认为是up。
+			    - timeout: 后端健康请求的超时时间。
+			    - default_down: 设定初始时服务器的状态，如果是true，就说明默认是down的，如果是false，就是up的。默认值是true，也就是一开始服务器认为是不可用，要等健康检查包达到一定成功次数以后才会被认为是健康的。
+			    - type：健康检查包的类型，现在支持以下多种类型
+			    - tcp：简单的tcp连接，如果连接成功，就说明后端正常。
+			    - ssl_hello：发送一个初始的SSL hello包并接受服务器的SSL hello包。
+			    - http：发送HTTP请求，通过后端的回复包的状态来判断后端是否存活。
+			    - mysql: 向mysql服务器连接，通过接收服务器的greeting包来判断后端是否存活。
+			    - ajp：向后端发送AJP协议的Cping包，通过接收Cpong包来判断后端是否存活。
+			    - port: 指定后端服务器的检查端口。你可以指定不同于真实服务的后端服务器的端口，比如后端提供的是443端口的应用，你可以去检查80端口的状态来判断后端健康状况。默认是0，表示跟后端server提供真实服务的端口一样。该选项出现于Tengine-1.4.0。
+
+		在server中配置显示realserver健康状态页面：
+			    location /nstatus {
+		            check_status;
+		            access_log off;
+		            #allow IP;
+		            #deny all;
+		        }   
+
+		在server中配置nginx反向代理：
+			    location / {
+		            proxy_pass htto://websers;
+		        }
+
+		测试配置文件语法，并启动服务：
+			# /usr/local/nginx/sbin/nginx -t
+			nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
+			nginx: configuration file /etc/nginx/nginx.conf test is successful
+			# /usr/local/nginx/sbin/nginx
+			# ss -tnl
+			State      Recv-Q Send-Q                                  Local Address:Port                                    Peer Address:Port 
+			LISTEN     0      128                                                 *:80                                                 *:*     
+
+		使用浏览器访问测试如下：
+		http://192.168.10.12/nstatus
+			Nginx http upstream check status
+
+			Check upstream server number: 2, generation: 1
+
+			Index	Upstream	Name	Status	Rise counts	Fall counts	Check type	Check port
+			0	websers	192.168.10.66:80	up	28	0	http	0
+			1	websers	192.168.10.77:80	up	8	0	http	0
+
+nginx_upstream_check_module详细使用方法如下：
+	http://tengine.taobao.org/document/http_upstream_check.html
+
+	Examples：
+		http {
+		    upstream cluster1 {
+		        # simple round-robin
+		        server 192.168.0.1:80;
+		        server 192.168.0.2:80;
+		        check interval=3000 rise=2 fall=5 timeout=1000 type=http;
+		        check_http_send "HEAD / HTTP/1.0\r\n\r\n";
+		        check_http_expect_alive http_2xx http_3xx;
+		    }
+		    upstream cluster2 {
+		        # simple round-robin
+		        server 192.168.0.3:80;
+		        server 192.168.0.4:80;
+		        check interval=3000 rise=2 fall=5 timeout=1000 type=http;
+		        check_keepalive_requests 100;
+		        check_http_send "HEAD / HTTP/1.1\r\nConnection: keep-alive\r\n\r\n";
+		        check_http_expect_alive http_2xx http_3xx;
+		    }
+		    server {
+		        listen 80;
+		        location /1 {
+		            proxy_pass http://cluster1;
+		        }
+		        location /2 {
+		            proxy_pass http://cluster2;
+		        }
+		        location /status {
+		            check_status;
+		            access_log   off;
+		            allow SOME.IP.ADD.RESS;
+		            deny all;
+		        }
+		    }
+		}
+
+
+	Directives：
+		check:
+		Syntax: check interval=milliseconds [fall=count] [rise=count] [timeout=milliseconds] [default_down=true|false] [type=tcp|http|ssl_hello|mysql|ajp] [port=check_port]
+		Default: If the parameters are omitted, default values are: interval=30000 fall=5 rise=2 timeout=1000 default_down=true type=tcp>
+		Context: upstream
+				- interval：向后端发送的健康检查包的间隔。
+			    - fall(fall_count): 如果连续失败次数达到fall_count，服务器就被认为是down。
+			    - rise(rise_count): 如果连续成功次数达到rise_count，服务器就被认为是up。
+			    - timeout: 后端健康请求的超时时间。
+			    - default_down: 设定初始时服务器的状态，如果是true，就说明默认是down的，如果是false，就是up的。默认值是true，也就是一开始服务器认为是不可用，要等健康检查包达到一定成功次数以后才会被认为是健康的。
+			    - type：健康检查包的类型，现在支持以下多种类型
+			    - tcp：简单的tcp连接，如果连接成功，就说明后端正常。
+			    - ssl_hello：发送一个初始的SSL hello包并接受服务器的SSL hello包。
+			    - http：发送HTTP请求，通过后端的回复包的状态来判断后端是否存活。
+			    - mysql: 向mysql服务器连接，通过接收服务器的greeting包来判断后端是否存活。
+			    - ajp：向后端发送AJP协议的Cping包，通过接收Cpong包来判断后端是否存活。
+			    - port: 指定后端服务器的检查端口。你可以指定不同于真实服务的后端服务器的端口，比如后端提供的是443端口的应用，你可以去检查80端口的状态来判断后端健康状况。默认是0，表示跟后端server提供真实服务的端口一样。该选项出现于Tengine-1.4.0。			
+
+		check_keepalive_requests:
+		Syntax: check_keepalive_requests request_num
+		Default: 1
+		Context: upstream
+			该指令可以配置一个连接发送的请求数，其默认值为1，表示Tengine完成1次请求后即关闭连接
+
+		check_http_send
+		Syntax: check_http_send http_packet
+		Default: "GET / HTTP/1.0\r\n\r\n"
+		Context: upstream
+			该指令可以配置http健康检查包发送的请求内容。为了减少传输数据量，推荐采用"HEAD"方法。
+			当采用长连接进行健康检查时，需在该指令中添加keep-alive请求头，如："HEAD / HTTP/1.1\r\nConnection: keep-alive\r\n\r\n"。 同时，在采用"GET"方法的情况下，请求uri的size不宜过大，确保可以在1个interval内传输完成，否则会被健康检查模块视为后端服务器或网络异常。
+
+		check_http_expect_alive
+		Syntax: check_http_expect_alive [ http_2xx | http_3xx | http_4xx | http_5xx ]
+		Default: http_2xx | http_3xx
+		Context: upstream
+			该指令指定HTTP回复的成功状态，默认认为2XX和3XX的状态是健康的。
+
+		check_shm_size
+		Syntax: check_shm_size size
+		Default: 1M
+		Context: http
+			Default size is one megabytes. If you want to check thousands of servers, the shared memory may be not enough, you can enlarge it with this directive.
+			默认大小为1兆字节。 如果要检查数千台服务器，共享内存可能还不够，您可以使用此指令放大。
+
+		check_status
+		Syntax: check_status [html|csv|json]
+		Default: check_status html
+		Context: location
+			Display the status of checking servers. This directive should be used in the http block.
+			显示服务器的健康状态页面。
+			You can specify the default display format after Tengine-1.4.0. The formats can be html, csv or json. The default type is html. It also supports to specify the format by the request argument. Suppose your check_status location is '/status', the argument of format can change the display page's format. You can do like this:
+			您可以在Tengine-1.4.0之后指定默认显示格式。 格式可以是html，csv或json。 默认的类型是html。 它还支持通过请求参数指定格式。 假设你的check_status位置是'/ status'，格式的参数可以改变显示页的格式。 你可以这样做：
+			/status?format=html
+			/status?format=csv
+			/status?format=json
+
+			At present, you can fetch the list of servers with the same status by the argument of status. For example:
+			现在，您可以通过状态参数获取具有相同状态的服务器列表。 例如：
+			/status?format=html&amp;status=down
+			/status?format=csv&amp;status=up
+
+			下面是一个状态也配置的范例：
+				location /nstatus {
+		            check_status;
+		            access_log off;
+		            #allow IP;
+		            #deny all;
+		        }   
+
+参考：http://nolinux.blog.51cto.com/4824967/1594029/
+

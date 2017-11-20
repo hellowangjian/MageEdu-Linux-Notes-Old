@@ -1,0 +1,668 @@
+马哥Linux学习第二十九天（http协议基础及IO模型，nginx配置）
+
+
+Nginx （web server, web reverse proxy）：
+	http协议：80/tcp， Hypertext Transfer Procotol
+		html：HyperText Mark Language
+
+		文本：HTTP/1.0，MIME
+
+		MIME：Multipurpose Internet Main Extension
+			major/minor
+				text/plain
+				image/jpeg
+
+		URL：scheme://server[:port]/path/to/source
+
+		http事务：request <----> response
+			request：
+				<method> <URL> <version>
+				<HEADERS>
+
+				<body>
+
+			response：
+				<version> <status> <reason phrase>
+				<HEADERS>
+
+				<body>
+
+			协议格式：文本、二进制
+
+		method：
+			GET、HEAD、POST、PUT、DELETE、TRACE、OPTIONS
+
+		status：
+			1xx: 信息类
+			2xx: 成功类，200
+			3xx: 重定向类, 301、302、304
+			4xx: 客户端错误类, 403、404
+			5xx: 服务器端错误类，502
+
+		HEADER：
+			通用首部
+			请求首部：
+				If-Modified-Since、If-None-Match
+			响应首部
+			实体首部
+			扩展首部
+
+		Web页面：多个资源
+			入口，资源引用；
+
+		认证：
+			基于IP认证；
+			基于用户认证：
+				basic
+				digest
+
+		资源映射：
+			Alias
+			DocumentRoot
+
+		httpd: MPM
+			prefork, worker, event
+				prefork：主进程，生成多个子进程，每个子进程处理一个请求；
+				worker：主进程，生成多个子进程，每个子进程生成多个线程，每个线程响应一个请求；
+				event：主进程，生成多个子进程，每个子进程响应多个请求；
+
+	I/O类型：
+		同步和异步：synchronous, asyncronous
+			关注的是消息通知机制
+
+			同步：调用发出之后不会立即返回，但一旦返回，则返回即是最终结果；
+			异步：调用发出之后，被调用方立即返回消息，但返回的并非最终结果；被调用者通过状态、通知机制等来通知调用者，或通过回调函数来处理结果；
+
+		阻塞和非阻塞：block, nonblock
+			关注的是调用者等待被调用者返回调用结果时的状态
+
+			阻塞：调用结果返回之前，调用者会被挂起；调用者只有在得到返回结果之后才能继续；
+			非阻塞：调用者在结果返回之前，不会被挂起，即调用不会阻塞调用者；
+
+	I/O模型：
+		blocking IO：阻塞式IO
+		nonblocking IO
+		IO multiplexing：复用型IO
+			select(), poll()
+		signal driven IO：事件驱动式IO
+			通知：
+				水平触发：多次通知；
+				边缘触发：只通知一次；
+		asynchronous IO：异步IO
+
+
+		例如：一次read操作
+			(1) 等待数据准备好：从磁盘到内核内存；
+			(2) 从内核内存复制到进程内存；
+
+	Nginx:	
+
+		Igor Sysoev, Rambler Media
+
+			Nginx: engine X
+				Tengine
+				Registry
+
+			libevent: 高性能的网络库
+				epoll(): 
+
+		Nginx特性：
+			模块化设计、较好的扩展性；
+			高可靠
+				master --> worker
+			低内存消耗
+				10000个keep-alive模式下的connection，仅需要2.5MB的内存；
+			支持热部署
+				不停机而更新配置文件、日志文件滚动、升级程序版本；
+
+			支持事件驱动、AIO、mmap；
+
+		基本功能：
+			静态资源的web服务器，能缓存打开的文件描述符；
+			http、smtp、pop3协议的反向代理服务器；
+			缓存加速、负载均衡；
+			支持FastCGI(fpm, LNMP), uWSGI(Python)等；
+			模块化(非DSO机制)、过滤器zip、SSI及图像的大小调整；
+			支持SSL；
+
+		扩展功能：
+			基于名称和IP的虚拟主机；
+			支持keepalive
+			支持平滑升级
+			定制访问日志、支持使用日志缓冲区提供日志存储性能；
+			支持url rewrite
+			支持路径别名
+			支持基于IP及用户的访问控制
+			支持速率限制，支持并发数限制
+
+		Nginx的基本架构：
+			一个master进程，生成一个或多个worker进程；
+			事件驱动：epoll(边缘触发)、kqueue, /dev/poll
+				复用器：select, poll, rt signal
+			支持sendfile, sendfile64
+			支持AIO
+			支持mmap
+
+		nginx的工作模式：非阻塞、事件驱动、由一个master进程生成多个worker线程，每个worker响应n个请求；
+			worker * n
+
+		模块类型：
+			核心模块
+			Standard HTTP modules
+			Optional HTTP modules
+			Mail modules
+			3rd party modules：第三方模块
+
+		安装方法：
+			源码：编译安装
+			制作好的程序包：rpm包
+
+		编译安装：
+			# useradd -r nginx
+			# ./configure --prefix=/usr/local/nginx --conf-path=/etc/nginx/nginx.conf --user=nginx --group=nginx --error-log-path=/var/log/nginx/error.log --http-log-path=/var/log/nginx/access.log --pid-path=/var/run/nginx/nginx.pid --lock-path=/var/lock/nginx.lock --with-http_ssl_module --with-http_stub_status_module --with-http_gzip_static_module --with-http_flv_module --with-http_mp4_module --http-client-body-temp-path=/var/tmp/nginx/client --http-proxy-temp-path=/var/tmp/nginx/proxy --http-fastcgi-temp-path=/var/tmp/nginx/fastcgi --http-uwsgi-temp-path=/var/tmp/nginx/uwsgi
+			# make && make install
+			# mkdir -pv /var/tmp/nginx/{client,proxy,fastcgi,uwsgi}
+
+		启动nginx：
+			# /usr/local/nginx/sbin/nginx 
+
+		配置文件：
+			main配置段：全局配置段
+				event{}： 定义event模型工作特性
+			http {} : 定义http协议相关的配置
+
+			配置指令：要以分号结尾，语法格式：
+				directive value1 [value2...]
+
+			支持使用变量：
+				内置变量：
+					模块会提供内建变量定义
+				自定义变量：
+					set var_name value
+
+			主配置段的指令：
+				用于调试、定位问题
+				正常运行必备的配置
+				优化性能的配置
+				事件相关的配置
+
+Nginx(2)
+
+	I/O模型、nginx
+
+		I/O模型：
+			blocking、nonblocking、multiplexing、event-driven、AIO
+
+		Nginx: non-blocking、event-driven,、aio
+
+		nginx-1.8：
+			hash load balancing method
+			backend SSL certificate verification
+			thread pools support
+			proxy_request_buffering
+
+
+		主配置段的指令：
+			正常运行的必备配置：
+
+				1、user USERNAME [GROUPNAME];
+					指定运行worker进程的用户和组；
+					user nginx nginx;
+
+				2、pid /path/to/pid_file;
+					指定nginx守护进程的pid文件；
+					pid /var/run/nginx/nginx.pid;
+
+				3、worker_rlimit_nofile #;
+					指定所有worker进程所能够打开的最大文件句柄数；
+
+			性能优化相关的配置：
+
+				1、worker_processes #;
+					worker进程的个数；通常应该略少于CPU物理核心数；
+
+				2、worker_cpu_affinity cpumask ...;
+
+					优点：提升缓存的命中率；
+
+					context switch：会产生CPU的不必要的消耗；
+
+					cpumask：
+						0000 0000
+
+						0000 0001
+						0000 0010
+						0000 0100
+						0000 1000
+
+					worker_cpu_affinity 00000001 00000010 00000100;
+
+				3、timer_resolution
+					计时器解析度；降低此值，可减少gettimeofday()系统调用的次数；
+
+				4、worker_priority number;
+					指明worker进程的nice值；
+						-20, 19
+						100, 139
+
+			事件相关的配置：
+				1、accept_mutex {off|on};
+					master调度用户请求至各worker进程时使用的负载均衡锁；on表示能让多个worker轮流地、序列化地去响应新请求；
+
+				2、lock_file file;
+					accept_mutex用到的锁文件路径；
+
+				3、use [epoll|rtsig|select|poll];
+					指明使用的事件模型；建议让Nginx自行选择；
+
+				4、worker_connections #;
+					设定单个worker进程所能够处理的最大并发连接数量；
+
+					worker_connections * work_processes
+
+			用于调试、定位问题：
+				编译时要启用：--with-debug
+				1、daemon {on|off};
+					是否以守护进程方式运行nginx；调试时应该设置为Off; 
+
+				2、master_process {on|off};
+					是否以master/worker模型来运行nginx; 调试时可以设置为off; 
+
+				3、error_log file | stderr | syslog:server=address[,parameter=value] | memory:size [debug | info | notice | warn | error | crit | alert | emerg];
+
+					error_log 位置 级别;
+
+					若要使用debug级别，需要在编译nginx时使用了--with-debug选项；
+
+			总结：常需要进行调整的参数
+				worker_processes, worker_connections, worker_cpu_affinity, worker_priority
+
+			新改动配置生效的方式：
+				# /usr/local/nginx/sbin/nginx -s reload
+					stop, quit, reopen
+
+		Nginx作为web服务器时使用的配置：
+			http {}：由ngx_http_core_module模块所引入；
+
+			配置框架：
+				http {
+					upstream {
+						...
+					}
+
+					server {
+						location  URL {
+							root "/path/to/somedir";
+							...
+						} # 类似于httpd中的<Location>，用于定义URL与本地文件系统的映射关系；
+						location URL {
+							if ... {
+								...
+							}
+						}
+					} # 每个server类似于httpd中的一个<VirtualHost>; 
+
+					server {
+						...
+					}
+
+				}
+
+				注意：与http相关的指令仅能够放置于http、server、location、upstream、if上下文，但有些指令仅应用于这5种上下文中的某些中；
+
+			配置指令：
+				1、server {}
+					定义一个虚拟主机；
+
+				    server {
+				        listen 8080;
+				        server_name www.magedu.com;
+				        root "/vhosts/web1";
+				    }				
+
+				2、listen
+
+					指定监听的地址和端口；
+						listen address[:port];
+						listen port;
+
+				3、server_name NAME [...];
+					后可跟多个主机；名称还可以使用正则表达式(~)或通配符；
+
+						(1) 先做精确匹配检查；
+						(2) 左侧通配符匹配检查：*.magedu.com
+						(3) 右侧通配符匹配检查：如mail.*
+						(4) 正则表达式匹配检查：如 ~^.*\.magedu\.com$
+						(5) default_server；
+
+
+						server {
+							server_name www.magedu.com;
+						}
+
+						server {
+							server_name *.magedu.com;
+						}
+
+						server {
+							server_name mail.*
+						}
+
+				4、root path;
+					设置资源路径映射；用于指明请求的URL所对应的资源所在的文件系统上的起始路径；
+
+				5、location [ = | ~ | ~* | ^~ ] uri { ... }
+					location @name { ... } 
+					功能：允许根据用户请求的URI来匹配定义的各location；匹配到时，此请求将被相应的location配置块中的配置所处理，例如做访问控制等功能；
+
+					=：精确匹配检查；
+					~: 正则表达式模式匹配检查，区分字符大小写；
+					~*: 正则表达式模块匹配检查，不区分字符大小写；
+					^~：URI的前半部分匹配，不支持正则表达式；
+
+					匹配的优先级：精确匹配(=)、^~、~、~*、不带任何符号的location；
+
+					server {
+						listen 80;
+						server_name www.magedu.com;
+						location / {
+							root "/vhosts/web1";
+						}
+
+						location /images/ {
+							root "/vhosts/images";
+						}
+
+						location ~* \.php$ {
+							fcgipass 
+						}
+					}
+
+					http://www.magedu.com/bbs/index.php
+
+				6、alias path;
+					用于location配置段，定义路径别名
+
+					location /images/ {
+						root "/vhosts/web1";
+					}
+
+					http://www.magedu.com/images/a.jpg <-- /vhosts/web1/images/a.jpg
+
+					location /images/ {
+						alias "/www/pictures/";
+					}
+
+					http://www.magedu.com/images/a.jpg <-- /www/picuter/a.jpg
+
+					注意：root表示指明路径为对应的location "/" URL; alias表示路径映射，即location指令后定义的URL是相对于alias所指明的路径而言；
+
+				7、index file;
+					默认主页面；
+						index index.php index.html;
+
+				8、error_page code [...] [=code] URI | @name
+					根据http响应状态码来指明特用的错误页面；
+
+					error_page 404 /404_customed.html
+
+					[=code]：以指定的响应码进行响应，而不是默认的原来的响应；默认表示以新资源的响应码为其响应码；
+						error_page 404 =200 /404_customed.html
+
+				9、基于IP的访问控制
+					allow IP/Network;
+					deny IP/Network;
+						deny 172.16.1.1/16;
+						deny all;
+
+				10、基于用户的访问控制
+					basic, digest；
+
+					auth_basic "";
+					auth_basic_user_file "/PATH/TO/PASSWORD_FILE"
+						账号密码文件建议使用htpasswd来创建；
+
+				11、https服务
+
+					生成私钥，生成证书签署请求，并获得证书；
+
+					    server {
+					        listen       443 ssl;
+					        server_name  www.magedu.com;
+
+					        ssl_certificate      /etc/nginx/ssl/nginx.crt;
+					        ssl_certificate_key  /etc/nginx/ssl/nginx.key;
+
+					        ssl_session_cache    shared:SSL:1m;
+					        ssl_session_timeout  5m;
+
+					        ssl_ciphers  HIGH:!aNULL:!MD5;
+					        ssl_prefer_server_ciphers  on;
+
+					        location / {
+					            root   /vhosts/web1;
+					            index  index.html index.htm;
+					        }
+					    }					
+
+				12、stub_status {on|off};
+					仅能用于location上下文；
+
+			        location /status {
+			            stub_status on;
+			            allow 172.16.0.0/16;
+			            deny all;
+			        }
+
+			        结果示例：		
+			        
+					Active connections: 6   # 当前所有处于打开状态的连接数； 
+					server accepts handled requests  
+					 241 241 431 
+					 (1) 已经接受过的连接数
+					 (2) 已经处理过的连接数
+					 (3) 已经处理过的请求数；在“保持连接”模式下，请求数量可能会多于连接数量；
+					Reading: 0 Writing: 1 Waiting: 5 	
+						Reading：正处于接收请求状态的连接数；
+						Writing: 请求已经接收完成，正处于处理请求或发送响应的过程中的连接数；
+						Waiting：保持连接模式，且处于活动状态的连接数；
+
+				13、rewrite regex replacement flag;
+					
+					例如：
+						...
+						rewrite ^/images/(.*\.jpg)$ /imgs/$1 break;
+						rewrite ^/imgs/(.*\.jpg)$ /images/$1 break;
+						....
+
+						http://www.magedu.com/images/a/b/c/1.jpg --> http://www.magedu.com/imgs/a/b/c/1.jpg
+
+					flag: 
+						last：一旦此rewrite规则重写完成后，就不再被后面其它的rewrite规则进行处理；而是由User Agent重新对重写后的URL再一次发起请求，并从头开始执行类似的过程
+						break：一旦此rewrite规则重写完成后，由User Agent对新的URL重新发起请求，且不再会被当前location内的任何rewrite规则所检查；
+						redirect：以302响应码（临时重定向）返回新的URL；
+						permanent：以301响应码（永久重定向）返回新的URL；
+
+				14、if
+					语法：if (condition) {...}
+					应用环境：server, location
+
+					condition：
+						(1) 变量名；
+							变量值为空串，或者以“0”开始，则为false；其它的均为true; 
+						(2) 以变量为操作数构成的比较表达式
+							可使用=, !=类似的比较操作符进行测试；
+						(3) 正则表达式的模式匹配操作
+							~: 区分大小写的模式匹配检查
+							~*: 不区分大小写的模式匹配检查
+							!~和!~*：对上面两种测试取反
+						(4) 测试路径为文件可能性：-f, !-f
+						(5) 测试指定路径为目录的可能性：-d, !-d
+						(6) 测试文件的存在性：-e, !-e
+						(7) 检查文件是否有执行权限：-x, !-x
+
+					例如：
+						if ($http_user_agent ~* MSIE) {
+							rewrite ^(.*)$ /msie/$1 break;
+						}
+
+				15、防盗链
+					location ~* \.(jpg|gif|jpeg|png)$ {
+						valid_referer none blocked www.magedu.com;
+						if ($invalid_referer) {
+							rewrite ^/ http://www.magedu.com/403.html;
+						}
+					}
+
+				16、定制访问日志格式
+				    log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+				                      '$status $body_bytes_sent "$http_referer" '
+				                      '"$http_user_agent" "$http_x_forwarded_for"';
+
+				    access_log  logs/access.log  main;
+
+					注意：此处可用变量为nginx各模块内建变量；
+
+			网络连接相关的配置：
+				1、keepalive_timeout #;
+					长连接的超时时长，默认75s;
+
+				2、keepalive_requests #;
+					在一个长连接上所能够允许请求的最大资源数；
+
+				3、keepalive_disable [msie6|safari|none];
+					为指定类型的User Agent禁用长连接；
+
+				4、tcp_nodelay on|off;
+					是否对长连接使用TCP_NODELAY选项；
+
+				5、client_header_timeout #;
+					读取http请求报文首部的超时时长；
+
+				6、client_body_timeout #;
+					读取http请求报文body部分的超时时长；
+
+				7、send_timeout #;
+					发送响应报文的超时时长；
+
+			fastcgi的相关配置：
+				LNMP：php启用fpm模型；
+
+				location ~ \.php$ {
+		            root           html;
+		            fastcgi_pass   127.0.0.1:9000;
+		            fastcgi_index  index.php;
+		            fastcgi_param  SCRIPT_FILENAME  /scripts$fastcgi_script_name;
+		            include        fastcgi_params;
+		        }
+
+
+	博客作业：实现LNMP
+
+-----------------------------------35天补充---------------------------------
+
+			对客户端请求的限制：
+				1、limit_except method ... { ... }
+					指定对范围之外的其它方法的访问控制；
+
+					limit_except GET {
+						allow 172.16.0.0/16;
+						deny all;
+					}
+
+				2、Client_max_body_size SIZE;
+					http请求包体的最大值；常用于限定客户所能够请求的最大包体；根据请求首部中的Content-Length来检测，以避免无用的传输；
+
+				3、limit_rate speed；
+					限制客户端每秒钟传输的字节数；默认为0，表示没有限制；
+
+				4、limit_rate_after time；
+					nginx向客户端发送响应报文时，如果时长超出了此处指定的时长，则后续的发送过程开始限速；
+
+			文件操作的优化：
+				1、sendfile on|off
+					是否启用sendfile功能；
+
+				2、aio on|off
+					是否启用aio功能；
+
+				3、open_file_cache max=N [inactive=time]|off
+					是否打开文件缓存功能；
+						max：缓存条目的最大值；当满了以后将根据LRU算法进行置换；
+						inactive：某缓存条目在指定时长时没有被访问过时，将自动被删除；默认为60s；
+
+					缓存的信息包括：
+						文件句柄、文件大小和上次修改时间；
+						已经打开的目录结构；
+						没有找到或没有访问权限的信息；
+				4、open_file_cache_errors on|off
+					是否缓存文件找不到或没有权限访问等相关信息；
+
+				5、open_file_cache_valid time;
+					多长时间检查一次缓存中的条目是否超出非活动时长，默认为60s；
+
+				6、open_file_cache_min_use #;
+					在inactive指定的时长内被访问超此处指定的次数，才不会被删除；
+
+			对客户端请求的特殊处理：
+				1、ignore_invalid_headers on|off
+					是否忽略不合法的http首部：默认为on；off意味着请求首部中出现不合规的首部将拒绝响应；只能用于server和http；
+
+				2、log_not_found on|off
+					是否将文件找不到的信息也记录进错误日志中；
+
+				3、resolver address;
+					指定nginx使用的dns服务器地址；
+
+				4、resover_timeout time;
+					指定dns解析超时时长，默认为30s；
+
+				5、server_tokens on|off
+					是否在错误页面中显示nginx的版本号；
+
+			内存及磁盘资源分配：
+				1、client_body_in_file_only on|clean|off
+					HTTP的包体是否存储在磁盘文件中；非off表示存储，即使包体大小为0也会创建一个磁盘文件；on表示请求结束后包体文件不会被删除，clean表示会被删除；
+
+				2、client_body_in_single_buffer on|off
+					HTTP的包体是否存储在内存buffer当中；默认为off；
+
+				3、client_body_buffer_size size;
+					HTTP接收HTTP包体的内存缓冲区大小；
+
+				4、client_body_temp_path dir-path [level1 [level2 [level3]]]
+					HTTP包体存放的临时目录；
+						client_body_temp_patn /var/tmp/client/ 1 2
+
+				5、client_header_buffer_size size;
+					正常情况下接收用户请求的http报文header部分时分配的buffer大小；默认为1k；
+
+				6、larger_client_header_buffers number size；
+					存储超大HTTP请求首部时的内存buffer大小及个数；
+
+				7、connection_pool_size;
+					nginx对于每个建立成功的tcp连接都会预先分配一个内存池，此处即用于设定此内存池的初始大小；默认为256；
+
+				8、request_pool_size size;
+					nginx在处理每个http请求时会预先分配一个内存池，此处即用户设定此内存池的初始大小；默认为4k；
+
+			http核心模块的内置变量：
+				$uri：当前请求的uri，不带参数；
+				$request_uri：请求的uri，带完整参数；
+				$host：http请求报文中host首部；如果请求中没有host首部，则以处理此请求的虚拟机主机的主机名代替；
+				$hostname：nginx服务器运行在的主机的主机名；
+				$remote_addr：客户端IP；
+				$remote_port：客户端Port；
+				$remote_user：使用用户认证时客户端用户输入的用户名；
+				$request_filename：用户请求中的URI经过本地root或alias转换后映射的本地的文件路径；
+				$request_method：请求fangfa；
+				$server_addr：服务器地址；
+				$server_name：服务器名称；
+				$server_port：服务器端口；
+				$server_protocal：服务器向客户端发送响应时的协议，如http/1.1, http/1.0
+				$scheme：在请求中使用scheme，如https://www.magedu.com/中的https；
+				$http_HEADER：匹配请求报文中指定的HEADER，$http_host匹配请求报文中的host首部；
+				$sent_http_HEADER：匹配响应报文中指定的HEADER，例如$http_context_type匹配响应报文中的content-type首部；
+				$document_root：当前请求映射到的root配置；
+
+

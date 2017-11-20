@@ -1,0 +1,786 @@
+马哥Linux学习第二十三天（ftp协议及vsftpd服务的基本应用、vsftpd的高级应用、rpc概念及nfs的基本应用、samba及其基本应用）
+回顾：编译LAMP，构建分离式LAMP
+	1、动态资源部署应用程序服务器(php-fpm)，静态资源部署于web服务器；
+	2、php以fpm方式工作时，它不会被编译成httpd的模块，因此，无需在httpd的配置文件中LoadModule；
+	3、编译php时，需要连接mysql或其它数据库管理系统时，需要启用其相关的驱动模块；
+	4、php于mysql不在同一节点，连接mysql的用户账号要有远程访问权限；
+
+
+
+文件共享服务：
+	
+	应用层：ftp
+	内核：nfs（Sun）
+	跨平台：samba
+		在Linux实现CIFS（SMB）协议
+
+	DAS，NAS，SAN
+
+
+	ftp：File Transfer Protocol
+		应用层协议：tcp，21/tcp
+		C/S：
+			Client：程序
+			Server：程序
+
+		数据：
+			命令连接：文件管理类命令，始终在线的连接
+			数据连接：数据传输，按需创建及关闭的连接
+
+				数据传输格式：
+					文本传输
+					二进制传输
+
+				主动：由服务器创建连接
+					命令：
+						Client:5000 --> Server:21
+					数据：
+						Server:20 20/tcp --> Client:5000+1 
+				被动：由客户端创建连接
+					命令：
+						Client:5000 --> Server:21
+					数据：
+						Client:5000+1 --> Server:随机端口
+
+	C/S：
+		Server：
+			wu-ftpd
+			proftpd
+			pureftp
+			vsftpd：Very Secure
+			ServU
+
+		Client：
+			ftp
+			lftp，lftpget
+			wget，curl
+			filezilla
+			gftp（Linux GUI）
+			flashfxp
+			cuteftp
+
+	响应吗：
+		1xx：信息
+		2xx：成功类型的状态码
+		3xx：提示需进一步提供补充类信息的状态码
+		4xx：客户端错误
+		5xx：服务端错误
+
+	用户认证：
+		虚拟用户：仅用于访问某特定服务中的资源
+
+			nsswitch：network service switch,名称解析框架
+				配置文件：/etc/nsswitch.conf
+				模块：/lib64/libnss*, /usr/lib64/libnss*
+			pam：pluggable authentication module,用户认证框架
+				模块：/lib64/security/
+				配置文件：/etc/pam.conf, /etc/pam.d/*
+
+		系统用户：
+		匿名用户：
+
+	CentOS 6.5：vsftpd
+		用户认证配置文件：/etc/pam.d/vsftpd
+		服务脚本：/etc/rc.d/init.d/vsftpd
+		配置文件目录：/etc/vsftpd
+			主配置文件：vsftpd.conf
+		匿名用户（映射为ftp用户）共享资源位置：/var/ftp
+		系统用户通过ftp访问的资源的位置：用户自己的家目录
+		虚拟用户通过ftp访问的资源的位置：给虚拟用户指定的映射成为的系统用户的家目录
+
+	匿名用户的配置：
+		anonymous_enable=YES
+
+		anon_upload_enable=YES
+		anon_mkdir_write_enable=YES
+		anon_other_write_enable=YES
+
+		anon_root=/SOME/PATH  修改默认的用户的根目录
+
+	系统用户的配置：
+		local_enable=YES
+
+		write_enable=YES
+		local_umask=022
+
+		禁锢所有的ftp本地用户于家目录中：
+			chroot_local_user=YES
+
+		禁锢文件中指定的ftp本地用户于家目录中：
+			chroot_list_enable=YES
+			chroot_list_file=/etc/vsftpd/chroot_list
+
+	日志：
+		xferlog_enable=YES
+		xferlog_std_format=YES
+		xferlog_file=/var/log/xferlog
+
+	改变上传文件的属主：
+		chown_uploads=YES
+		chown_username=whoever
+
+	vsftpd使用pam完成用户认证,其用到的pam配置文件：/etc/pam.d/vsftpd
+		pam_service_name=vsftpd
+			写在/etc/vsftpd/ftpusers中的用户将无法正常登陆。
+
+	是否启用控制用户登录的列表文件
+		userlist_enable=YES
+		userlist_deny=YES|NO 
+			YES：表示黑名单
+			NO：表示白名单
+		默认文件为/etc/vsftpd/user_list
+
+	连接限制：
+		max_clients：最大并发连接数；
+		max_per_ip：每个IP可同时发起的并发请求数；
+
+	传输速率：
+		anon_max_rate：匿名用户的最大传输速率，单位是“字节/秒”；
+		local_max_rate：本地用户的最大传输速率。
+
+	修改监听端口：
+		listen_port=2121
+
+	开启被动（pasv）模式：
+		pasv_enable=YES
+		pasv_min_port=1050
+		pasv_max_port=1060
+		pasv_promiscuous=YES
+
+	开启地址欺骗：通常用于Server使用NAT模式提供服务器时。
+		pasv_addr_resolve=YES
+		pasv_address=106.14.139.5
+
+	虚拟用户：
+		所有的虚拟用户会被统一映射为一个指定的系统账号，访问的共享位置即为此系统账号的家目录；
+
+		各虚拟用户可被赋予不同的访问权限；
+			通过匿名用户的权限控制参数进行制定；
+
+		虚拟用户账号的存储方式：
+			文件：编辑文件
+				奇数行为用户名
+				偶数行为密码
+
+				此文件需要被编码为hash格式；
+
+			关系型数据库中的表中；
+				即时查询数据库完成用户认证；
+
+				mysql库，
+					pam要依赖于pam_mysql
+
+					# yum -y install pam_mysql
+						安装生成/lib64/security/pam_mysql.so模块
+
+		CentOS 6 实现虚拟用户：
+			修改配置文件
+				vi /etc/vsftpd/vsftpd.conf
+
+				#服务器独立运行
+				listen=YES
+				#设定不允许匿名访问
+				anonymous_enable=NO
+				#设定本地用户可以访问。注：如使用虚拟宿主用户，在该项目设定为NO的情况下所有虚拟用户将无法访问
+				local_enable=YES
+				#使用户不能离开主目录
+				chroot_list_enable=YES
+				#设定支持ASCII模式的上传和下载功能
+				ascii_upload_enable=YES
+				ascii_download_enable=YES
+				#PAM认证文件名。PAM将根据/etc/pam.d/vsftpd进行认证
+				pam_service_name=vsftpd
+				#设定启用虚拟用户功能
+				guest_enable=YES
+				#指定虚拟用户的宿主用户，CentOS中已经有内置的ftp用户了
+				guest_username=ftp
+				#设定虚拟用户个人vsftp的CentOS FTP服务文件存放路径。存放虚拟用户个性的CentOS FTP服务文件(配置文件名=虚拟用户名)
+				user_config_dir=/etc/vsftpd/vuser_conf
+				#配置vsftpd日志（可选）
+				xferlog_enable=YES
+				xferlog_std_format=YES
+				xferlog_file=/var/log/xferlog
+				dual_log_enable=YES
+				vsftpd_log_file=/var/log/vsftpd.log
+
+			进行认证
+				#安装Berkeley DB工具，很多人找不到db_load的问题就是没有安装这个包
+				yum install db4 db4-utils
+
+				#创建用户密码文本，注意奇行是用户名，偶行是密码
+				vi /etc/vsftpd/vuser_passwd.txt
+
+				test
+				123456
+
+				#生成虚拟用户认证的db文件
+				db_load -T -t hash -f /etc/vsftpd/vuser_passwd.txt /etc/vsftpd/vuser_passwd.db
+
+				#编辑认证文件，全部注释掉原来语句，再增加以下两句
+				vi /etc/pam.d/vsftpd
+
+				auth required pam_userdb.so db=/etc/vsftpd/vuser_passwd
+				account required pam_userdb.so db=/etc/vsftpd/vuser_passwd
+
+				#创建虚拟用户配置文件
+				mkdir /etc/vsftpd/vuser_conf/
+				#文件名等于vuser_passwd.txt里面的账户名，否则下面设置无效
+				vi /etc/vsftpd/vuser_conf/test
+
+				#虚拟用户根目录,根据实际情况修改
+				local_root=/data/ftp
+				write_enable=YES
+				anon_umask=022
+				anon_world_readable_only=NO
+				anon_upload_enable=YES
+				anon_mkdir_write_enable=YES
+				anon_other_write_enable=YES
+
+			设置FTP根目录权限
+				#最新的vsftpd要求对主目录不能有写的权限所以ftp为755，主目录下面的子目录再设置777权限
+				mkdir /data/ftp
+				chmod -R 755 /data
+				chmod -R 777 /data/ftp
+
+				#建立限制用户访问目录的空文件
+				touch /etc/vsftpd/chroot_list
+
+				#如果启用vsftpd日志需手动建立日志文件
+				touch /var/log/xferlog 
+				touch /var/log/vsftpd.log
+
+		CentOS7上实现vsftpd+pam_mysql虚拟用户认证：
+			一、安装所需要程序
+				1、安装开发环境及所需要程序：
+					[root@CentOS7 ~]# yum groupinstall -y "Development Tools" "Server Platform Development" //安装开发环境，后面编译安装pam_mysql-0.7RC1会用到
+					[root@CentOS7 ~]# yum install pam-devel mariadb-devel mariadb-server
+						mariadb-server：安装mariadb数据库
+						mariadb-devel：包含 mysql client library，不安装在./configure时会报错：configure: error: Cannot locate mysql client library. Please check your mysql installation.
+						pam-devel：包含 pam headers，不安装在./configure时会报错：configure: error: Cannot find pam headers. Please check if your system is ready for pam module development.
+					[root@CentOS7 ~]# systemctl start mariadb.service  //开启服务
+					[root@CentOS7 ~]# ss -tnl 
+					State      Recv-Q Send-Q            Local Address:Port                           Peer Address:Port              
+					LISTEN     0      50                            *:3306                                      *:*                  
+					LISTEN     0      128                           *:22                                        *:*                  
+					LISTEN     0      100                   127.0.0.1:25                                        *:*                  
+					LISTEN     0      32                           :::21                                       :::*                  
+					LISTEN     0      128                          :::22                                       :::*                  
+					LISTEN     0      100                         ::1:25                                       :::*                  
+				2、编译安装pam_mysql-07RC1，CentOS 6可利用epel源直接yum install pam_mysql安装：
+					[root@CentOS7 src]# tar xf pam_mysql-0.7RC1.tar
+					[root@CentOS7 src]# cd pam_mysql-0.7RC1
+					[root@CentOS7 pam_mysql-0.7RC1]# ./configure --with-pam=/usr --with-mysql=/usr --with-pam-mods-dir=/lib64/security 
+					[root@CentOS7 pam_mysql-0.7RC1]# make && make install
+					[root@CentOS7 pam_mysql-0.7RC1]# ls /lib64/security/ | grep pam_mysql
+					pam_mysql.la
+					pam_mysql.so
+
+			二、创建虚拟用户账户
+				1、准备数据库及相关表
+					创建数据库为vsftpd
+					[root@CentOS7 ~]# mysql
+					Welcome to the MariaDB monitor.  Commands end with ; or \g.
+					Your MariaDB connection id is 2
+					Server version: 5.5.52-MariaDB MariaDB Server
+
+					Copyright (c) 2000, 2016, Oracle, MariaDB Corporation Ab and others.
+
+					Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
+
+					MariaDB [(none)]> CREATE DATABASE vsftpd;
+					Query OK, 1 row affected (0.00 sec)
+
+					授予用户vsftpd查询权限
+					MariaDB [(none)]> use vsftpd;
+					Database changed
+					MariaDB [vsftpd]> GRANT SELECT ON vsftpd.* TO vsftpd@'localhost' IDENTIFIED BY 'magedu';
+					Query OK, 0 rows affected (0.00 sec)
+
+					MariaDB [vsftpd]> GRANT SELECT ON vsftpd.* TO vsftpd@'127.0.0.1' IDENTIFIED BY 'magedu';
+					Query OK, 0 rows affected (0.00 sec)
+
+					MariaDB [vsftpd]> FLUSH PRIVILEGES;
+					Query OK, 0 rows affected (0.00 sec)
+
+					测试
+					root@CentOS7 ~]# mysql -uvsftpd -hlocalhost -p
+					Enter password: 
+					Welcome to the MariaDB monitor.  Commands end with ; or \g.
+					Your MariaDB connection id is 4
+					Server version: 5.5.52-MariaDB MariaDB Server
+
+					Copyright (c) 2000, 2016, Oracle, MariaDB Corporation Ab and others.
+
+					Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
+
+					MariaDB [(none)]> SHOW DATABASES;
+					+--------------------+
+					| Database           |
+					+--------------------+
+					| information_schema |
+					| test               |
+					| vsftpd             |
+					+--------------------+
+					3 rows in set (0.00 sec)
+
+					创建表
+					MariaDB [vsftpd]> CREATE TABLE users (
+					    -> id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+					    -> name VARCHAR(50) BINARY NOT NULL,
+					    -> password CHAR(48) BINARY NOT NULL );
+					Query OK, 0 rows affected (0.01 sec)
+
+					MariaDB [vsftpd]> DESC users;
+					+----------+------------------+------+-----+---------+----------------+
+					| Field    | Type             | Null | Key | Default | Extra          |
+					+----------+------------------+------+-----+---------+----------------+
+					| id       | int(10) unsigned | NO   | PRI | NULL    | auto_increment |
+					| name     | varchar(50)      | NO   |     | NULL    |                |
+					| password | char(48)         | NO   |     | NULL    |                |
+					+----------+------------------+------+-----+---------+----------------+
+					3 rows in set (0.00 sec)
+
+				2、添加测试的虚拟用户
+					使用password函数将密钥加密后存储
+					MariaDB [vsftpd]> INSERT INTO users (name,password) VALUES ('tom',password('magedu')),('jerry',password('magedu'));
+					MariaDB [vsftpd]> SELECT * FROM users;
+					+----+-------+-------------------------------------------+
+					| id | name  | password                                  |
+					+----+-------+-------------------------------------------+
+					|  1 | tom   | *6B8CCC83799A26CD19D7AD9AEEADBCD30D8A8664 |
+					|  2 | jerry | *6B8CCC83799A26CD19D7AD9AEEADBCD30D8A8664 |
+					+----+-------+-------------------------------------------+
+					2 rows in set (0.00 sec)
+
+			三、配置vsftpd
+				1、建立ftp认证所需文件
+					[root@CentOS7 ~]# vim /etc/pam.d/vsftpd.mysql
+					添加如下两行：
+						auth required /lib64/security/pam_mysql.so user=vsftpd passwd=magedu host=localhost db=vsftpd table=users usercolumn=name passwdcolumn=password crypt=2
+						account required /lib64/security/pam_mysql.so user=vsftpd passwd=magedu host=localhost db=vsftpd table=users usercolumn=name passwdcolumn=password crypt=2
+
+							crypt:
+								0：表示没有加密，明文。
+								1：加密的。
+								2：使用mysql password()函数加密的。
+
+				2、修改vsftpd的配置文件，使其适应mysql认证
+
+					建立虚拟用户映射的系统用户及对应的目录
+					[root@CentOS7 ~]# useradd -s /sbin/nologin -d /var/ftproot vuser
+					[root@CentOS7 ~]# chmod go+rx /var/ftproot/
+					[root@CentOS7 ~]# chmod a-w /var/ftproot/
+					[root@CentOS7 ~]# ll /var/ftproot/ -d
+					dr-xr-xr-x. 2 vuser vuser 59 1月  20 08:25 /var/ftproot/
+					创建测试目录：
+						root@CentOS7 ~]# mkdir /var/ftproot/{pub,upload}
+						[root@CentOS7 ~]# ls /var/ftproot/
+						pub  upload
+						[root@CentOS7 ~]# setfacl -m u:vuser:rwx /var/ftproot/upload
+						[root@CentOS7 ~]# getfacl /var/ftproot/upload
+						getfacl: Removing leading '/' from absolute path names
+						# file: var/ftproot/upload
+						# owner: root
+						# group: root
+						user::rwx
+						user:vuser:rwx
+						group::r-x
+						mask::rwx
+						other::r-x
+
+					确保/etc/vsftpd.conf中启用一下选项
+					anonymous_enable=YES
+					local_enable=YES
+					write_enable=YES
+					anon_upload_enable=NO
+					anon_mkdir_write_enable=NO
+					chroot_local_user=YES
+
+					添加如下选项
+					guest_enable=YES
+					guest_username=vuser
+
+					确保pam_service_name选项的值如下所示
+					pam_service_name=vsftpd.mysql
+
+			四、配置虚拟用户具有不同的访问权限
+				vsftpd可以在配置文件目录中为每个用户提供单独的配置文件以定义其ftp服务访问权限，每个虚拟用户的配置文件名同虚拟用户的用户名。配置文件目录可以是任意未使用目录，只需要在vsftpd.conf指定其路径及名称即可。
+
+				1、配置vsftpd为虚拟用户使用配置文件目录
+					[root@CentOS7 ~]# vim /etc/vsftpd/vsftpd.conf
+					添加如下选项
+					user_config_dir=/etc/vsftpd/vusers
+				2、创建所需要目录，并为虚拟用户提供配置文件
+					# mkdir /etc/vsftpd/vusers/
+					# cd /etc/vsftpd/vusers/
+				3、配置虚拟用户的访问权限
+					虚拟用户对vsftpd服务的访问权限是通过匿名用户的相关指令进行的。比如，如果需要让tom用户具有上传文件的权限，可以修改/etc/vsftpd/vusers/tom文件，在里面添加如下选项即可。
+					# vim tom
+						anon_upload_enable=YES
+						anon_mkdir_write_enable=YES
+						anon_other_write_enable=YES
+					# vim jerry
+						anon_upload_enable=NO
+						anon_mkdir_write_enable=NO
+						anon_other_write_enable=NO
+
+			五、测试
+				[root@CentOS7-3 src]# ftp 192.168.56.102
+				Connected to 192.168.56.102 (192.168.56.102).
+				220 (vsFTPd 3.0.2)
+				Name (192.168.56.102:root): tom
+				331 Please specify the password.
+				Password:
+				230 Login successful.
+				Remote system type is UNIX.
+				Using binary mode to transfer files.
+				ftp> ls
+				227 Entering Passive Mode (192,168,56,102,176,118).
+				150 Here comes the directory listing.
+				drwxr-xr-x    2 0        0               6 Jan 20 01:05 pub
+				drwxrwxr-x    2 0        0               6 Jan 20 01:05 upload
+				226 Directory send OK.
+				ftp> cd upload
+				250 Directory successfully changed.
+				ftp> pwd
+				257 "/upload"
+				ftp> lcd /etc/
+				Local directory now /etc
+				ftp> put fstab 
+				local: fstab remote: fstab
+				227 Entering Passive Mode (192,168,56,102,189,57).
+				150 Ok to send data.
+				226 Transfer complete.
+				465 bytes sent in 7.4e-05 secs (6283.78 Kbytes/sec)
+				ftp> delete fstab
+				250 Delete operation successful.
+
+	lftp：
+		lftp - Sophisticated file transfer program
+
+		lftp [-d] [-e cmd] [-p port] [-u user[,pass]] [site]
+			# lftp -u tom,magedu 172.16.100.7
+
+	lftpget：
+		lftpget - get a file with lftp
+
+		lftpget [-c] [-d] [-v] URL [URL...]
+			-c：支持断点续传
+
+	axel：
+		支持断点续传
+		epel源安装：
+
+		acel [option] url1 [url2] [url...]
+			option:
+				--max-speed=x -s x ：指定最大速率（bytes/s)
+				--num-connections=x -n x ：指定最大连接数
+				--output=f 	  -o f ：指定本地保存文件路径
+
+			axel -n 3 -o /root ftp://....
+
+
+	补充：
+		axel, lftpget, wget, curl
+
+
+	ftp协议是明文：
+		ftps：SSL
+		sftp：SSH
+
+
+	总结：
+		ftp：命令和数据
+		/etc/vsftpd
+			匿名
+			本地
+			虚拟
+
+
+一些小问题：
+	（1）vsftpd安装完成后使用匿名用户(ftp)登录无法上传文档。
+		0、检查配置文件中有如下配置：
+			anon_upload_enable=YES
+			anon_mkdir_write_enable=YES
+			anon_other_write_enable=YES
+		1、在/var/ftp路径下创建新的文件夹，如upload。
+		2、修改其facl。
+		3、修改SELinux中ftpd_full_access布尔值。
+
+	（2）ftp上传的文件与服务器时间不一致。
+		编辑/etc/vsftpd/vsftpd.conf文件，在最后加入如下指令：
+			use_localtime=YES
+
+	NFS：Network File System
+		传统意义上，文件系统在内核中实现；NFS
+
+		RPC：远程过程调用，函数调用（远程主机上的函数）
+			一部分功能由本地程序完成
+			另一部分功能由远程主机上的函数完成
+
+			Remote Procedure Call protocol
+
+			半结构化数据；
+				XML；eXtended Mark Language
+				<integer>123</integer>
+				JSON
+				http
+
+		NFS：Sun，
+			NFSv1
+			NFSv2,udp
+			NFSv3,
+			NFSv4.0,
+			NFSv4.1,
+			NFSv4.2
+				pNFS：parallel
+
+			Windows,MAC OS
+
+		NIS：Network Information System
+			身份认证：集中于某服务器完成身份认证
+
+		NFS：基于IP的认证
+
+			RPC：
+
+			NFS：2049/tcp, 2049/udp
+
+		RPC服务：portmapper
+			rpcinfo：report RPC information
+				# yum isntall rpcbind
+				# rpcbind start
+				# rpcinfo -p 172.16.227.154
+
+		nfs服务器：nfsd, mountd, idmapd
+
+		CentOS 7安装nfs-utils
+			#yum install nfs-utils
+
+		查看NFS服务器端共享的文件系统：
+			showmount -e NFSSERVER_IP
+				# showmount -e 172.16.227.154
+				Export list for 172.16.227.154:
+				/share/nfs 172.16.227.154,172.16.227.1
+
+		挂载NFS文件系统：
+			mount -t nfs SERVER:/path/to/sharedfs /path/to/mount_point
+				# mount -t nfs 172.16.227.154:/share/nfs mnt
+
+		/etc/exports：
+			文件系统 客户端(选项) 客户端(选项)
+
+			客户端：IP、FQDN或DOMAIN、NETWORK
+				# vim /etc/exports
+				/share/nfs 172.16.227.130(rw) 172.16.227.1(rw) 172.16.227.154(ro)
+
+		exportfs：维护exports文件导出的文件系统表的专用工具：
+			exportfs -ar：重新导出所有的文件系统
+				# exportfs -ar
+			exportfs -au：关闭导出的所有文件系统
+				# exportfs -au 
+			exportfs -u FS：关闭指定的导出的文件系统
+				# exportfs -u /share/nfs
+
+		开机自动挂载nfs：
+			/etc/fstab
+			SERVER:/path/to/exported_fs /mount_point nfs defaults,_netdev 0 0
+				_netdev：指明此文件系统是网络设备,表示没有检测到挂载点就放弃挂载
+
+补充材料：
+
+			/etc/exports 文件中的项的格式相当简单。要共享一个文件系统，只需要编辑 /etc/exports 并使用下面的格式给出这个文件系统（和选项）即可：
+				directory (or file system)   client1(option1, option2) client2(option1, option2)
+
+			常用选项
+
+				有几个常用的选项可以对 NFS 实现进行定制。这些选项包括：
+					secure： 这个选项是缺省选项，它使用了 1024 以下的 TCP/IP 端口实现 NFS 的连接。指定 insecure 可以禁用这个选项。
+					rw： 这个选项允许 NFS 客户机进行读/写访问。缺省选项是只读的。
+					async： 这个选项可以改进性能，但是如果没有完全关闭 NFS 守护进程就重新启动了 NFS 服务器，这也可能会造成数据丢失。
+					no_wdelay： 这个选项关闭写延时。如果设置了 async，那么 NFS 就会忽略这个选项。
+					nohide： 如果将一个目录挂载到另外一个目录之上，那么原来的目录通常就被隐藏起来或看起来像空的一样。要禁用这种行为，需启用 hide 选项。
+					no_subtree_check： 这个选项关闭子树检查，子树检查会执行一些不想忽略的安全性检查。缺省选项是启用子树检查。
+					no_auth_nlm： 这个选项也可以作为 insecure_locks 指定，它告诉 NFS 守护进程不要对加锁请求进行认证。如果关心安全性问题，就要避免使用这个选项。缺省选项是 auth_nlm 或 secure_locks。
+					mp (mountpoint=path)： 通过显式地声明这个选项，NFS 要求挂载所导出的目录。
+					fsid=num： 这个选项通常都在 NFS 故障恢复的情况中使用。如果希望实现 NFS 的故障恢复，请参考 NFS 文档。
+			
+			用户映射
+				通过 NFS 中的用户映射，可以将伪或实际用户和组的标识赋给一个正在对 NFS 卷进行操作的用户。这个 NFS 用户具有映射所允许的用户和组的许可权限。对 NFS 卷使用一个通用的用户/组可以提供一定的安全性和灵活性，而不会带来很多管理负荷。
+				在使用 NFS 挂载的文件系统上的文件时，用户的访问通常都会受到限制，这就是说用户都是以匿名用户的身份来对文件进行访问的，这些用户缺省情况下对这些文件只有只读权限。这种行为对于 root 用户来说尤其重要。然而，实际上的确存在这种情况：希望用户以 root 用户或所定义的其他用户的身份访问远程文件系统上的文件。NFS 允许指定访问远程文件的用户——通过用户标识号（UID）和组标识号（GID），可以禁用正常的 squash 行为。
+				
+				用户映射的选项包括：
+					root_squash： 这个选项不允许 root 用户访问挂载上来的 NFS 卷。
+					no_root_squash： 这个选项允许 root 用户访问挂载上来的 NFS 卷。
+					all_squash： 这个选项对于公共访问的 NFS 卷来说非常有用，它会限制所有的 UID 和 GID，只使用匿名用户。缺省设置是 no_all_squash。
+					anonuid 和 anongid： 这两个选项将匿名 UID 和 GID 修改成特定用户和组帐号。
+
+
+	客户端挂载时可以使用的特殊选项：
+
+		Client
+			Mounting remote directories
+			Before mounting remote directories 2 daemons should be be started first:
+				rpcbind
+				rpc.statd
+
+		rsize 的值是从服务器读取的字节数。wsize 是写入到服务器的字节数。默认都是1024， 如果使用比较高的值，如8192,可以提高传输速度。 
+
+		The timeo value is the amount of time, in tenths of a second, to wait before resending a transmission after an RPC timeout. After the first timeout, the timeout value is doubled for each retry for a maximum of 60 seconds or until a major timeout occurs. If connecting to a slow server or over a busy network, better performance can be achieved by increasing this timeout value.
+		The intr option allows signals to interrupt the file operation if a major timeout occurs for a hard-mounted share.
+
+		总结：
+			1、客户端表示方式
+				IP、FQDN或DOMAIN、NETWORK
+			2、导出选项：
+				rw, async, sync, root_squash, no_root_squash, all_squash, anonuid, anongid
+			3、exportfs和showmount
+
+		博客：两台web服务器，共享关系型数据库，共享NFS服务器，利用DNS记录轮询提供负载均衡；
+
+
+	samba：
+		smb：Service Message Block
+		CIFS：Common Internet File System
+
+		smb --> samba
+
+			137/udp, 138/udp, 139/tcp, 445/tcp
+
+				NetBIOS：Windows基于主机名实现互相通信的机制；
+					15个字符
+
+				samba：
+					nmbd：实现netbios协议
+					smbd：实现cifs协议
+					winbindd：实现将samba共享的资源可以添加到windows活动目录中，需要ldap
+
+				UNC路径：\\SERVER\shared_name
+
+
+			交互式数据访问：
+				# smbclient -L HOST -U USERNAME
+					# smbclient -L 192.168.216.130 -U Hunter
+
+				获取到共享信息之后，
+				# smbclient  //SERVER/shared_name -U USERNAME
+					# smbclient //192.168.216.130/c$ -U Hunter
+
+			基于挂载的方式访问：
+				mount -t cifs //SERVER/shared_name /mount_point -o username=USERNAME,password=PASSWORD
+					# mount -t cifs //192.168.216.130/test /mnt -o username=Hunter
+
+	服务器：
+		# yum install samba -y
+
+		服务脚本：
+			/etc/rc.d/init.d/nmb
+			/etc/rc.d/init.d/smb
+
+		主配置文件：
+			/etc/samba/smb.conf
+
+		samba用户：
+			账户：都是系统用户，/etc/passwd
+			密码：samba服务自有密码文件
+
+			将系统用户添加为samba的用户的命令：smbpasswd,pdbedit
+				smbpasswd：
+					-a Sys_user：添加系统用户为samba用户
+						# smbpasswd -a smbuser1
+					-d：禁用
+					-x：删除
+				pdbedit：
+					-a -u Sys_user：添加系统用户为samba用户
+					-L：产看sam数据库中samba所有用户
+					-v：verbose
+
+		启动服务：
+			# service nmb start; service smb start
+
+		配置文件：
+			smb.cof
+				全局设定
+					netbios name：netbios名称
+					interfaces：监听的接口
+					hosts allow：访问控制
+					log file：每个客户端有一个单独的日志
+
+				某特定共享的设定
+					私有家目录
+					打印机共享
+					自定义共享
+
+				自定义共享：
+					[shared_name]
+						path = /path/to/share_dir
+						comment = Comment String（注释信息）
+						guest ok ＝ {yes|no} 是否允许来宾用户访问
+						public = {yes|no}
+						writable = {yes|no} 是否可写
+						readonly = {yes|no}
+						write list = +GROUP_NAME
+
+			测试配置文件是否有语法错误，以及显示最终生效的配置：
+				# testparm
+
+		图形界面管理工具：
+			samba-swat
+
+
+	Exercise：
+		建立samba共享，共享目录为/data，要求：
+			1)共享名为shared，工作组为magedu;
+				# mkdir /data
+				# vim /etc/samba/smb.conf
+				[global]
+					workgroup = magedu
+				[shared]
+					comment = My Shared File.
+					path = /data
+					public  = no
+					writable = yes
+
+			2)添加组develop，添加用户gentoo,centos和ubuntu，其中gentoo和centos以develop为附加组，ubuntu不属于develop组；密码均为用户名；
+				# groupadd -g 1000 develop
+				# useradd -G develop gentoo; echo "gentoo" | passwd --stdin gentoo
+				# useradd -G develop centos; echo "centos" | passwd --stdin centos
+				# useradd ubuntu
+				# tail -n 4 /etc/group
+				develop:x:1000:gentoo,centos
+				gentoo:x:501:
+				centos:x:502:
+				ubuntu:x:503:
+
+			3)添加samba用户gentoo,centos和ubuntu，密码均为"mageedu"；
+				# smbpasswd -a gentoo
+				# smbpasswd -a centos
+				# smbpasswd -a ubuntu
+				# pdbedit -L
+				smbuser1:500:
+				gentoo:501:
+				ubuntu:503:
+				smbuser2:504:
+				centos:502:
+
+			4)此samba共享shared仅允许develop组具有写权限，其它用户只能以只读方式访问；
+				# setfacl -m g:develop:rwx /data
+				# getfacl /data
+				getfacl: Removing leading '/' from absolute path names
+				# file: data
+				# owner: root
+				# group: root
+				user::rwx
+				group::r-x
+				group:develop:rwx
+				mask::rwx
+				other::r-x
+
+			5)此samba共享服务仅允许来自于172.16.0.0/16网络的主机访问。
+				# vim /etc/samba/smb.conf
+				[global]
+					hosts allow = 172.16.
+	
+
+
+

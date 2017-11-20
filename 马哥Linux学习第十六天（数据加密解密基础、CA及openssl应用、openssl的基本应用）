@@ -1,0 +1,502 @@
+马哥Linux学习第十六天（数据加密解密基础、CA及openssl应用、openssl的基本应用）
+系统管理：sudo, nsswitch, pam, sed and awk
+安全及服务管理：
+	openssl, openssh
+	dns：bind
+	web：httpd，
+		lamp：mysql，php
+		lammp：memcached
+		nginx, lnm;, lnmmp
+	file serveices: ftp, samba, nfs
+	dhcp,pxe
+	iptables
+
+	mail：
+
+OpenSSL：
+	数据加密：
+
+	SSL: Secure Socket Layer
+
+	NIST：
+		保密性：
+			数据保密性
+			隐私性
+		完整性：
+			数据完整性
+			系统完整性
+		可用性：
+
+	OSI: x.800
+		安全攻击：
+			被动攻击：监听
+			主动攻击：伪装、重放、消息篡改、拒绝服务
+		安全机制：
+			加密/解密、数字签名、访问控制、数据完整性、认证交换、流量填充、路由控制、公证
+		安全服务：
+			认证
+			访问控制
+			数据保密性
+				连接保密性
+				无连接保密性
+				选择域保密性
+				流量保密性
+			数据完整性
+			不可否认性
+
+		密码算法和协议：
+			对称加密
+			公钥加密
+			单向加密
+			认证协议
+
+	加密算法和协议：
+		对称加密：加密和解密使用同一个密钥；
+			依赖于：算法和密钥；
+				安全性依赖于密钥，而非算法；
+
+			常见算法：
+				DES：Data Encryption Standard, 56bits
+				3DES: 
+				AES: Advanced Encrpytion Standard, (128bits, 192, 256, 384, 512bits)
+				Blowfish
+				Twofish
+				IDEA
+				RC6
+				CAST5
+
+			特性：
+				1、加密、解密使用同一密钥；
+				2、将明文分隔成固定大小的块，逐个进行加密；
+
+			缺陷：
+				1、密钥过多；
+				2、密钥分发；
+
+		非对称加密：公钥加密
+			密钥对儿：私钥和公钥
+				私钥：secret key，仅允许个人使用；
+				公钥：public key，公开给所有获取；
+
+				公钥从私钥中提取而来；使用公钥加密的数据，只能使用与此公钥配对儿的私钥解密；反之亦然；
+
+			用处：
+				身份认证：私钥拥有者用自己的私钥加密的数据，只要用其公钥能解密，即可认证其身份；
+				密钥交换：与被通信方通信之前，首先获取到对方的公钥，自己生成一个加密密码，用对方的公钥加密，并发送给对方；
+				数据加密：
+
+			算法：
+				RSA
+				DSA
+				ELGamal
+
+			特性：
+				1、密钥长度较大，例如512bits, 2048bits, 4096bits
+				2、加密解密分别使用密钥对儿中的密钥相对进行；
+				3、常用于数据签名和密钥交换；
+
+		单向加密：提出数据的特征码；
+			特性：
+				1、定长输出：无论原来的数据是多大级别，其加密结果长度一样；
+				2、雪崩效应：原始数据微小改变，将会导致结果巨大变化；
+				3、不可逆：
+
+			算法：
+				MD5：128bits定长输出；
+				SHA1：160bits定长输出；
+				SHA256
+				SHA384
+				SHA512：
+
+				CRC32
+
+				/etc/shadow：
+					$#$#######$##############################################
+
+			用处：
+				1、数据完整性；
+
+		数字签名：
+
+		密钥交换：IKE (Internet Key Exchange)
+			公钥加密
+			DH （Deffie-Hellman）
+				A：P，G
+					X
+
+					P^X%G
+
+					从B拿到：(P^Y%G)^X=P^XY%G
+
+				B：
+					公开：P，G
+					私有：Y
+
+					P^Y%G
+
+					从A拿到：(P^X%G)^Y=P^XY%G
+
+	一次加密通信过程
+		发送者：
+			1、使用单向加密算法提取生成数据的特征码；
+			2、使用自己的私钥加密特征码附加在数据后面；
+			3、生成用于对称加密的临时密钥；
+			4、用此临时密钥加密数据和已经使用私钥加密后的特征码；
+			5、使用接收方的公钥加密此临时密钥，附加在对称加密后的数据后方；
+
+		接收方：
+			1、使用自己的私钥解密加密的临时密钥；从而获得对称密钥；
+			2、使用对称密钥解密对称加密的 数据和私钥加密的特征码密文；从而获得数据和特征码密文；
+			3、使用发送方的公钥解密特征码密文，从而获得从计算生成的特征码；
+			4、使用与对方同样的单向加密算法计算数据的特征码，并与解密而来的进行比较；
+
+	数字证书：
+		CA：签证机构
+			功用：保证公钥信息安全分发；
+
+		数字证书的格式(x.509 v3)：
+			版本号（version）
+			序列号(serial number)：CA用于惟一标识此证书；
+			签名算法标志(Signature algorithm identifier)
+			发行者的名称：即CA自己的名称；
+			有效期：两个日期，起始日期和终止日期；
+			证书主体名称：证书拥有者自己的名字
+			证书主体公钥信息：证书拥有者自己的公钥；
+			发行商的惟一标识：
+			证书主体的惟一标识：
+			扩展信息：
+			签名：CA对此证书的数字签名；
+
+		证书通常有两类用途：
+			用户证书
+			主机证书（httpd）
+
+		撤消证书：
+
+	PKI: Public Key Infrastructure
+		签证机构：CA
+		注册机构：RA
+		证书吊销列表：CRL
+		证书存取库：
+
+	SSL：secure socket layer
+		sslv1, sslv2, sslv3
+
+	TLS: transport layer security
+		tlsv1
+
+		http --> ssl --> https (443)
+
+	openssl的组成部分：
+		libcrypto：加密、解密库文件；
+		libssl: ssl协议实现
+		openssl：多用途命令行工具，每种功能都使用专用的子命令来实现
+
+	gpg: GNU Privarcy Guard
+		是pgp规范的实现；
+
+	openssl: 
+
+		子命令分类：
+			标准命令
+			消息摘要命令
+			加密、解密相关的命令
+
+		加密文件（对称加密）：
+			工具：openssl enc, gpg
+			算法：des, 3des, aes, blowfish, twofish, idea, cast5
+
+			enc工具：
+				# openssl enc -e -CIPHERNAME -a -salt -in /PATH/FROM/SOMEFILE -out /PATH/TO/SOMECIPHERFILE
+
+				# openssl enc -d -CIPHERNAME -a -salt -in /PATH/FROM/SOMECIPHERFILE -out /PATH/TO/SOMEFILE
+
+		单向加密：
+			算法：md5, sha1
+			工具：openssl dgst, md5sum, sha1sum, sha224sum, sha256sum, sha384sum, sha512sum
+
+			# openssl dgst -CIPHER /PATH/TO/SOMEFILE...
+
+			MAC: 消息认证码，单向加密的一种延伸应用，用于实现在网络通信中保证所传输的数据的完整性；
+
+				机制：
+					CBC-MAC
+					HMAC：使用md5或sha1算法 
+
+		生成用户密码：
+			man sslpasswd
+			openssl passwd -1 -salt 8bits随机数
+				~]# openssl passwd -1 -salt 12345678
+				Password: 
+				$1$12345678$Za7.XNG9d/GR4Ug3wV/I9/
+
+				-1：使用md5算法
+
+		生成随机数：
+			openssl rand -hex|-base64 NUM
+				~]# openssl rand -hex 4
+				5d1e2f1f
+				~]# openssl rand -base64 4
+				9h5y3g==
+
+				-hex：生成16进制随机数
+				-base64：生成文本格式随机数
+
+				~]# openssl passwd -1 -salt $(openssl rand -hex 4)
+				Password: 
+				$1$9baaee77$BbQ5bBxMUe2GwYtl26siB/
+
+				~]# openssl passwd -1 -salt $(openssl rand -hex 4)
+				Password: 
+				$1$f35d1af5$ljNVdxTStIlc8qoe5LPEK1
+
+
+回顾：
+	对称加密：数据加密
+		3DES,AES,IDEA,CASTS
+	公钥加密：身份认证、密钥交换、数据加密
+		RSA,DSA,ELGamal
+	单项加密：完整性校验
+		md5, sha1, sha256
+	密钥交换：公钥加密、DH
+
+	PKI：公钥基础设施
+		CA、RA、CRL、证书存取库
+
+	SSL：安全的套接字层，sslv3
+		TLSv1：传输层安全
+
+	openssl：
+		libcrypto, libssl, openssl
+
+		对称加密：enc
+		单项加密：dgst
+		生成密码：passwd
+		生成随机数：rand
+
+OpenSSL(2)
+
+	公钥加密：
+		工具：gpg，openssl rsautl 
+
+		数字签名：RSA，DSA，ELGamal
+			DSA：Digital Signature Algorithm 
+			DSS：Digital Signature Standard
+
+		密钥交换：
+			公钥加密、DH
+
+		生成密钥对儿：
+			操作过程：生成私钥，从私钥中提取出公钥；
+				# openssl genrsa -out /path/to/private_keyfile num_bits
+
+			注意：在bash命令行上放在小括号中执行的命令，其实是通过打开一个子shell进程进行的；
+
+				# (umask 077; openssl genrsa -out /path/to/private_keyfile num_bits)
+
+			从私钥中手动提取公钥：
+				# openssl rsa -in /path/from/private_key_file -pubout
+
+	随机数生成器：
+		random,urandom
+
+		熵池(entropy pool)：保存硬件中断产生的随机数
+
+		/dev/random：仅从熵池中返回随机数，当熵池中的随机数耗尽时，取随机数的进程将会被阻塞；
+		/dev/urandom：先从熵池中取随机数，当熵池中的随机数耗尽时，就通过伪随机数生成器生成随机数；
+
+
+	x.509 v3数字证书的格式
+
+	获取证书的方法：
+		向RA注册申请
+		建立私有CA：
+			OpenSSL
+			OpenCA
+
+	使用OpenSSL构建私有CA：
+		1、生成私钥；
+		2、生成自签署证书；
+
+		（1）私钥用于签发证书时，向证书添加数字签名使用；
+		（2）证书：每个通信方都需导入此证书至“受信任的证书颁发机构”；用此证书验证其颁发的证书是否可用；
+
+		配置文件：
+			# etc/pki/tls/openssl.cnf
+
+		工作目录：/etc/pki/CA/
+			certs：证书文件的存放位置
+			crl：证书吊销列表的存放位置
+			newcerts：新创建的证书的存放位置
+			private：CA自己私钥存放位置
+
+		建立私有CA：
+			1、生成私钥文件：/etc/pki/CA/private/cakey.pem
+			[root@CentOS-6-7 ~]# (umask 077; openssl genrsa -out /etc/pki/tls/private/cakey.pem 2048)
+			Generating RSA private key, 2048 bit long modulus
+			............................................................+++
+			...................+++
+			e is 65537 (0x10001)
+
+			2、生成自签证书
+			[root@CentOS-6-7 CA]# openssl req -new -x509 -key /etc/pki/CA/private/cakey.pem -out /etc/pki/CA/cacert.pem -days 3650 
+			You are about to be asked to enter information that will be incorporated
+			into your certificate request.
+			What you are about to enter is what is called a Distinguished Name or a DN.
+			There are quite a few fields but you can leave some blank
+			For some fields there will be a default value,
+			If you enter '.', the field will be left blank.
+			-----
+			Country Name (2 letter code) [XX]:CN
+			State or Province Name (full name) []:HA
+			Locality Name (eg, city) [Default City]:ZZ
+			Organization Name (eg, company) [Default Company Ltd]:MageEdu
+			Organizational Unit Name (eg, section) []:Ops
+			Common Name (eg, your name or your server's hostname) []:ca.magedu.com
+			Email Address []:caadim@magedu.com
+			[root@CentOS-6-7 CA]# ll
+			总用量 20
+			-rw-r--r--. 1 root root 1391 11月 11 08:58 cacert.pem
+			drwxr-xr-x. 2 root root 4096 9月  27 20:30 certs
+			drwxr-xr-x. 2 root root 4096 9月  27 20:30 crl
+			drwxr-xr-x. 2 root root 4096 9月  27 20:30 newcerts
+			drwx------. 2 root root 4096 11月 11 08:49 private
+
+				-new：生成新的证书签署请求
+				-key：私钥文件路径，用于提取公钥；
+				－days ＃：证书有效时长，单位为"天"；
+				-out：输出文件保存位置；
+					-x509：直接输出自签署的证书文件，通常只有构建CA时才这么用；
+
+			给节点发证书：
+				1、节点申请证书
+					在证书申请的主机上进行如下步骤：
+						（1）生成私钥；
+							[root@CentOS-6-7 CA]# cd /etc/httpd/
+							[root@CentOS-6-7 httpd]# ls
+							conf  conf.d  logs  modules  run  users
+							[root@CentOS-6-7 httpd]# mkdir ssl
+							[root@CentOS-6-7 httpd]# ls
+							conf  conf.d  logs  modules  run  ssl  users
+							[root@CentOS-6-7 httpd]# (umask 077; openssl genrsa -out httpd.pem  1024)
+							Generating RSA private key, 1024 bit long modulus
+							..........++++++
+							...++++++
+							e is 65537 (0x10001)
+							[root@CentOS-6-7 httpd]# ll
+							总用量 20
+							drwxr-xr-x. 2 root root 4096 11月 10 16:16 conf
+							drwxr-xr-x. 2 root root 4096 11月  9 18:17 conf.d
+							-rw-------. 1 root root  887 11月 11 09:18 httpd.pem
+							lrwxrwxrwx. 1 root root   19 11月  9 17:23 logs -> ../../var/log/httpd
+							lrwxrwxrwx. 1 root root   29 11月  9 17:23 modules -> ../../usr/lib64/httpd/modules
+							lrwxrwxrwx. 1 root root   19 11月  9 17:23 run -> ../../var/run/httpd
+							drwxr-xr-x. 2 root root 4096 11月 11 09:16 ssl
+							drwxr-xr-x. 2 root root 4096 11月 10 02:50 users
+
+						（2）生成证书签署请求；
+							[root@CentOS-6-7 httpd]# openssl req -new -key httpd.pem -out httpd.csr 
+							You are about to be asked to enter information that will be incorporated
+							into your certificate request.
+							What you are about to enter is what is called a Distinguished Name or a DN.
+							There are quite a few fields but you can leave some blank
+							For some fields there will be a default value,
+							If you enter '.', the field will be left blank.
+							-----
+							Country Name (2 letter code) [XX]:CN
+							State or Province Name (full name) []:HA
+							Locality Name (eg, city) [Default City]:ZZ
+							Organization Name (eg, company) [Default Company Ltd]:MageEdu
+							Organizational Unit Name (eg, section) []:Ops
+							Common Name (eg, your name or your server's hostname) []:www.a.com
+							Email Address []:webadmin@magedu.com
+
+							Please enter the following 'extra' attributes
+							to be sent with your certificate request
+							A challenge password []:
+							An optional company name []:
+
+							注意：
+								(a)其中的subject信息部分，要与CA的保持一致；
+								(b)Common Name要使用此主机在通信时真实使用名字
+
+						（3）把请求发送给CA：
+							[root@CentOS-6-7 httpd]# scp httpd.csr root@172.16.227.137:/tmp
+							The authenticity of host '172.16.227.137 (172.16.227.137)' can't be established.
+							RSA key fingerprint is 6c:bd:0f:4a:91:a6:87:cc:c9:90:5b:98:c4:96:62:cf.
+							Are you sure you want to continue connecting (yes/no)? yes
+							Warning: Permanently added '172.16.227.137' (RSA) to the list of known hosts.
+							Nasty PTR record "172.16.227.137" is set up for 172.16.227.137, ignoring
+							root@172.16.227.137's password: 
+							httpd.csr                                                      100%  684     0.7KB/s   00:00 
+
+						（4）CA服务器创建需要的文件：
+							# touch /etc/pki/CA/index.txt
+							# echo 01 > /etc/pki/CA/serial
+
+								index.txt就是记录数据库。serial就是读取其中的那个数字，生成个以这个数字为名字的pem文件，且数字每次自增1
+
+				2、CA签发证书
+					（1）验证请求者信息
+					（2）签署证书
+						# openssl ca -in /path/from/csr_file -out /path/to/crt_file -days N
+
+						[root@CentOS-6-7 httpd]# openssl ca -in /etc/httpd/httpd.csr -out /etc/httpd/ssl/http.crt -days 3650
+						Using configuration from /etc/pki/tls/openssl.cnf
+						Check that the request matches the signature
+						Signature ok
+						Certificate Details:
+						        Serial Number: 1 (0x1)
+						        Validity
+						            Not Before: Nov 11 01:41:37 2016 GMT
+						            Not After : Nov  9 01:41:37 2026 GMT
+						        Subject:
+						            countryName               = CN
+						            stateOrProvinceName       = HA
+						            organizationName          = MageEdu
+						            organizationalUnitName    = Ops
+						            commonName                = www.a.com
+						            emailAddress              = webadmin@magedu.com
+						        X509v3 extensions:
+						            X509v3 Basic Constraints: 
+						                CA:FALSE
+						            Netscape Comment: 
+						                OpenSSL Generated Certificate
+						            X509v3 Subject Key Identifier: 
+						                08:55:19:79:4F:9A:2D:F6:D8:E3:2F:CC:3C:69:5A:74:8B:ED:6E:86
+						            X509v3 Authority Key Identifier: 
+						                keyid:49:1D:8B:80:A8:08:1F:A6:13:13:0C:96:35:66:76:4B:5B:36:9F:6C
+
+						Certificate is to be certified until Nov  9 01:41:37 2026 GMT (3650 days)
+						Sign the certificate? [y/n]:y
+
+
+						1 out of 1 certificate requests certified, commit? [y/n]y
+						Write out database with 1 new entries
+						Data Base Updated
+
+					（3）把签署好的证书发还给请求者
+
+				吊销证书：
+					1、获取吊销证书的序列号
+						# openssl x509 -in /path/from/crt_file -noout -serial -subject 
+							[root@CentOS-6-7 httpd]# openssl x509 -in /etc/httpd/ssl/http.crt -noout -serial -subject
+							serial=01
+							subject= /C=CN/ST=HA/O=MageEdu/OU=Ops/CN=www.a.com/emailAddress=webadmin@magedu.com
+
+					2、实现证书吊销
+						（1）确保要吊销的证书相关信息与自己办法的信息一致
+						（2）吊销证书
+							# openssl ca -revoke /path/from/crt_file
+
+						（3）生成吊销证书的编号
+							echo 01 > /etc/pki/CA/crlnumber
+
+						（4）更新证书吊销列表
+							# openssl crl -gencrl -out httpd.crl
+
+				总结：子命令genrsa,req,ca,x509,crl
+
+		博客作业：加密、解密，以及OpenSSL建立私有CA；
+
+

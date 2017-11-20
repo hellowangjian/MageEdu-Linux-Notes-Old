@@ -1,0 +1,584 @@
+马哥Linux学习第二十一天（lamp组合初识、php及RDBMS、关系型数据库及MySQL、MySQL入门）
+
+回顾：curl，https，ab，编译安装httpd-2.4
+
+	https：443/tcp
+		httpd：证书
+
+		mod_ssl,配置文件：/etc/httpd/conf.d/ssl.conf
+
+	httpd-2.4编译安装：
+		mpm DSO
+
+		./configure, make, make install
+
+lamp组合：
+	L：Linux，A：apache（httpd），M：MySQL（MariaDB），P（php，python，perl，ruby）
+
+	程序=指令＋数据
+
+	CGI：Common Gateway Interface，通用网关接口
+		简化版的httpd协议，用于web服务器与应用程序进程通信；
+
+	DataBase：
+
+	lamp组合：
+		a与p的组合方式：
+			CGI
+			Module
+			FastCGI
+
+	请求流程：
+		Client-->(http)-->(httpd)-->(somefile.php,cgi)-->application server-->(mysql)-->mysql server
+
+	php程序与MySQL如何交互：
+		解释器无须与MySQL交互，需要处理数据的其实是解释器上运行的程序；
+		存储系统有多种：
+			NoSQL：redis，mongodb等等
+			SQL：MariaDB，MySQL，Oracle等
+			NewSQL：
+			分布式存储：
+		程序与存储系统交互需要通过专用的接口（驱动）进行
+
+	CentOS 6.6 LAMP
+		需要安装基本程序包：
+			httpd,php,php-mysql,mysql-server
+
+	博客作业：rpm包格式安装配置lamp，提供两个虚拟主机，一个用于wordpress，一个用于phpMyAdmin，为后一个提供ssl访问方式。
+
+	关于PHP
+	一、PHP简介
+		PHP是通用服务器端脚本编程语言，其主要用于web开发以实现动态web页面，它也是最早实现将脚本嵌入HTML源码文档中的服务器端脚本语言之一。同时，php还提供了一个命令行接口，因此，其也可以在大多数系统上作为一个独立的shell来使用。
+		Rasmus Lerdorf于1994年开始开发PHP，它是初是一组被Rasmus Lerdorf称作“Personal Home Page Tool”的Perl脚本，这些脚本可以用于显示作者的简历并记录用户对其网站的访问。后来，Rasums Lerdorf使用C语言将这些Perl脚本重写为CGI程序，还为其增加了允许Web flrms的能力以及与数据库交互的特性，并将其重命名为“Personal Home Page/Forms Interpreter"或"PHP/FI"。此时,PHP/FI已经可以用于开发简单的动态web程序了，这即是PHP 1.0。1995年6月，Rasmus Lerdorf把它的PHP发布于comp.infosystems.www.authoring.cgi Usenet讨论组，从此PHP开始走进人们的视野。1997年，其2.0版本发布。
+
+		1997年，两名以色列程序员Zeev Suraski和Andi Gutmans重写的PHP的分析器(parser)成为PHP发展到3.0的基础，而且从此将PHP发展到了3.0的基础，而且从此将PHP重命名为PHP:Hypertext
+		 Preprocessor。此后，这两名程序员开始重写整个PHP核心，，并于1999年发布了Zend Engine 1.0，这意味着PHP 4.0的诞生。2004年7月，Zend Engine 2.0发布，由此也将PHP带入了PHP 5时代。
+		PHP5包含了许多重要的新特性，如增强的面向对象编程的支持、支持PDO（PHP Data Ojects）扩展机制以及一系列对PHP性能的改进。
+
+	二、PHP Zend Engine
+		Zend Engine是开源的，PHP脚本语言的解释器，它最早是由以色列理工学院（Technion）的学生Andi Gutmans和Zeev Suraski所开发，Zend也正是此二人名字的合称。后来两人联合创立了Zend Technologies公司。
+		Zend Engine 1.0于1999年随PHP 4发布，由C语言开发且经过高度优化，并能够为PHP的后端模块使用。ZendEngine为PHP提供了内存和资源管理的功能以及其它的一些标准服务，其高性能、可靠性和可扩展性在促进PHP成为一种流行的语言方面发挥了重要作用。
+		Zend Engine的出现将PHP代码的处理过程分成了两个阶段：首先是分析PHP代码并将其转换为称作Zend opcode的二进制格式（类似java的字节码），并将其存储于内存中；第二阶段是使用Zend Engine去执行这些转换后的Opcode。
+
+	三、PHP的Opcode
+		Opcode是一种PHP脚本脚本编译后的中间语言，就像java的ByteCode，或者.NET的MSL。PHP执行PHP脚本代码一般会经过如下4个步骤（确切的来说，应该是PHP的语言引擎Zend）：
+			1、Scanning(Lexing) ---将PHP代码转换为语言片段（Tokens）
+			2、Parshing ---将Tokens转换成简单而有意义的表达式
+			3、Compilation ---将表达式编译成Opocdes
+			4、Execution ---顺序执行Opcodes，每次一条，从而实现PHP脚本的功能
+				扫描-->分析-->编译--->执行
+
+	四、php的加速器
+		基于PHP的特殊扩展机制如opcode缓存扩展也可以将ipcode缓存于php的共享内存中，从而可以让同一段代码的后续重复执行时跳过编译阶段以提高性能。由此也可以看出，这些加速器并非真正提高了opconde的运行速度，而仅是通过分析opcode后并将它们重新排列以达到快速执行的目的。
+		常见的php加速器有：
+
+		1、APC（Alternatice PHP Cache）
+		遵循PHP Liences的开源框架，PHP opcode缓存加速器，目前的版本不适用于PHP 5.4。项目地址，http://pecl.php.net/package/APC。
+
+		2、eAccelerator
+		源于Turck MMCache，早期的版本包含了一个PHP encoder和PHP loader，目前encoder已经不在支持。项目地址，http://eaccelerator.net/。
+
+		3、XCache
+		快速而且稳定的PHP opdcode缓存，经过严格测试且被大量用于生产环境。项目地址，http://xcache.lighttpd.net/
+
+		4、Zend Optimizer和Zend Guard Loader
+		Zend Optimizer并非一个opcode加速器，它是由Zend Technologies为PHP5.2以及以前的版本提供一个免费、闭源的PHP扩展，其能够运行由Zend Guard生成的加密的PHP代码或模糊代码。而Zend Guard Loader则是专为PHP5.2提供的类似于Zend Optimizer功能的扩展。项目地址，http://www.zend.com/en/products/guard/runtime-decoders
+
+		5、NuSphere PhpExpress
+		NuSphere的一款开源PHP加速器，它支持装载通过NuSphere PHP Encoder编码的PHP程序文件，并能够实现对常规PHP文件的执行速度。项目地址，http://www.nusphere.com/products/phpexpress.htm
+
+		hiphop php --> c++ --> 
+		hhvm
+
+	五、PHP源码目录结构
+		PHP的源码在目录结构上非常清晰。其代码根目录中主要包含一些说明文件以及设计方案，并提供了如下子目录：
+		1、build --- 顾名思义，这里主要放置一些跟源码编译相关的文件，比如开始构建之前的buildconf脚本及一些检查环境的脚本等。
+		2、ext --- 官方的扩展目录，包括了绝大多数PHP的函数的定义和实现，如array系列，pdo系列，sql系列等函数的实现。个人开发的扩展在测试时也可以放到这个目录，以方便测试等。
+		3、main --- 这里存放的就是PHP最为核心的文件了，是实现PHP的基础设施，这里和Zend引擎不一样，Zend引擎主要实现语言最核心的语言运行环境。
+		4、Zend --- Zend引擎的实现目录，比如脚本的词法语法解析，opcode的执行以及扩展机制的实现等等。
+		5、pear --- PHP扩展与应用仓库，包含PEAR的核心文件。
+		6、sapi --- 包含了各种服务器抽象层的代码，例如apache的mod_php，cgi，gastcgi以及fpm等等接口。
+		7、TSRM --- PHP的线程安全是构建在TSRM库之上的，PHP实现中常见的*G宏通常是对TSRM的封装，TSRM（Thread Safe Resource Manager）线程安全资源管理器。
+		8、tests --- PHP的测试脚本集合，包含PHP各项功能的测试文件。
+		9、win32 --- 这个目录主要包括Windows平台相关的一些实现，比如sokcert的实现在Windows下和*Nix平台就不大一样，同时也包括了Windows下编译PHP相关的脚本。
+
+		./configure --help 就能看到这些配置项的说明.其实大部分对应的就是PHP源代码ext下的各个扩展.--enable开头的表示这个扩展不依赖第三方的库,典型的如--enable-opcache.--with开头的表示这个扩展依赖第三方的库,像--with-curl就依赖第三方的libcurl库,系统需要安装这个库的开发包(头文件,共享库so文件,静态库a文件)才能通过configure配置.有些扩展你不一定会用得上,比如:
+		sudo apt-get install apache2 php5 php5-mysqlnd php5-gd mysql-server
+		就可以正常跑Discuz!/WordPress等应用了,可见PHP默认configure就编译了大部分我们常用的库.以后有些扩展库需要使用,还可以phpize/configure/make进行编译安装,这时生成的扩展库是so共享库,需要在php.ini显式载入.
+
+		<?php
+			php code
+		?>
+
+		配置文件：/etc/php.ini, /etc/php.d/*.ini
+
+		数据库管理系统：DBMS
+			Database Management System
+				程序，实现数据管理；专用于为某一项目或某一方案使用数据集合即为数据库；
+
+			层次模型
+			网状模型
+			关系模型：
+				行、列：二维关系表
+				事务、范式
+			对象－关系模型：
+				Sybase,Infomix, Oracle
+				PostgreSQL，MySQL，Sqlite
+
+			MySQL,MariaDB
+
+			SQL：Structured Query Lanague
+				CREAT
+				DROP
+				ALTER
+				INSERT
+				SELECT
+				UPDATE
+				DELETE
+
+				8000
+			A,B
+				A:5000, B:6000
+
+			事务：ACID
+				A：原子性
+				C：一致性
+				I：隔离性
+				D：持久性
+
+			Tom --> Jerry 1000
+			8000,5000
+				5000
+
+			3000,1000
+
+回顾：lamp、php和关系型数据库基础
+
+	lamp = php语言所开发动态服务器页面提供的运行平台
+		httpd：http协议服务器
+		php：提供php脚本语言解释器
+			<?php
+				$conn = mysql_connect('host','user','passwd');
+				if ($conn)
+					echo "OK";
+				else
+					echo "Failure";
+
+				mysql_close($conn);
+			?>
+		mariadb：提供数据管理
+			RDBMS：Relational DataBase Management System
+				关系：二维关系
+					表：
+						列：字段
+						行：记录
+
+MySQL基础（lamp组合）：
+	
+	补充材料：RDBMS设计范式基础概念
+
+		设计关系型数据库时，遵从不同的规范要求，设计出合理的关系型数据库，这些不同的规范要求被称为不同的范式，各种范式呈递次规范，越高的范式数据库冗余越小。
+
+		目前关系数据库有六种范式：第一范式（1NF）、第二范式（2NF）、第三范式（3NF）、巴德斯科范式（BCNF）、第四范式（4NF）和第五范式（5NF，又称完美范式）。满足最低要求的范式是第一范式（1NF）。在第一范式的基础上进一步满足更多规范要求的称为第二范式（2NF），其余范式一次类推。一般说来，数据库只需满足第三范式（3NF）就行了。
+
+		（1）第一范式（1NF）
+			所谓第一范式（1NF）是指在关系模型中，对域添加的一个规范要求，所有的域都应该是原子性的，即数据库表的每一列都是不可分割的原子数据项，而不是集合，数组，记录等非原子性数据项。即实体中的某个属性有多个值时，必须拆分为不同的属性。在符合第一范式（1NF）表中的每个域值只能是实体的一个属性或一个属性的一部分。简而言之，第一范式就是无重复的域。
+
+			说明：在任何一个关系型数据库中，第一范式（1NF）是对关系模式的设计基本要求，一般设计中都必须满足第一范式（1NF）。不过有些关系型模型中突破了1NF的限制，这种称为非1NF的关系模型。换句话说，是否必须满足1NF的最低要求，主要依赖于所使用的关系模型。
+
+		（2）第二范式（2NF）
+			第二范式（2NF）是在第一范式（1NF）的基础上建立起来的，即满足第二范式（2NF）必须先满足第一范式（1NF）。第二范式（2NF）要求数据库表中的每个实例或纪录必须可以被唯一地区分。选取一个能区分每个实体的属性或属性组，作为实体的唯一标识。
+
+			第二范式（2NF）要求实体的属性完全依赖于主关键字。所谓完全依赖是指不能存在仅依赖主关键字一部分的属性，如果存在，那么这个属性和主关键字的这一部分分离出来形成一个新的实体，新实体与原实体之间是一对多的关系。为实现分区通常需要为表加上一个列，一存储各个实例的唯一标识，简而言之，第二范式就是在第一范式的基础上完全依赖于主键。
+
+		（3）第三范式（3NF）
+			第三范式（3NF）是第二范式（2NF）的一个子集，即满足第三范式（3NF）必须先满足第二范式（2NF）。简而言之，第三范式（3NF）要求一个关系中不包含已在其它关系中已包含的非主关键字信息。简而言之，第三范式就是属性不依赖于其它非主属性，也就是在满足2NF的基础上，任何非主属性不得传递依赖于主属性。
+
+		精简为：
+			（1）字段不可分割；
+			（2）应该拥有主键；
+			（3）表间不能拥有相同的非主键子段；
+
+		约束：constraint
+			主键约束：不能同已有数据，非空；(Not Null)；一张表只能有一个唯一键；primary key
+				单个子段
+				字段组合
+			唯一键约束：不能同已有数据；一张表上可以存在多个唯一键；unique key
+			外键约束：表之间对应字段间的约束关系；foreign key
+			检查性约束：自定义的表达式约束；
+
+		索引：将表中一个或多个字段抽取出来，按特定数据结构重新组织和存放的数据；
+
+		关系运算：
+			选择和投影
+				选择：挑选行；
+				投影：挑选字段；
+			连接：
+
+		RDBMS：
+			数据独立性；
+			高效数据存取；
+			数据完整性和完全性
+			数据管理接口简洁
+			并发存取
+			故障恢复
+			开发周期短
+
+		RDBMS的管理结构“
+			C/S
+				Client：客户端程序（GUI，CLI）、应用编程接口（API）；
+					mysql, php-mysql, python-MySQL
+				Server：DBMS（监听在套接字上，接收、处理并响应客户端请求）；
+					mysqld
+
+				mysql --> mysql protocol --> mysqld
+
+		数据抽象：
+			物理层：决定的数据的存储格式，即RDBMS在磁盘上如何组织文件；
+			逻辑层：描述DB中存储什么数据，以及数据间存在什么样的关系；
+			视图层：描述DB中的部分数据；
+
+		数据模型的分类：
+			关系模型
+			实体－关系模型
+			基于对象的数据模型
+			半结构化数据模型
+
+		MySQL：
+
+			Unireg
+
+			MySQL AB --> MySQL
+				Solaris：二进制版本
+
+				开源分支：MariaDB
+				Percona：Percona Server
+
+			安装方式：
+				源代码
+				通用二进制格式
+				包管理器格式：
+					rpm
+						system vendor
+						MySQL
+					deb
+
+			MySQL的配置文件：/etc/my.conf --> /etc/mysql/my.cnf --> ~/.my.cnf/
+
+			通用二进制格式安装：
+				解压：
+				]# tar xf mariadb-5.5.40-linux-x86_64.tar.gz -C /usr/local
+
+				创建连接文件为mysql
+				]# ln -sv mariadb-5.5.40-linux-x86_64 mysql
+
+				创建mysql系统用户和组
+				mysql]# groupadd -r mysql
+				mysql]# useradd -r -g mysql mysql
+				mysql]# id mysql
+				uid=496(mysql) gid=493(mysql) 组=493(mysql)
+
+				将此目录下的所有文件属主数组改为root.mysql
+				mysql]# chown -R root.mysql ./*
+				mysql]# ll
+				总用量 220
+				drwxr-xr-x.  2 root mysql   4096 11月 12 15:04 bin
+				-rw-r--r--.  1 root mysql  17987 10月  8 2014 COPYING
+				-rw-r--r--.  1 root mysql  26545 10月  8 2014 COPYING.LESSER
+				drwxr-xr-x.  3 root mysql   4096 11月 12 15:04 data
+				-rw-r--r--.  1 root mysql   8245 10月  8 2014 EXCEPTIONS-CLIENT
+				drwxr-xr-x.  3 root mysql   4096 11月 12 15:04 include
+				-rw-r--r--.  1 root mysql   8694 10月  8 2014 INSTALL-BINARY
+				drwxr-xr-x.  3 root mysql   4096 11月 12 15:04 lib
+				drwxr-xr-x.  4 root mysql   4096 11月 12 15:04 man
+				drwxr-xr-x. 11 root mysql   4096 11月 12 15:04 mysql-test
+				-rw-r--r--.  1 root mysql 108813 10月  8 2014 README
+				drwxr-xr-x.  2 root mysql   4096 11月 12 15:04 scripts
+				drwxr-xr-x. 27 root mysql   4096 11月 12 15:04 share
+				drwxr-xr-x.  4 root mysql   4096 11月 12 15:04 sql-bench
+				drwxr-xr-x.  3 root mysql   4096 11月 12 15:04 support-files
+
+				创建数据库存放目录，并将其属主数组改为mysql.mysql
+				mysql]# mkdir -pv /data/mydata/
+				mkdir: 已创建目录 "/data"
+				mkdir: 已创建目录 "/data/mydata/"
+				mysql]# chown -R mysql.mysql /data/mydata/
+
+				初始化mysql：
+				mysql]# scripts/mysql_install_db --user=mysql --datadir=/data/mydata
+				Installing MariaDB/MySQL system tables in '/data/mydata' ...
+				mysql]# ls /data/mydata/
+				aria_log.00000001  mysql             mysql-bin.000002  performance_schema
+				aria_log_control   mysql-bin.000001  mysql-bin.index   test
+
+				创建配置文件：
+				mysql]# mkdir /etc/mysql
+				mysql]# cp support-files/my-large.cnf /etc/mysql/my.cnf
+				mysql]# vim /etc/mysql/my.cnf
+				42 datadir = /data/mydata
+				34 innodb_file_per_table = on
+
+				启动mysql：
+				mysql]# cp support-files/mysql.server /etc/rc.d/init.d/mysqld
+				mysql]# chmod +x /etc/rc.d/init.d/mysqld
+				mysql]# chkconfig  --add mysqld
+				mysql]# chkconfig --list mysqld
+				mysqld         	0:关闭	1:关闭	2:启用	3:启用	4:启用	5:启用	6:关闭
+				mysql]# service mysqld start
+				Starting MySQL..                                           [  OK  ]
+
+				设置环境变量：
+				mysql]# vim /etc/profile.d/mysql.sh 
+				1 export PATH=/usr/local/mysql/bin:$PATH
+				mysql]# . /etc/profile.d/mysql.sh
+
+				登录mysql：
+				mysql]# mysql
+				Welcome to the MariaDB monitor.  Commands end with ; or \g.
+				Your MariaDB connection id is 2
+				Server version: 5.5.40-MariaDB-log MariaDB Server
+
+				Copyright (c) 2000, 2014, Oracle, Monty Program Ab and others.
+
+				Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
+
+				MariaDB [(none)]> select version();
+				+--------------------+
+				| version()          |
+				+--------------------+
+				| 5.5.40-MariaDB-log |
+				+--------------------+
+				1 row in set (0.00 sec)
+
+
+
+	MariaDB的特性：
+		插件式存储引擎：存储管理器有多种实现版本，功能和特性都有或多或少的区别：用户可根据需要灵活选择；
+
+		（1）更多的存储引擎
+			MyISAM --> Aria
+			Innodb --> xtraDB
+		（2）速度显著提升
+		（3）诸多扩展及新特性
+		（4）较多的测试组件
+		（5）较少的bug
+		（6）真开源
+
+		MySQL存储引擎：
+			5.1：默认为MyISAM，同时提供InnoDB；
+			5.5：默认为InnoDB，同时提供MyISAM；
+		MariaDB存储引擎：
+			默认为InnoDB(实际上为XtraDB)，同时提供Aira；
+
+	MariaDB C/S：
+		客户端与服务器通信分两种情形：
+			C和S在同一主机：基于Unix Sock
+				服务器地址：localhost, 127.0.0.1
+			C和S在不同主机或同一主机：基于TCP/IP协议通信
+				3306/tcp
+
+		mysql：命令交互式客户端应用程序
+			-u USERNAME：连接Server使用的帐号；管理员为root
+			-h HOSTNAME or IP：连入的Server
+			-p PASSWORD：前面使用-u选项指定的用户的密码；
+
+			注意：用户帐号由两部分组成'USERNAME'@'HOST'
+				服务器即会验证用户名，还同时会验证来源主机；
+		mysqld：服务器端程序
+		mysqld_safe：线程安全的服务器程序
+		mysqld_multi：同一主机运行多mysqld实例；
+
+			共享使用同一组配置文件：
+				/etc/my.cnf --> /etc/mysql/my.cnf --> ~/.my.cnf
+
+				共享方式：ini风格配置
+					[server]
+					[client]
+					[mysql]
+					[mysqld]
+						datadir = /data/mydata
+						innodeb_file_per_table = on
+
+			数据目录：
+				centos vendor：mysql-server, /var/lib/mysql
+				通用二进制格式：/usr/local/mysql/data
+
+				数据目录应该让运行mysqld进程的普通用户有完全访问权限；
+
+			ANSI SQL：
+				SQL－86，SQL－92，SQL－99
+
+				Oracle：PL/SQL
+				SQL Server：T-SQL
+				Mysql：SQL
+
+				DDL：Data Defination language，数据定义语言
+					CREATE，DROP，ALTER
+				DML：Data Manipulation Language,数据操纵语言
+					INSERT,DELETE,SELECT,UPDATE
+
+			MySQL支持的数据类型：
+				字符型
+					定长：CHAR(#),BINARY(#)
+					变长：VARCHAR(#),VARBINARY(#)
+					对象：
+						TEXT：
+						BLOB：
+					内置类型：SET，ENUM
+					注意：要使用引号；
+				数值型
+					精确数值
+						整型：
+							INT：TINYINT，SMALLINT，MEDIUMINT，INT，BIGINT
+						十进制：DECIMAL
+					近似数值
+						浮点：
+							float
+							double
+					注意：必须不能使用引号；
+				日期时间型：
+					date
+					time
+					datetime
+					year(2)
+					year(4)
+
+			类型的修饰符：
+				UNSIGNED
+				NULL
+				NOT NULL
+				DEFAULT
+
+				整数专用的修饰符：AUTO_INCREMENT；
+
+			键：
+				PRIMARY KEY
+				UNIQUE KEY
+				FOREIGN KEY
+
+			MariaDB的交互命令接口：
+				mysql>
+					可运行的命令有两类：
+						客户端命令：在mysql客户端本地直接运行的命令；
+							获取完整列表：
+								mysql> help
+
+						服务器端命令：由客户端将命令通过协议封装成报文发往mysqld，由mysqld运行，并取回运行结果至客户端；
+							即SQL语句，这些语句必须有语句结束符，默认为";"分号；
+
+						客户端命令：
+							quit, \q
+							help, \h
+							clear, \c：终止正在编写的语句；类似bash中的Ctrl＋c的功能；
+							go, \g：语句结束符
+							ego, \G：语句结束符，但竖排显示每行数据；
+							delimiter, \d：定义语句结束符；
+							use, \u：设定要操作的默认数据库
+
+						SQL语句：
+							获取帮助：help KEYWORD
+
+							DDL：
+								CREATE：创建
+								DROP：删除
+								ALTER：修改
+								CREATE：创建
+
+							DML
+
+			数据库管理操作：
+				CREATE DATABASE
+					CREATE {DATABASE | SCHEMA} [IF NOT EXISTS] db_name
+					    [create_specification] ...
+
+					create_specification:
+					    [DEFAULT] CHARACTER SET [=] charset_name
+					    	SHOW CHARACTER SET; ：查看字符集
+					  | [DEFAULT] COLLATE [=] collation_name
+					  		SHOW COLLATION; ：查看字符排序规则
+
+					  	MariaDB [(none)]> CREATE DATABASE IF NOT EXISTS test_db CHARACTER SET = 'utf8';
+						uery OK, 1 row affected (0.02 sec)
+
+
+					查看已有的数据库列表：
+						SHOW DATABASES;
+
+					查看报警：
+						MariaDB [(none)]> SHOW WARNINGS;
+						+-------+------+--------------------------------------------------+
+						| Level | Code | Message                                          |
+						+-------+------+--------------------------------------------------+
+						| Note  | 1007 | Can't create database 'test_db'; database exists |
+						+-------+------+--------------------------------------------------+
+						1 row in set (0.00 sec)
+
+					查看某库创建时使用的语句：
+						MariaDB [(none)]> SHOW CREATE DATABASE test_db;
+						+----------+------------------------------------------------------------------+
+						| Database | Create Database                                                  |
+						+----------+------------------------------------------------------------------+
+						| test_db  | CREATE DATABASE `test_db` /*!40100 DEFAULT CHARACTER SET utf8 */ |
+						+----------+------------------------------------------------------------------+
+
+					查看MySQL支持的所有字符集：
+						SHOW CHARACTER SET;
+
+					查看MySQL支持的所有Collate：
+						SHOW COLLATION;
+
+				DROP DATABASE
+					DROP {DATABASE | SCHEMA} [IF EXISTS] db_name
+
+				ALTER DATABASE
+
+			表管理操作：
+				创建表：CREATE TABLE
+					CREATE TABLE [IF NOT EXISTS] tbl_name (col1 type1 dec1, col2 type2 dec2, ...)
+
+					例如：学号、姓名、年龄、性别
+						学号：StuID,INT
+						姓名：Name,定长字符，30
+						年龄：Age,TINYINT
+						性别：Gender,枚举，ENUM('M','F')
+
+						MariaDB [mydb]> CREATE TABLE IF NOT EXISTS students ( StuID INT UNSIGNED NOT NULL PRIMARY KEY, Name CHAR(30) NOT NULL, Age TINYINT UNSIGNED, Gender ENUM('M','F')); 
+						Query OK, 0 rows affected (0.02 sec)
+
+				查看表结构：
+					MariaDB [mydb]> DESC students;
+					+--------+---------------------+------+-----+---------+-------+
+					| Field  | Type                | Null | Key | Default | Extra |
+					+--------+---------------------+------+-----+---------+-------+
+					| StuID  | int(10) unsigned    | NO   | PRI | NULL    |       |
+					| Name   | char(30)            | NO   |     | NULL    |       |
+					| Age    | tinyint(3) unsigned | YES  |     | NULL    |       |
+					| Gender | enum('M','F')       | YES  |     | NULL    |       |
+					+--------+---------------------+------+-----+---------+-------+
+					4 rows in set (0.01 sec)
+
+				查看数据库的表：
+					SHOW [FULL] TABLES [{FROM | IN} db_name]
+    					[LIKE 'pattern' | WHERE expr]
+
+					MariaDB [mydb]> SHOW TABLES;
+					+----------------+
+					| Tables_in_mydb |
+					+----------------+
+					| students       |
+					+----------------+
+					1 row in set (0.00 sec)
+
+					MariaDB [mydb]> SHOW TABLES FROM mysql;
+
+				删除表：DROP TABLE
+					DROP [TEMPORARY] TABLE [IF EXISTS]
+				    tbl_name [, tbl_name] ...
+				    [RESTRICT | CASCADE]
+
+
+
+
+
+
+

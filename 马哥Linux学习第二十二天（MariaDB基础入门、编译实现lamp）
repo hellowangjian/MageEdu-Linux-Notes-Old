@@ -1,0 +1,240 @@
+马哥Linux学习第二十二天（MariaDB基础入门、编译实现lamp）
+
+回顾：MySQL基础
+	
+	设计范式：字段是原子性；应该有主键；某表不应该与另一表的非主键字段相同；
+
+	MariaDB安装三种方式：源码编译、通用二进制格式、rpm包()；
+
+	SQL：DDL，DML
+		DDL：CREATE DATABASE, ALTER DATABASE, DROP DATABASE
+			CREATE TABLE, DROP TABLE
+
+MariaDB基础
+
+	表管理：
+	
+		CREATE TABLE：创建表的同时，可创建索引；
+			CREATE TABLE (create_defination)
+				col_name col_defination | PRIMARY KEY (col1, ...)
+
+				键：
+					单键
+					组合键
+
+			表选项：
+				ENGINE = engine_name 
+
+		查看表上的索引：
+		  	SHOW {INDEX | INDEXES | KEYS}
+			    {FROM | IN} tbl_name
+			    [{FROM | IN} db_name]
+			    [WHERE expr]
+
+			    eg：SHOW INDEXES FROM mydb.teachers;
+
+		修改表：ALTER TABLE
+
+			ENGINE = engine_name
+
+		注意：MySQL支持插件存储引擎
+			查看支持的所有存储引擎
+				SHOW ENGINES;
+
+			存储引擎：表类型
+				创建每个表时，都可以单独指明其表类型；但，建议同一个库内的所有表，应该使用同一种类型；
+
+			SHOW TABLE STATUS [{FROM | IN} db_name]
+			    [LIKE 'pattern' | WHERE expr]
+
+			    LIKE用于作模糊匹配，支持统配符：
+			    	_：匹配任意单个字符；
+			    	%：匹配任意长度的任意字符；
+
+	索引管理：
+		创建索引：
+			CREATE [ONLINE|OFFLINE] [UNIQUE|FULLTEXT|SPATIAL] INDEX index_name ON tbl_name (index_col_name,...)
+
+		删除索引：
+			DROP [ONLINE|OFFLINE] INDEX index_name ON tbl_name
+
+	DML：INSERT, DELETE, SELECT, UPDATE
+		操作表中的数据；
+
+		INSERT [INTO] tbl_name [(col_name,...)]
+		    {VALUES | VALUE} ({expr | DEFAULT},...),(...),...
+
+		    [mydb]> INSERT INTO teachers (Name,Age,Gender,Dazhao) VALUES ('Hong Qi',80,'M','Xianglog Shiba Zhang'),('Miejue Shitai',67,'F','Hama Gong');
+
+		DELETE [LOW_PRIORITY] [QUICK] [IGNORE] FROM tbl_name
+		    [WHERE where_condition]
+		    [ORDER BY ...]
+		    [LIMIT row_count]
+
+		    [mydb]> DELETE FROM teachers WHERE Dazhao='Hama Gong';
+
+		    WHERE子句：过滤条件
+		    	布尔型表达式；
+
+		SELECT单表查询：
+			SELECT
+				[DISTINCT]
+				   [SQL_CACHE | SQL_NO_CACHE]
+				col_name AS Alias, col_name AS Alias, ...
+				[FROM table_references
+				[WHERE where_condition]
+				[ORDER BY {col_name | expr | position}
+      			[ASC | DESC], ...]
+      				[mydb]> SELECT * FROM teachers ORDER BY Age DESC;
+
+
+				    WHERE后的条件表达式：
+				    	>, <, >=, <=, ++, !=
+
+				    	BETWEEN ... AND ...
+				    		[mydb]> SELECT * FROM teachers WHERE Age BETWEEN 30 AND 70;
+				    	LIKE 'pattern'
+				    		-
+				  			%
+				  			[mydb]> SELECT * FROM teachers WHERE Name LIKE '%Q%';
+				  		RLIKE 'pattern'
+				  			使用正则表达式做匹配；
+				  			[mydb]> SELECT * FROM teachers WHERE Name RLIKE '^[A-Z].*i.*$';
+
+				  	组合条件：
+				  		AND
+				  		OR
+				  		NOT
+
+		UPDATE：
+			UPDATE [LOW_PRIORITY] [IGNORE] table_reference
+			    SET col_name1={expr1|DEFAULT} [, col_name2={expr2|DEFAULT}] ...
+			    [WHERE where_condition]
+			    [ORDER BY ...]
+			    [LIMIT row_count]
+
+			    	[mydb]> UPDATE teachers SET Dazhao='Yunv Xinjing' WHERE Tid=4;
+
+	用户及权限管理：
+		用户帐号：'username'@'host'
+			host可使用IP、网络地址、使用统配符(_和％)；
+
+		创建用户帐号，并赋予密码：
+			CREATE USER 'username'@'host' IDENTIFIED BY [PASSWORD] 'password';
+				[mydb]> CREATE USER 'wpuser'@'172.16.%.%' IDENTIFIED BY 'wppass';
+
+		删除用户：
+			DROP USER 'username'@'host';
+
+		查看当前mysql登录使用的用户：
+			[mydb]> SELECT USER();
+
+		查看所有用户:
+			SELECT DISTINCT CONCAT('User: ''',user,'''@''',host,''';') AS query FROM mysql.user;
+
+		授权：
+			GRANT priv1,... ON db_name.tb1_name TO 'username'@'host' [IDENTIFIED BY [PASSWORD] 'password'];
+				如果用户事先不存在，则创建此帐号并授权；
+					[mydb]> GRANT ALL ON mydb.* TO 'wpuser'@'172.16.%.%';
+
+				ALL [PRIVIEGES]：所有权限
+
+		查看用户已经获得的授权：
+			SHOW GRANTS [FOR user]
+				[mydb]> SHOW GRANTS FOR 'wpuser'@'172.16.%.%';
+
+		收回授权：REVOKE
+			REVOKE priv1,... ON db_name.tb1_name FROM USER;
+				[mydb]> REVOKE INSERT,UPDATE ON mydb.* FROM 'wpuser'@'172.16.%.%';
+
+	给root用设置mysql密码
+		MariaDB [(none)]> SET PASSWORD FOR 'root'@'localhost' = PASSWORD('mageedu');
+		Query OK, 0 rows affected (0.01 sec)
+		MariaDB [(none)]> SET PASSWORD FOR 'root'@'127.0.0.1' = PASSWORD('mageedu');
+		Query OK, 0 rows affected (0.00 sec)
+	关闭mysql地址名称反向解析
+		MariaDB [(none)]> SHOW GLOBAL VARIABLES LIKE '%skip%';
+		+----------------------------------+-----------+
+		| Variable_name                    | Value     |
+		+----------------------------------+-----------+
+		| replicate_events_marked_for_skip | replicate |
+		| skip_external_locking            | ON        |
+		| skip_name_resolve                | OFF       |
+		| skip_networking                  | OFF       |
+		| skip_show_database               | OFF       |
+		| slave_skip_errors                | OFF       |
+		| sql_slave_skip_counter           | 0         |
+		+----------------------------------+-----------+
+		MariaDB [(none)]> exit
+		Bye
+		]# vim /etc/mysql/my.cnf 
+		43 skip_name_resolve = on
+		]# service mysqld restart
+
+
+	LAMP：
+		php+httpd：
+			modules：把php编译成为httpd的模块：
+				prefork：libphp5.so
+				worker，event：zts (--enable-maintainer-zts)
+			cgi：常用于perl+httpd；
+			fastcgi：php-5.3.3+自带fpm组件，提供守护进程；
+				前端httd，http-proxy-fcgi反向代理用户对动态内容请求至后端的fastcgi server；
+
+			MariaDB监听方式：
+				Unix Sock
+				tcp
+
+			扩展方式：
+				scale up：向上扩展
+				scale out：向外扩展
+
+			httpd对fastcgi协议的支持：
+				httpd-2.2：需要安装额外模块fcgi；
+				httpd-2.4：自带fcgi模块 
+
+
+		安装次序：
+			httpd，mariadb，php
+				编译php依赖于httpd和mariadb；
+
+		场景一：php编译为httpd的模块；
+
+			编译安装httpd-2.4：
+				apr, apr-util
+				httpd-2.4
+
+			mariadb-5.5.42
+
+			安装php：
+				额外安装：libxml2-devel, libmcrypt-devel, bzip2-devel
+
+			注意：如果httpd使用的mpm为worker或event，还应该额外使用--enable-maintainer-zts选项
+
+		场景二：php以fpm工作为独立守护进程
+
+			ProxyRequests Off
+			ProxyPassMatch ^/(.*\.php)$ fcgi://127.0.0.1:9000/PATH/TO/DOCUMENT_ROOT/$1
+
+			http://www.magedu.com/pma/index.php
+				DocumentRoot "/var/www/html"
+				web: index.php = 127.0.0.1:9000/a.com/pma/index.php
+
+	博客作业：
+		（1）模块式lamp
+		（2）fpm式lamp
+
+		虚拟主机：
+			（1）pma
+			（2）discuz
+
+
+
+
+
+
+
+
+
+
+

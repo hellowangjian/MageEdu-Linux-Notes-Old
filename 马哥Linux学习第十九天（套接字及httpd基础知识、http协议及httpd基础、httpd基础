@@ -1,0 +1,735 @@
+马哥Linux学习第十九天（套接字及httpd基础知识、http协议及httpd基础、httpd基础配置详解）
+
+回顾：
+	OpenSSH(SSH), dropbear
+		Server：sshd，dropbear
+		Client：
+			Linux：ssh，dbclient
+			Windows：xshell，putty，securecrt
+
+			工具程序：scp，sftp
+
+		sshd：/etc/ssh/sshd_config
+			AllowUsers,AlloGroups,DenyUsers,DenyGroups,Port,Protocol
+			获取帮助：man sshd_config
+		ssh：/etc/ssh/ssh_config
+			获取帮助：man ssh_config
+
+Web Service
+
+	传输层：提供进程地址
+		Port number：
+			tcp：传输控制协议，面向链接的协议；通信前需要建立虚拟链路；结束后拆除链路；
+				0-65535
+			udp：User Datagram Protocol，无链接的协议；
+				0-65535
+
+		IANA：Internet Assigned Numbers Authority
+			0-1023：众所周知，永久地分配给固定的应用使用，特权端口；如：22/tcp(ssh)，80/tcp(http)，443/tcp(https)
+			1024-41951：亦为注册端口，但要求不是特别严格，分配给程序注册为某应用使用；11211/tcp、11211/udp(mamcached)，3306/tcp(mysql)
+			41952+：客户端程序随机使用的端口，动态端口，或私有端口；其范围定义在/proc/sys/net/ipv4/ip_local_port_range;
+
+	Socket：IPC的一种实现，允许位于不同主机（甚至同一主机）上不同进程之间进行通信；数据交换：Socket API，1983，4.2 BSD,
+
+		套接字类型：
+			SOCK_STREAM:TCP套接字
+			SOCK_DGRAM:UDP套接字
+			SOCK_RAW:裸套接字
+
+		Socket Domain（根据其所使用的地址）：
+			AF_INET：Address Family，IPv4地址
+			AF_INET6：IPv6
+			AF_UNIX：同一主机上的不同进程间基于socket套接字通信使用的一种地址；Unix_SOCK
+
+			每类套接字都至少提供了两种socket：流，数据报
+				流：可靠地传递、面向链接、无边界；
+				数据报：不可靠地传递、有边界；
+
+		IPv4:
+			分类：
+				A：1-127
+				B：128-191
+				C：192-223
+				D：组播，224-239
+				E：240-254
+
+			私有地址：
+				A：10.0.0.0/8
+				B：172.16.0.0/16-172.31.0.0/16
+				C：192.168.0.0/24-192.168.255.0/24
+
+		TCP协议的特性：
+			建立链接：三次握手；
+			将数据打包成段：校验和(CRC-32)
+			确认、重传以及超时；
+			排序：逻辑序号；
+			流量控制：滑动窗口算法；
+			拥塞控制：慢启动和拥塞避免算法；
+
+		套接字相关的系统调用：
+			socket()：创建一个套接字；
+			bind()：绑定
+			listen()：监听
+			accept()：接收请求
+			connect()：请求链接建立
+			write()：发送
+			read()：接收
+				send(), recv(), sendto(), recvfrom()
+
+	http协议：80／tcp，文本协议
+		hyper text transfer protocol
+			html：编程语言，超文本标记语言(hyper text mark language)
+			<html>
+				<head>
+					<title>TITLE</title>
+				</head>
+				<body>
+					<h1></h1>
+						<p> blabla...<a href="http://www.magedu.com/logo.jpg"> bla...</a></p>
+					<h2></h2>
+				</body>
+			</html>
+
+			css：Cascading Style Sheet
+			js：JavaScript，客户端脚本；
+
+			MIME：Multipurpose Internet Mail Extesion
+
+			工作机制：
+				http请求
+				http响应
+
+			Web资源：web resource
+				静态资源（无须服务端做出额外处理）：.jpg ,png .gif .html .txt .js .css .mp3 .avi
+				动态资源（服务端需要通过执行程序做出处理，发送给客户端的是程序的运行结果）：.php .jsp
+				注意：一个页面中展示的资源可能有多个；每个资源都需要单独请求；
+
+				媒体：
+					媒体类型（MIME类型）：major/minor
+						text/html
+						text/plain
+						image/jpeg
+						image/gif
+
+			URI：Uniform Resource Identifier
+				URL：Uniform Resource Locator,用于描述某服务器特定资源的位置；
+					Scheme://Server:Port/path/to/resource
+						http://www.magedu.com/images/logo.jpg
+				URN：Uniform Resource Naming
+
+			http协议版本：
+				HTTP/0.9：原型版本，功能简陋
+				HTTP/1.0：第一个广泛使用的版本，支持MIME
+				HTTP/1.1：增强了缓存功能
+				spdy
+				HTTP/2.0：
+
+				rfc文档
+
+	一次完整的http请求处理过程：
+		（1）建立或处理链接：接收请求或拒绝请求；
+		（2）接收请求：
+				接收来自于网络上的主机请求报文中对某特定资源的一次请求的过程；
+
+				并发访问响应模型（Web I/O）
+					单进程I/O结构：启动一个进程处理用户请求，而且一次只处理一个；多个请求被串行响应；
+					多进程I/O结构：并行启动多个进程，每个进程响应一个请求；
+					复用的I/O结构：一个进程响应n个请求；
+						多线程模式：一个进程生成n个线程，一个线程处理一个请求；
+						事件驱动（event-driven）：一个进程直接响应n个请求；
+					复用的多进程I/O结构：启动多个（m）个进程，每个进程生成（n）个线程；
+		（3）处理请求：对请求报文进行解析，获取客户端请求的资源及请求方法等相关信息；
+			元数据：请求报文首部
+				<method> <URL> <VERSION>
+				Host:www.magedu.com  请求的主机名称
+				Connection
+		（4）访问资源：获取请求报文中请求的资源；
+			web服务器，即存放了web资源的服务器，负责向请求者提供对方请求的静态资源，或动态运行后生成的资源；这些资源放置于本地系统某路径下，此路径通常称为DocRoot
+
+			/var/www/html/
+				images/1.jpg
+
+			http://www.magedu.com/images/1.jpg
+
+			web服务器资源路径映射方式：
+				（1）docroot
+				（2）alias
+				（3）虚拟主机docroot
+				（4）用户家目录docroot
+
+		（5）构建响应报文
+
+			MIME类型：
+				显式分类
+				魔法分类
+				协商分类
+
+			URL重定向：
+				web服务构建的响应并非客户端请求的资源，而是资源另外一个访问路径；
+
+		（6）发送响应报文
+		（7）记录日志
+
+	http服务器程序：
+		httpd(apache)
+		nginx
+		lighttpd
+
+		应用程序服务器：
+			IIS
+			tomcat, jetty, jboos, resin
+			webshpere, weblogic, oc4j
+
+		www.netcraft.com
+
+	httpd的安装配置和使用：
+		httpd：apache
+			a patchy server = apache
+			ASF：apache software foundation
+
+		httpd的特性：
+			高度模块化：core + modules
+			DSO：Dynamic Shared Object
+			MPM：Multipath processing Modules（多路处理模块）
+				prefork；多进程模型，每个进程响应一个请求；
+					一个主进程；负责生成n个子进程，子进程也称为工作进程，每个子进程处理一个用户请求；即便没有用户请求，也会预先生成多个空闲进程，随时等待请求到达；但生成的进程不会超过1024个；
+				worker：多线程模型，每个线程响应一个请求；
+					一个主进程；生成多个子进程，每个子进程负责生成多个线程，每个线程响应一个请求；
+					m进程，n线程：m*n
+				event：事件驱动模型，每个线程响应n个请求
+					一个主进程：生成m个进程，每个进程直接n个请求；
+						m*n
+
+					httpd-2.2：event为测试使用
+					httpd-2.4：event可生产使用
+
+		httpd的功能特性：
+			支持虚拟主机
+				IP、Port、FQDN
+			支持CGI：Common Geteway Interface，通用网关接口；
+			反向代理
+			负载均衡
+			路径别名
+			丰富的用户认证机制
+				basic
+				digest
+			支持第三方模块
+
+		安装http：
+			rpm包
+			源码编译安装
+
+回顾：
+	MPM：
+		prefork：多进程模型，每个进程响应一个请求；
+		worker：多线程模型，每个线程响应一个请求；
+		event：事件驱动模型，一个线程响应多个请求；
+
+	并发服务器响应请求：
+		单进程I/O模型
+		多进程I/O模型
+		复用的I/O模型	
+			多线程模型
+			事件驱动模型
+		复用的多进程I/O模型
+
+
+httpd的基本配置和应用（2）
+	httpd.apache.org
+		2.2
+		2.4
+
+	rpm包安装的httpd的默认工作目录（根目录）：/etc/httpd
+
+	程序环境：
+		配置文件：
+			主配置文件：/etc/httpd/conf/httpd.conf
+			分段配置文件：/etc/httpd/conf.d/*.conf
+		服务脚本：
+			/etc/rc.d/init.d/httpd
+			脚本的配置文件：/etc/sysconfig/httpd
+		模块文件目录：
+			/etc/httpd/modules --> /usr/lib64/httpd/modules
+		主程序文件：
+			/usr/sbin/httpd (prefork)
+			/usr/sbin/httpd.worker (worker)
+			/usr/sbin/httpd.event (event)
+		日志文件目录：
+			/var/log/httpd
+				access_log：访问日志文件
+				error_log：错误日志文件
+		站点文档目录：
+			/var/www/html
+
+	配置文件：
+		Directive 	Value
+		指令			值
+
+		~]# grep "Section" /etc/httpd/conf/httpd.conf 
+		### Section 1: Global Environment
+		### Section 2: 'Main' server configuration
+		### Section 3: Virtual Hosts
+
+		'Main' server和Virtual Hosts不能同时启用；默认启用的'Main' server;
+
+		1、指定监听地址和端口
+			]# vim httpd.conf
+				Listen [IP:]80
+				 (1) IP省略时表示监听本机上所有可用的IP地址；
+				 (2) Listen指令可以出现多次；用于指明多个不同的监听端口或套接字；
+				 	Listen 172.16.100.11:80
+				 	Listen 172.16.100.35:80
+				 	Listen 172.16.100.11:8080
+
+		2、持久连接相关
+
+			持久连接：连接建立后，每个资源获取结束不会断开连接，而继续等待其他资源请求并完成传输；
+				如何断开？
+					数量限制：如100个
+					时间限制：如60秒
+				劣势：对并发访问量较大的服务器，开持久连接会有些请求得不到服务；
+				改进：减短时间，httpd-2.4支持毫秒级
+			非持久连接：每个资源都是单独通过专用的连接进行获取；
+
+			KeepAlive Off|On
+			MaxKeepAliveRequests 100
+			KeepAliveTimeout 15
+
+			测试：
+				# telnet 172.16.227.151 80
+				Trying 172.16.227.151...
+				Connected to 172.16.227.151.
+				Escape character is '^]'.
+				GET /fstab HTTP/1.1
+				Host:172.16.227.151
+
+		3、MPM
+			多路处理模块：并发请求响应的不同实现
+			prefork, worker, event
+
+			httpd-2.2 不支持同时编译多个不同的MPM，rpm安装的httpd-2.2提供了三个文件分别用于实现提供对不同的MPM的支持；
+				确认方法：~]# ps aux | grep httpd
+
+			默认为/usr/sbin/httpd,其为prefork；
+				~]# httpd -l
+				Compiled in modules:
+				  core.c
+				  prefork.c
+				  http_core.c
+				  mod_so.c
+
+				查看模块列表：
+					httpd -l：查看静态编译的模块
+					httpd -M：查看所有模块，包括静态编译和DSO模块
+						httpd -t -D DUMP_MODULES：查看所有模块，包括静态编译和DSO模块
+
+				更换支持不同的MPM的主程序：
+					]# vim /etc/sysconfig/httpd  //修改配置文件
+					HTTPD=/usr/sbin/httpd.worker //激活HTTPD变量
+
+					~]# service httpd restart    //重启httpd进程
+
+					# prefork MPM
+					# StartServers: number of server processes to start
+					# MinSpareServers: minimum number of server processes which are kept spare
+					# MaxSpareServers: maximum number of server processes which are kept spare
+					# ServerLimit: maximum value for MaxClients for the lifetime of the server
+					# MaxClients: maximum number of server processes allowed to start
+					# MaxRequestsPerChild: maximum number of requests a server process serves
+					<IfModule prefork.c>
+					StartServers       8
+					MinSpareServers    5
+					MaxSpareServers   20
+					ServerLimit      256
+					MaxClients       256
+					MaxRequestsPerChild  4000
+					</IfModule>
+
+					# worker MPM
+					# StartServers: initial number of server processes to start
+					# MaxClients: maximum number of simultaneous client connections
+					# MinSpareThreads: minimum number of worker threads which are kept spare
+					# MaxSpareThreads: maximum number of worker threads which are kept spare
+					# ThreadsPerChild: constant number of worker threads in each server process
+					# MaxRequestsPerChild: maximum number of requests a server process serves
+					<IfModule worker.c>
+					StartServers         4
+					MaxClients         300
+					MinSpareThreads     25
+					MaxSpareThreads     75
+					ThreadsPerChild     25
+					MaxRequestsPerChild  0
+					</IfModule>
+
+		4、DSO(Dynamic Shared Object)
+			配置指令模块加载：
+				LoadModule <module_name> <module_path>
+					模块路径：可使用相对路径
+						相对于ServerRoot指令指向的位置而言；
+
+					关闭模块：
+						在配置文件中直接加#好注释掉即可；
+							#LoadModule auth_digest_module modules/mod_auth_digest.so
+
+					注意：建议使用serverce httpd reload重新装载配置文件
+
+		5、定义‘Main' server的文档页面路径
+			DocumentRoot指令
+				DocumentRoot "/var/www/html"
+
+			文档路径映射：
+				DocumentRoot指向的路径为URL起始的位置
+					/var/www/html/images/1.jpg
+					http://server/images/1.jpg
+
+		6、站点路径访问控制
+			访问控制机制：
+				基于来源地址
+				基于账号
+
+			定义的方式有两种：
+				文件系统路径：
+					<Directory "/PATH/TO/SOMEDIR"
+					...
+					</Directory>
+				URL路径：
+					<Location "/URL">
+						...
+					</Location>
+
+		7、Directory中的访问控制定义
+			（1）Options
+				Indexes：当访问的路径下无默认主页面文件存在，且没有指定具体要访问的资源时，会将此路径下的所有资源以列表形式呈现给用户；非常危险，不建议使用；
+				FollowSymLinks：若果某页面文件是为指向DocumentRoot之外路径上的其它文件时，将直接显示目标文件的内容；
+				None：none 什么特性都不启用；
+				All：所有的都启用；
+			（2）基于来源地址访问控制
+				Order：检查次序
+					Order Allow Deny：只有明确Allow的来源地址，才允许访问，其它的均为Deny，白名单
+					Order Deny Allow：只有明确Deny的来源地址，才拒绝访问，其它的均为Allow，黑名单
+				Allow from：允许访问的来源地址
+				Deny from：拒绝访问的来源地址
+
+				Order Allow Deny
+				Deny from 172.16.100.2
+				Allow from 172.16.0.0/16
+
+					from后可跟上的地址格式：
+						IP地址：
+						网络地址：
+							172.16
+							172.16.0.0
+							172.16.0.0/16
+							172.16.0.0/255.255.0.0
+
+		8、定义默认的主页面
+			DirectoryIndex index.html index.html.var
+
+			自左而右，找到首次匹配到的文件；就将其作为默认主页面返回。
+
+		9、配置日志
+			错误日志：
+				ErrorLog logs/error_log
+					logs是在/etc/httpd下的软连接，其指向/var/log/httpd
+						]# ls -l /etc/httpd/logs
+						lrwxrwxrwx. 1 root root 19 11月  9 17:23 /etc/httpd/logs -> ../../var/log/httpd
+				LogLevel warn
+					比warn高的级别的日志都被记录;
+
+			访问日志：要定义日志格式：
+				LogFormat "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
+					参考文档：http://httpd.apache.org/docs/2.2/mod/mod_log_config.html#formats
+				CustomLog logs/access_log combined
+
+				%h：Remote host，客户端主机；
+				%l：Remote logname (from identd, if supplied).客户端用户通过identd登录时使用名称，一般为-;
+				%u：	Remote user (from auth; may be bogus if return status (%s) is 401)，用户认证登录的名字；无登录机制一般为-；
+				%t：Time the request was received (standard english format)，受到客户端请求时的时间；
+				\"：显示引号本身，而不作为引用符号；
+				%r：First line of request，请求报文的首行；
+					<method> <url> <version>
+						GET / HTTP/1.1
+				%>s：响应的状态码
+				%b：Size of response in bytes, excluding HTTP headers.响应报文的大小，单位为字节，不包含首部信息；
+				%{Referer}i：记录Http首部Referer对应的值；即访问入口，从哪个页面跳转至此页面；
+				%{User-Agent}i：记录http首部User-Agent对应的值；即浏览器类型；
+
+				详情：http://httpd.apache.org/docs/2.2/mod/mod_log_config.html#formats
+
+		10、路径别名
+			Alias /icons/ "/var/www/icons/"
+
+			DocumentRoot "/var/www/html"
+				download
+					mp3
+						1.mp3
+				bbs
+					index.html
+
+				URL:http://www.magedu.com/download/mp3/1.mp3
+				URL:httpd://www.magedu.com/bbs/index.html
+
+			Alias /URL/ "/path/to/some_directory"
+
+				例如：Alias /bbs/ "/web/bbs/htdocs"
+					URL:httpd://www.magedu.com/bbs/index.html --> /web/bbs/htdocs/index.html
+
+					Alias /images/ "/web/pics/"
+						URL:http://www.magedu.com/images/a.jpg --> /web/pics/a.jpg
+
+		11、设定默认字符集
+			AddDefaultCharset UTF-8
+
+				常用字符集：GBK，GB2312，GB18030
+
+		12、基于用户的访问控制
+			质询：
+				WWW-Authenticate：服务器用401状态拒绝客户端请求，说明需要用户名和密码；弹出对话框；
+			认证：
+				Authorization：客户端用户填入账号密码后再次发请求至服务器；认证通过，则请求受权；
+
+			DocumentRoot “/var/www/html”
+				images
+				bbs
+				employee/
+
+				安全域：需要用户认证后方能访问的路径
+					应该有其名称，用于向用户通知此认证的原因等；
+
+			http协议支持的认证方式：
+				basic：基本
+					BASE64
+				digest：摘要
+
+			basic认证机制的实现：
+				（1）定义安全域
+					<Directory "/var/www/html/employee">
+					        Options None
+					        AllowOverride None
+					        AuthType Basic
+					        AuthName "Employee Information, only for employee"
+					        AuthUserFile /etc/httpd/users/.htpasswd
+					        Require user tom jerry
+					</Directory>
+
+					Require valid-usr：所有位于AuthUserFile文件中定义的用户都允许登录；
+					Require user user1 user2 ...：仅允许user1，user2等出现AuthUserFile文件中定义的特定几个用户登录；
+
+					虚拟用户，即非系统用户；
+
+				（2）提供用户的帐号文件
+					htpasswd命令用于维护此文件
+
+						htpasswd [ -c ] [ -m ] [ -D ] passwdfile username	
+							-c：添加第一个用户时创建此文件；
+							-m：以md5格式加密用户密码存放；
+							-s：以sha格式加密用户密码存放；
+							-D：删除指定用户
+
+							root@CentOS-6-7 employee]# mkdir /etc/httpd/users
+							[root@CentOS-6-7 employee]# htpasswd -c -m /etc/httpd/users/.htpasswd tom
+							New password: 
+							Re-type new password: 
+							Adding password for user tom
+							[root@CentOS-6-7 employee]# htpasswd  -m /etc/httpd/users/.htpasswd jerry
+							New password: 
+							Re-type new password: 
+							Adding password for user jerry
+							[root@CentOS-6-7 employee]# ls -l /etc/httpd/users/.htpasswd 
+							-rw-r--r--. 1 root root 86 11月 10 02:07 /etc/httpd/users/.htpasswd
+							[root@CentOS-6-7 employee]# cat /etc/httpd/users/.htpasswd
+							tom:$apr1$2AOsv0MZ$.br6JuZJqWLnP9CGqxsMQ0
+							jerry:$apr1$7UtCoNrk$r9e3GoRDBrAqxKi2qP3ub/
+							[root@CentOS-6-7 employee]# httpd -t
+							httpd: apr_sockaddr_info_get() failed for CentOS-6-7.Hunter.com
+							httpd: Could not reliably determine the server's fully qualified domain name, using 127.0.0.1 for ServerName
+							Syntax OK
+							[root@CentOS-6-7 employee]# service httpd reload
+							Reloading httpd: 
+							
+				（3）组认证
+					<directory "/var/www/html/employee">
+					        Options None
+					        AllowOverride None
+					        AuthType Basic
+					        AuthName "Employee Information, only for employee"
+					        AuthUserFile /etc/httpd/users/.htpasswd
+					        AuthGroupFile /etc/httpd/users/.htgroup
+					        Require group GRP1 GRP2
+					</Directory>	
+
+					组文件：
+						每行定义一个组，格式
+						Grp_Name：User1 User2 ...
+							[root@CentOS-6-7 ~]# vim /etc/httpd/users/.htgroup
+							[root@CentOS-6-7 ~]# cat /etc/httpd/users/.htgroup
+							mc:tom jerry				
+
+		13、虚拟主机
+
+			一个物理服务器可以服务于多个站点，每个站点可通过一个或多个虚拟主机来实现；
+
+			httpd三种类型的虚拟主机：
+				基于IP
+				基于Port
+				基于FQDN
+
+			注意：得首先关闭'Main' Server
+				方法：注释中心主机的DocumentRoot指令即可；
+
+			定义虚拟主机的方法：
+				<VirtualHost "IP:PORT">
+					ServerName
+					ServerAlias
+					DocumentRoot
+				</VirtualHost>
+
+				注意：大多数可用于全局或'Main' server中的指令，都可以定义至VirtualHost中；
+
+				基于PORT：
+					注意：httpd要监听这里指明的所有端口
+						Listen *:80
+						Listen *:8080
+					[root@CentOS-6-7 ~]# vim /etc/httpd/conf/httpd.conf
+					<VirtualHost *:80>
+						ServerName WWW.a.com
+						DocumentRoot /vhost/a.com/htdocs/
+					</VirtualHost>
+
+					<VirtualHost *:8080>
+						ServerName www.b.org
+						DocumentRoot /vhost/b.org/htdocs/
+					</VirtualHost>
+
+					[root@CentOS-6-7 ~]# mkdir -pv /vhost/{a.com,b.org}/htdocs
+					mkdir: 已创建目录 "/vhost"
+					mkdir: 已创建目录 "/vhost/a.com"
+					mkdir: 已创建目录 "/vhost/a.com/htdocs"
+					mkdir: 已创建目录 "/vhost/b.org"
+					mkdir: 已创建目录 "/vhost/b.org/htdocs"
+
+					[root@CentOS-6-7 ~]# httpd -t
+					httpd: Could not reliably determine the server's fully qualified domain name, using 127.0.0.1 for ServerName
+					Syntax OK
+
+					[root@CentOS-6-7 ~]# service httpd restart
+					Stopping httpd:                                            [  OK  ]
+					httpd.worker: Could not reliably determine the server's fully qualified domain name, using 127.0.0.1 for ServerName
+					                                                           [  OK  ]
+
+					hunters-mbp:~ Hunter$ curl http://172.16.227.151:8080
+					<h1>www.b.org</h1>
+					hunters-mbp:~ Hunter$ curl http://172.16.227.151
+					<h1>WWW.a.com</h1>
+
+				基于IP：
+					注意：本机要配置上所有IP地址并能够用于通信；
+					[root@CentOS-6-7 ~]# ifconfig eth0:0 172.16.227.152/24 up
+					[root@CentOS-6-7 ~]# ifconfig
+					eth0      Link encap:Ethernet  HWaddr 00:0C:29:E4:E8:B9  
+					          inet addr:172.16.227.151  Bcast:172.16.227.255  Mask:255.255.255.0
+					          inet6 addr: fe80::20c:29ff:fee4:e8b9/64 Scope:Link
+					          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+					          RX packets:10444 errors:0 dropped:0 overruns:0 frame:0
+					          TX packets:5759 errors:0 dropped:0 overruns:0 carrier:0
+					          collisions:0 txqueuelen:1000 
+					          RX bytes:931158 (909.3 KiB)  TX bytes:990107 (966.9 KiB)
+
+					eth0:0    Link encap:Ethernet  HWaddr 00:0C:29:E4:E8:B9  
+					          inet addr:172.16.227.152  Bcast:172.16.227.255  Mask:255.255.255.0
+					          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+
+					lo        Link encap:Local Loopback  
+					          inet addr:127.0.0.1  Mask:255.0.0.0
+					          inet6 addr: ::1/128 Scope:Host
+					          UP LOOPBACK RUNNING  MTU:65536  Metric:1
+					          RX packets:0 errors:0 dropped:0 overruns:0 frame:0
+					          TX packets:0 errors:0 dropped:0 overruns:0 carrier:0
+					          collisions:0 txqueuelen:0 
+					          RX bytes:0 (0.0 b)  TX bytes:0 (0.0 b)
+
+					[root@CentOS-6-7 ~]# vim /etc/httpd/conf/httpd.conf
+					<VirtualHost 172.16.227.151:80>
+					        ServerName WWW.a.com
+					        DocumentRoot /vhost/a.com/htdocs/
+					</VirtualHost>
+
+					<VirtualHost 172.16.227.152:80>
+					        ServerName www.b.org
+					        DocumentRoot /vhost/b.org/htdocs/
+					</VirtualHost>
+
+					[root@CentOS-6-7 ~]# httpd -t
+					httpd: Could not reliably determine the server's fully qualified domain name, using 127.0.0.1 for ServerName
+					Syntax OK
+
+					[root@CentOS-6-7 ~]# service httpd restart
+					Stopping httpd:                                            [  OK  ]
+					httpd.worker: Could not reliably determine the server's fully qualified domain name, using 127.0.0.1 for ServerName
+					                                                           [  OK  ]
+
+					hunters-mbp:~ Hunter$ curl http://172.16.227.151
+					<h1>WWW.a.com</h1>
+					hunters-mbp:~ Hunter$ curl http://172.16.227.152
+					<h1>www.b.org</h1>
+
+				基于主机名：
+					启用：NameVirtualHost 172.16.227.151:80
+
+					VirtualHost 172.16.227.151:80>
+					        ServerName WWW.a.com
+					        DocumentRoot /vhost/a.com/htdocs/
+					</VirtualHost>
+
+					<VirtualHost 172.16.227.151:80>
+					        ServerName www.b.org
+					        DocumentRoot /vhost/b.org/htdocs/
+					</VirtualHost>
+
+					[root@CentOS-6-7 ~]# httpd -t
+					httpd: Could not reliably determine the server's fully qualified domain name, using CentOS-6-7.Hunter.com for ServerName
+					Syntax OK
+					[root@CentOS-6-7 ~]# service httpd restart
+					Stopping httpd:                                            [  OK  ]
+					Starting httpd: httpd: Could not reliably determine the server's fully qualified domain name, using CentOS-6-7.Hunter.com for ServerName
+					                                                           [  OK  ]
+
+
+					hunters-mbp:~ Hunter$ vim /etc/hosts
+					172.16.227.151  www.a.com a.com
+					172.16.227.151  www.b.org b.org
+
+					hunters-mbp:~ Hunter$ curl http://www.a.com
+					<h1>WWW.a.com</h1>
+					hunters-mbp:~ Hunter$ curl http://www.b.org
+					<h1>www.b.org</h1>
+
+				注意：额外经常用于每个虚拟主机的配置有
+					ErrorLog
+					CustomLog
+					<Directory>
+					<Location>
+					ServerAlias
+
+			14、内置的status页面
+				<Location /server-status>
+				    SetHandler server-status
+				    Order deny,allow
+				    Deny from all
+				    Allow from 172.16.0.0/16 
+				</Location>
+
+				hunters-mbp:~ Hunter$ open safari http://172.16.227.151/server-status
+
+
+
+
+
+
+
+
+
+
+
+
+

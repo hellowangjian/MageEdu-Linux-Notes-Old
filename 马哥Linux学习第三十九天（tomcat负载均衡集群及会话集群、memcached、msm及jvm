@@ -1,0 +1,379 @@
+马哥Linux学习第三十九天（tomcat负载均衡集群及会话集群、memcached、msm及jvm虚拟机性能监控）
+
+tomcat cluster(3)
+	mod_jk：第三方模块；
+	mod_proxy：
+		mod_proxy_http
+		mod_proxy_ajp
+		mod_proxy_balancer
+
+	无负载均衡需求场景：
+		httpd --> tomcat
+			mod_jk：tomcat ajp
+			mod_proxy：
+				mod_proxy_http：tomcat http
+				mod_proxy_ajp：tomcat ajp
+
+	有负载均衡需求的场景：tomcat集群
+		httpd --> tomcat
+			mod_jk：tomcat ajp
+			mod_proxy：
+				mod_proxy_http：tomcat http
+				mod_proxy_ajp：tomcat ajp
+
+	基于mod_jk模块实现负载均衡实例：
+		mod_jk.conf文件的内容：
+			LoadModule jk_module modules/mod_jk.so
+			JkWorkersFile /etc/httpd/conf.d/workers.properties
+			JkLogFile logs/mod_jk.log
+			JkLogLevel debug
+			JkMount /status !
+			JkMount /* tcsrvs
+			JkMount /status StatA
+
+		workers.properties文件内容：
+
+			worker.list=tcsrvs,StatA
+			worker.TomcatB.host=192.168.10.22
+			worker.TomcatB.port=8009
+			worker.TomcatB.type=ajp13
+			worker.TomcatB.lbfactor=1
+			worker.TomcatA.host=192.168.10.21
+			worker.TomcatA.port=8009
+			worker.TomcatA.type=ajp13
+			worker.TomcatA.lbfactor=1
+			worker.StatA.type=status
+			worker.tcsrvs.type=lb
+			worker.tcsrvs.balance_workers=TomcatA,TomcatB
+			worker.tcsrvs.sticky_session=0
+
+	基于mod_proxy模块实例负载均衡：
+		<Proxy balancer://tcsrvs>
+		    BalancerMember ajp://192.168.10.21:8009 loadfactor=1
+		    BalancerMember ajp://192.168.10.22:8009 loadfactor=1
+		</Proxy>
+
+		<VirtualHost *:80>
+		    ServerName www.a.com
+		    ProxyVia On
+		    ProxyRequests Off
+		    ProxyPreserveHost On
+		    <Proxy *>
+		        Order deny,allow
+		        Allow from all
+		    </Proxy>
+		        ProxyPass /status !
+		        ProxyPass /balancer-manager !
+		        ProxyPass / balancer://tcsrvs/ stickysession=JSESSIONID
+		        ProxyPassReverse / balancer://tcsrvs/ stickysession=JSESSIONID
+		    <Location />
+		        Order deny,allow
+		        Allow from all
+		    </Location>
+			
+			<Location /balancer-manager>
+			    SetHandler balancer-manager
+			    Proxypass !
+			    Order Deny,Allow
+			    Allow from all
+			</Location>
+		</VirtualHost>
+
+
+			测试jsp页面：
+			<%@ page language="java" %>
+			<%@ page import="java.util.*" %>
+			<html>
+			<head>
+			    <title>TomcatA.magedu.com</title>
+			</head>
+			<body>
+			    <h1><font color="red">TomcatA.magedu.com</font></h1>
+			    <table align="centre" border="1">
+			        <tr>
+			            <td>Session ID</td>
+			<% session.setAttribute("magedu.com","magedu.com");%>
+			            <td><%=session.getId() %></td>
+			        </tr>
+			        <tr>
+			            <td>Created on</td>
+			            <td><%= session.getCreationTime() %></td>
+			        </tr>
+			    </table>
+			</body>
+			</html>
+
+
+	Tomcat的会话管理器类型：
+		标准
+		持久
+		Delta
+		Backup
+
+	Tomcat会话集群的构建：
+	http://tomcat.apache.org/tomcat-8.0-doc/cluster-howto.html
+		<Cluster className="org.apache.catalina.ha.tcp.SimpleTcpCluster"
+		                 channelSendOptions="8">
+
+		          <Manager className="org.apache.catalina.ha.session.DeltaManager"
+		                   expireSessionsOnShutdown="false"
+		                   notifyListenersOnReplication="true"/>
+
+		          <Channel className="org.apache.catalina.tribes.group.GroupChannel">
+		            <Membership className="org.apache.catalina.tribes.membership.McastService"
+		                        address="228.103.40.41"
+		                        port="45564"
+		                        frequency="500"
+		                        dropTime="3000"/>
+		            <Receiver className="org.apache.catalina.tribes.transport.nio.NioReceiver"
+		                      address="auto"
+		                      port="4000"
+		                      autoBind="100"
+		                      selectorTimeout="5000"
+		                      maxThreads="6"/>
+
+		            <Sender className="org.apache.catalina.tribes.transport.ReplicationTransmitter">
+		              <Transport className="org.apache.catalina.tribes.transport.nio.PooledParallelSender"/>
+		            </Sender>
+		            <Interceptor className="org.apache.catalina.tribes.group.interceptors.TcpFailureDetector"/>
+		            <Interceptor className="org.apache.catalina.tribes.group.interceptors.MessageDispatch15Interceptor"/>
+		          </Channel>
+
+		          <Valve className="org.apache.catalina.ha.tcp.ReplicationValve"
+		                 filter=""/>
+		          <Valve className="org.apache.catalina.ha.session.JvmRouteBinderValve"/>
+
+		          <Deployer className="org.apache.catalina.ha.deploy.FarmWarDeployer"
+		                    tempDir="/tmp/war-temp/"
+		                    deployDir="/tmp/war-deploy/"
+		                    watchDir="/tmp/war-listen/"
+		                    watchEnabled="false"/>
+
+		    <ClusterListener className="org.apache.catalina.ha.session.ClusterSessionListener"/>
+		</Cluster>
+
+		(1) 将上述cluster组件定义添加在每个tomcat实例配置文件server.xml的engine或host组件中；
+		(2) 为支持使用“分布式会话”功能的webapp的配置文件web.xml添加
+			<distributable />
+
+		注意：节点间的时间要同步；
+			(1) Receiver组件的address有可能需要手动指定为当前主机上某地址；
+			(2) 多播地址尽量别使用默认；
+
+	博客作业：
+		(1) lnmt, 及利用upstream实现负载均衡；摸索实现：基于cookie实现session sticky；
+		(2) lamt, 分别基于mod_proxy使用http及ajp实现反向代理；使用mod_jk做反向代理；
+		(3) lamt, 分别使用http及ajp实现反代时的负载均衡；使用mod_jk做负载均衡；
+		(4) lnamt, lhamt；
+
+
+	会话保持：
+		session sticky
+			ip, cookie, url_param(haproxy)
+		session cluster
+		session server
+
+	memcached：
+
+		LiveJournal, Danga Interative，开源应用程序；
+		kv数据服务器：
+			key-value
+				极简数据结构服务器
+
+		memcached特性：
+			协议简单：get，put，incr等；
+			基于libevent实现事件处理
+			内置内存存储方式
+			互不通信的分布式应用
+
+			memcached的功能实现：一半依赖于memcached服务器，一半依赖于前端应用程序；
+
+			存储哪些数据：被序列化的数据；
+
+		Slab Allocation机制：内存分配及整理；
+			Slab Allocator：
+				原始分配方式：malloc，free
+
+				chunk：固定大小的内存块；
+				slab class：相同的大小的多个chunk；
+
+			Grows Factor：默认为1.25
+			
+		清理缓存：
+			（1）根据缓存对象的ttl进行清理；
+				Lazy Expiration
+			（2）根据LRU算法进行清理；
+				支持禁用此功能；
+
+		两个开源站点：sourceforge.net, github.com
+
+		组成部分：memcached服务程序，各种开发语言的API；
+			php：memcache, memcached
+			c/c++：libmemcached
+			lnmmt：nginx, mysql, memcached, tomcat
+
+		安装：
+			CentOS 6.7 base源默认提供1.4.4-5.el6版本的memcached
+			# yum install memcached
+
+		启动：
+			# service memcached start
+			# ss -tnl
+			LISTEN     0      128                                             *:11211                                          *:* 
+
+
+		安装PHP的memcahce扩展：
+			编译安装php-memcache扩展，需要先安装php及php-devel
+			# yum install php php-devel
+
+			src]# wget http://pecl.php.net/get/memcache-2.2.7.tgz
+			src]# tar xf memcache-2.2.7.tgz 
+			src]# cd memcache-2.2.7
+			memcache-2.2.7]# phpize 
+			memcache-2.2.7]# ./configure --with-php-config=/usr/bin/php-config --enable-memcache
+			# make && make install
+			Installing shared extensions:     /usr/lib64/php/modules/
+
+		修改php配置文件添加extension=memcache.so
+			# vim /etc/php.ini
+			extension=memcache.so
+
+		准备测试脚本：	
+			# vim /var/www/html/index.php
+			<?php
+				phpinfo();
+			?>
+
+			# service httpd restart
+
+			使用页面访问测试查看是否加载memcache；
+
+		测试memcache：
+			# vim /var/www/html/index.php
+			<?php
+			    $mem = new Memcache;
+			    $mem->connect("127.0.0.1", 11211)  or die("Could not connect");
+
+			    $version = $mem->getVersion();
+			    echo "Server's version: ".$version."<br/>\n";
+
+			    $mem->set('hellokey', 'Hello World', 0, 600) or die("Failed to save data at the memcached server");
+			    echo "Store data in the cache (data will expire in 600 seconds)<br/>\n";
+
+			    $get_result = $mem->get('hellokey');
+			    echo "$get_result is from memcached server.";         
+			?>
+
+			使用浏览器访问显示如下：
+				Server's version: 1.4.4
+				Store data in the cache (data will expire in 600 seconds)
+				Hello World is from memcached server.
+
+		使用telnet测试查看memcache是否存在此缓存（Hello World)：
+			# telnet 127.0.0.1 11211
+			Trying 127.0.0.1...
+			Connected to 127.0.0.1.
+			Escape character is '^]'.
+			get hellokey
+			VALUE hellokey 0 11
+			Hello World
+			END
+
+
+Tomcat(4)
+
+	JVM HEAP内存空间：
+			新生代
+				新生区(Eden): 初创对象
+				存活区(Survivor)：步入成熟期的初创对象
+					ss1:
+					ss2:
+			老年代：
+				mark --> compact 
+			持久代
+
+		垃圾回收器：
+			新生代回收：
+				Minor GC
+			老年代回收：
+				Major GC (FULL GC)
+
+		堆内存空间的调整参数：
+			-Xmx: 新生代和老年代总共可用的最大空间；
+			-Xms: 二者初始空间子和；
+			-XX:NewSize 新生代初始空间
+			-XX:MaxNewSize 新生代的最大空间
+
+			-XX:MaxPermSize 持久代最大空间
+			-XX:PermSize 持久代初始空间
+
+		tomcat而言：
+			catalina.sh中有两个环境变量：
+				CATALINA_OPTS：仅对启动运行tomcat实例的java虚拟机有效；
+				JAVA_OPTS：对本机上的所有java虚拟机有效；
+
+	性能监控工具：
+		问题：
+			OutOfMemoryError: 内存不足；
+			内存泄漏
+			线程死锁
+			锁竞争(Lock Contention)
+			Java消耗过多的CPU
+
+		jps (java virtual machine process status tool)
+			监控jvm进程状态信息
+
+			jps [options] [hostid]
+				-m: 输出传入main方法的参数
+				-l: 显示main类或jar的完全限定名称
+				-v: 显示为jvm虚拟机指定的参数
+
+		jstack: 查看某个java进程内的线程堆栈信息；
+			jstack [options] pid
+
+			选项：
+				-l long listings：输出完成的锁信息；
+				-m: 混合模式，即会输出java堆栈及C/C++堆栈信息 
+
+		jmap和jhat：
+			jmap: jvm memory map，查看堆内存使用情况 
+			jhat: java heap analysis tool
+
+			jmap [options] pid
+				# jmap 6687
+				-heap: 详细堆内存空间使用状态信息
+					# jmap -heap 6687
+				-histo[:live] 查看堆内存中的对象数目、大小统计结果；
+					# jmap -histo:live 6687
+
+			# jhat 6687
+
+		jstat：jvm统计监测工具
+			jstat -<option> [-t] [-h<lines>] <vmid> [<interval> [<count>]]
+
+			其中<option>为必须提供的选项，所有可用选项可使用jstat -options列出；
+
+				-class
+				-compiler
+				-gc
+				-gccapacity
+				-gccause
+				-gcnew
+				-gcnewcapacity
+				-gcold
+				-gcoldcapacity
+				-gcpermcapacity
+				-gcutil
+				-printcompilation
+
+			# jstat -gc 6687
+				字段意义：
+					S0C, S1C, S0U, S1U: C表示容量，U表示已用量；
+					EC, EU：eden区域的容量和已用量；
+					OC, OU
+					PC, PU
+					YGC, YGT：新生代的GC次数和耗时；
+					FGC, FGCT： FULL GC的次数和耗时；
+					GCT：GC总耗时；
+
+			两个GUI工具：jconsole, jvisualvm

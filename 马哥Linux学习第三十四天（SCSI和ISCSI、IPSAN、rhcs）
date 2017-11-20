@@ -1,0 +1,467 @@
+马哥Linux学习第三十四天（SCSI和ISCSI、IPSAN、rhcs）
+
+回顾：
+	drbd, pacemaker + drbd
+
+		drbd：工作于Linux内核中；
+			drbdadm、drbdsetup、drdbmeta
+
+		协议：
+			A：异步
+			B：半同步
+			C：同步
+
+		模型：
+			primary/secondary
+				primary：可挂载、可读写
+				secondary：不可挂载
+			primary/primary：dual primary
+				必要条件：HA环境
+				Cluster FS
+
+	pacemaker + drbd：
+		primary/secondary
+			将drbd定义成master/slave类型的资源：
+				能自动完成primary/secondary角色切换；
+				还能够通过在pacemaker中定义Filesystem，从而完成drbd设备自动挂载；
+		primary/parimary
+			借助于dlm完成分布式锁管理；
+			将dlm定义为clone类型资源，从而使得多个节点都等够使用此资源；
+			Cluster FS
+
+
+
+SCSI & iSCSI
+	
+	存储类型：
+		DAS：Direct Attached Storage
+			并行口：IDE(ATA)、SCSI
+			串行口：SATA、SAS、USB、eSATA
+
+		NAS：文件服务协议实现文件服务器，NFS, CIFS；
+			RESTful
+		SAN：Storage Area Network
+
+	SCSI：Small Computer System Interface
+		并行I/O接口规范：I/O通道，传输协议
+
+		协议分层：
+			应用层
+			传输层
+			物理层
+
+		注意：物理层可替换为其它的传输介质，而非必需使用SCSI线缆；
+			FC，Ethernet，IB
+
+	SAN：利用现有的成熟网络技术承载存储协议SCSI的相关报文；
+			fc --> fc
+			fc --> fcoe --> cee
+			fc --> fcip --> tcp --> ip --> Ethernet
+			iSCSI --> tcp --> ip --> Ethernet
+			SRP/iSER --> IB
+
+	iSCSI：
+		监听端口：3260/tcp
+
+		SAN的种类：FC SNA，
+			iSCSI：IP SAN
+
+		SCSI设备：
+			initiator：HBA
+			target：target id, tid
+				lun：logical unit, lun
+
+		iSCSI Storage：
+			target端口：Linux主机：
+				iSCSI Target
+				iSCSI LUN
+
+			initiator：
+				关联target的LUN至本地；
+
+	案例：实现iSCSI
+		Target：
+			认证：
+				基于IP认证
+				CHAP：挑战握手认证协议
+			程序包：scsi-target-utils
+				管理工具：
+					tgtadm：全功能的命令行配置工具；其配置结果在OS重启后失效；
+					tgt-admin：通过读取配置文件/etc/tgt/targets.conf进行配置的工具；
+
+				启动服务后：模拟的是SCSI总线；
+					管理多个target
+					每个target上，可管理多个lun（32）
+
+		Initiator：
+			程序包：iscsi-initiator-utils
+				iscsi
+				iscsid
+
+		target和initiator都需要基于iqn来进行标识；
+			iqn：iscsi qualified name
+				格式：
+					iqn.YEAR-MONTH.tld.comain:string[.substring]
+
+					例如：iqn.2015-06.com.magedu:i1.c2
+
+		配置iscsi server：
+			1、准备磁盘设备；
+			2、安装数据包、启动服务；
+				yum scsi-target-utils
+				service tgtd start
+			3、创建target；
+				~]# tgtadm --lld iscsi --mode target --op new --tid 1 --targetname iqn.2015-06.com.magedu:s1.t1
+				 ~]# tgtadm --lld iscsi --mode target --op show
+				Target 1: iqn.2015-06.com.magedu:s1.t1
+				    System information:
+				        Driver: iscsi
+				        State: ready
+				    I_T nexus information:
+				    LUN information:
+				        LUN: 0
+				            Type: controller
+				            SCSI ID: IET     00010000
+				            SCSI SN: beaf10
+				            Size: 0 MB, Block size: 1
+				            Online: Yes
+				            Removable media: No
+				            Prevent removal: No
+				            Readonly: No
+				            Backing store type: null
+				            Backing store path: None
+				            Backing store flags: 
+				    Account information:
+				    ACL information:
+
+			4、创建lun；
+				 ~]# tgtadm --lld iscsi --mode logicalunit --op new --tid 1 --lun 1 --backing-store /dev/sdb
+				 ~]# tgtadm --lld iscsi --mode logicalunit --op new --tid 1 --lun 2 --backing-store /dev/sdc
+				 ~]# tgtadm --lld iscsi --mode target --op show
+				Target 1: iqn.2015-06.com.magedu:s1.t1
+			    System information:
+			        Driver: iscsi
+			        State: ready
+			    I_T nexus information:
+			    LUN information:
+			        LUN: 0
+			            Type: controller
+			            SCSI ID: IET     00010000
+			            SCSI SN: beaf10
+			            Size: 0 MB, Block size: 1
+			            Online: Yes
+			            Removable media: No
+			            Prevent removal: No
+			            Readonly: No
+			            Backing store type: null
+			            Backing store path: None
+			            Backing store flags: 
+			        LUN: 1
+			            Type: disk
+			            SCSI ID: IET     00010001
+			            SCSI SN: beaf11
+			            Size: 10737 MB, Block size: 512
+			            Online: Yes
+			            Removable media: No
+			            Prevent removal: No
+			            Readonly: No
+			            Backing store type: rdwr
+			            Backing store path: /dev/sdb
+			            Backing store flags: 
+			        LUN: 2
+			            Type: disk
+			            SCSI ID: IET     00010002
+			            SCSI SN: beaf12
+			            Size: 10737 MB, Block size: 512
+			            Online: Yes
+			            Removable media: No
+			            Prevent removal: No
+			            Readonly: No
+			            Backing store type: rdwr
+			            Backing store path: /dev/sdc
+			            Backing store flags: 
+			    Account information:
+			    ACL information:
+
+			5、授权:
+				 ~]# tgtadm --lld iscsi --mode target --op bind --tid 1 --initiator-address 172.16.100.0/24
+				 ~]# tgtadm --lld iscsi --mode target --op show
+				ACL information:
+       				172.16.100.0/24
+
+       		6、创建用户及密码：
+       			~]# tgtadm -L iscsi -m account -o new --user obama --password obama
+       			~]# tgtadm -L iscsi -m account -o show
+				Account list:
+				    obama
+
+
+				绑定target：
+					~]# tgtadm -L iscsi -m account -o bind --tid 1 --user obama
+				解绑：
+					~]# tgtadm -L iscsi -m account -o unbind --tid 1 --user obama
+
+			tgtadm命令：
+				模式化的工具：
+					target：管理target
+					logicalunit：管理lun
+					account：管理用户账号
+
+				管理操作：
+					show：查看
+						~]# tgtadm --lld iscsi --mode target --op show
+					new：新建
+					delete：删除
+					update：修改
+					bind：绑定，即实现授权，例如：通过将ip或账号与target绑定进行；
+					ubind：解除授权；
+
+				常用选项：
+					--lld, -L <driver>：指明驱动，此处均为iscsi；
+					--mode, -m <mode>：模式
+					--op, -o <operation>：操作
+					-t --tid <id>
+					-l --lun <lun>
+					-b --backing-store <path>
+					-I --initiator-address <address or NET>
+					-T --targetname <targetname>
+
+
+		配置iSCSI initiator：
+			1、安装程序包，配置initiator的名字，并启动服务；
+				（1）安装
+					~]# yum install iscsi-initiator-utils
+				（2）配置initiator的iqn格式的名字：/etc/iscsi/initiatorname.iscsi
+					~]# echo 'InitiatorName=$(iscsi-name -p iqn.2015-06.com.magedu)' > /etc/iscsi/initiatorname.iscsi 
+					 ~]# cat /etc/iscsi/initiatorname.iscsi
+					InitiatorName=iqn.2015-06.com.magedu:5baef51f292b
+
+				（3）启动服务
+					~]# service iscsi start
+					~]# service iscsid start
+
+			2、使用iscsiadm实现target的发现、注册等；
+				(1) 发现模式：discovery
+					iscsiadm -m discovery -d # -t TYPE -p IP[:PORE]
+						-d debug_level
+						TYPE：sendtargets,可简写为st；
+
+					 ~]# iscsiadm -m discovery -d 3 -t st -p 172.16.100.88:3260
+					iscsiadm: ip 172.16.100.88, port 3260, tgpt -1
+					iscsiadm: Max file limits 1024 4096
+
+					Starting iscsid:                                           [  OK  ]
+					iscsiadm: Could not open /var/lib/iscsi/send_targets/172.16.100.88,3260: No such file or directory
+
+					iscsiadm: starting sendtargets discovery, address 172.16.100.88:3260, 
+					iscsiadm: connecting to 172.16.100.88:3260
+					iscsiadm: connected local port 45326 to 172.16.100.88:3260
+					iscsiadm: connected to discovery address 172.16.100.88
+					iscsiadm: login response status 0000
+					iscsiadm: discovery process to 172.16.100.88:3260 exiting
+					iscsiadm: disconnecting conn 0x22a1ce8, fd 3
+					172.16.100.88:3260,1 iqn.2015-06.com.magedu:s1.t1
+
+					~]# ls /var/lib/iscsi/send_targets/172.16.100.88,3260/
+					iqn.2015-06.com.magedu:s1.t1,172.16.100.88,3260,1,default  st_config
+
+				(2) 节点模式：node
+					iscsiadm -m node [ -d debug_level ] [ [ -T targetname -p ip:port -I ifaceN ] [ -l | -u | -R | -s] ] [ [ -o  operation  ]
+						-l：登录
+						-u：退出
+
+						~]# iscsiadm -m node -d 1 -T iqn.2015-06.com.magedu:s1.t1 -p 172.16.100.88:3260 -l
+						Logging in to [iface: default, target: iqn.2015-06.com.magedu:s1.t1, portal: 172.16.100.88,3260] (multiple)
+						Login to [iface: default, target: iqn.2015-06.com.magedu:s1.t1, portal: 172.16.100.88,3260] successful.
+
+
+						~]# fdisk -l
+						Disk /dev/sdc: 10.7 GB, 10737418240 bytes
+						64 heads, 32 sectors/track, 10240 cylinders
+						Units = cylinders of 2048 * 512 = 1048576 bytes
+						Sector size (logical/physical): 512 bytes / 512 bytes
+						I/O size (minimum/optimal): 512 bytes / 512 bytes
+						Disk identifier: 0x00000000
+
+
+						Disk /dev/sdd: 10.7 GB, 10737418240 bytes
+						64 heads, 32 sectors/track, 10240 cylinders
+						Units = cylinders of 2048 * 512 = 1048576 bytes
+						Sector size (logical/physical): 512 bytes / 512 bytes
+						I/O size (minimum/optimal): 512 bytes / 512 bytes
+						Disk identifier: 0x00000000
+
+
+						~]# iscsiadm -m node -d 1 -T iqn.2015-06.com.magedu:s1.t1 -p 172.16.100.88:3260 -u
+
+						~]# iscsiadm -m node -d 1 -T iqn.2015-06.com.magedu:s1.t1 -p 172.16.100.88:3260 -o delete
+						~]# ls /var/lib/iscsi/send_targets/172.16.100.88,3260/
+						st_config
+
+	配资target的第二种方式：
+		以编辑配置文件配置iscsi server：
+				/etc/tgt/targets.conf
+
+				~]# cp /etc/tgt/targets.conf{,.bak}
+
+				~]# grep -v "#" /etc/tgt/targets.conf
+				<target iqn.2017-06.com.magedu:s2.t1>
+				        backing-store /dev/sdb
+				        backing-store /dev/sdc
+				        initiator-address 172.16.100.0/24
+				</target>
+
+				重启tgtd服务：
+				~]# service tgtd restart
+
+				 ~]# tgtadm -L iscsi -m target -o show
+				Target 1: iqn.2017-06.com.magedu:s2.t1
+				    System information:
+				        Driver: iscsi
+				        State: ready
+				    I_T nexus information:
+				    LUN information:
+				        LUN: 0
+				            Type: controller
+				            SCSI ID: IET     00010000
+				            SCSI SN: beaf10
+				            Size: 0 MB, Block size: 1
+				            Online: Yes
+				            Removable media: No
+				            Prevent removal: No
+				            Readonly: No
+				            Backing store type: null
+				            Backing store path: None
+				            Backing store flags: 
+				        LUN: 1
+				            Type: disk
+				            SCSI ID: IET     00010001
+				            SCSI SN: beaf11
+				            Size: 10737 MB, Block size: 512
+				            Online: Yes
+				            Removable media: No
+				            Prevent removal: No
+				            Readonly: No
+				            Backing store type: rdwr
+				            Backing store path: /dev/sdb
+				            Backing store flags: 
+				        LUN: 2
+				            Type: disk
+				            SCSI ID: IET     00010002
+				            SCSI SN: beaf12
+				            Size: 10737 MB, Block size: 512
+				            Online: Yes
+				            Removable media: No
+				            Prevent removal: No
+				            Readonly: No
+				            Backing store type: rdwr
+				            Backing store path: /dev/sdc
+				            Backing store flags: 
+				    Account information:
+				    ACL information:
+				        172.16.100.0/24
+
+		开源存储管理工具：
+			Openfiler、FreeNAS、Nexenta
+
+回顾：scsi,iscsi, IP SNA
+	scsi协议：物理层
+		FC FCoE, TCP/IP
+		SAN
+
+	iSCSI: scsi over internet
+
+	Server：scsi-target-utils
+		socket：3260/tcp
+	Initiator：iscsi-initiator-utils
+		iscsi, iscsid
+
+	作业：用iSCSI实现高可用的MariaDB集群
+		思路：两个节点都发现iscsi target，只有一个节点挂载文件系统，一旦故障切换至另一节点挂载。
+
+
+RHCS：
+	Red Hat Cluster Suite：
+
+		failover domain：
+			rgmanager：
+				resource：
+
+
+	RHCS：
+		2 nodes：qdisk仲裁设备
+		3 nodes：
+
+		rhel6：cman，corosync plugin
+			Conga：
+				luci/ricci
+
+			总结：
+				集群中的各节点：
+					1、安装ricci，并启动服务；
+						yum install ricci
+						service ricci start
+					2、给ricci用户以密码；
+
+				管理节点：
+					1、安装luci
+						切记：不能安装base源以外其它（epel）源中的包；
+						yum install luci
+						service luci start
+
+					2、启动luci服务
+						切记：luci节点的名称要与集群中各节点解析得到的名称保持一致；
+
+					3、通过浏览器：
+						https://LUCI_SERVER_IP:8084
+							添加集群
+							添加故障转移域
+							定义资源
+								全局资源
+							添加资源组
+								直接定义：内部资源
+								调用全局资源
+
+				管理命令：clustat, clusvcadm
+
+		Conga：luci/ricci
+
+
+	Cluster FS：
+		GFS2
+		OCFS2
+
+		GFS2：
+			-p locak_type
+				lock_dlm, lock_none
+			-t locak_table_name
+				clustername:fsname
+
+		mkfs.gfs2 -j # -p lock_dlm -t ClusterName:FSName /path/to/device
+
+	cLVM：
+		cluster LVM
+
+			(1)安装包
+			yum install lvm2-cluster
+
+			(2)启用集群模式
+			lvmconf --enable-cluster
+			(3)启用服务
+			servcie clvmd start
+			(4)创建共享存储的分区，调整类型为lvm
+			(5)格式化为集群文件系统
+			(6)挂载
+
+
+	RHCS, gfs2,clvm
+
+	作业：rhcs(conga) + gfs2,clvm
+
+
+
+
+
+
+
+

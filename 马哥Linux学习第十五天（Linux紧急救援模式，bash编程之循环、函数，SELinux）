@@ -1,0 +1,714 @@
+马哥Linux学习第十五天（Linux紧急救援模式，bash编程之循环、函数，SELinux）
+
+回顾：
+	CentOS系统安装，kickstart
+
+	iso：mbr －－> boot.cat， isolinux.bin
+		boot：linux text ip= netmask= ks=
+			isolinux.cfg
+	anaconda：
+		安装前配置：键盘类型，语言环境，...
+		安装执行过程：将用户选定要安装的程序包，基于安装树解决依赖关系后，执行安装程序包；
+		第一次启动：设定iptables，selinux,core dump;
+
+	kickstart文件：
+		命令段：install, rootpw, authconfig, reboot,......
+		程序包段：%package, %end
+			@group, package，-package
+		脚本段：
+			%pre
+
+			%post
+
+
+CentOS Linux系统简单故障排除：
+
+	grub：
+		stage1：mbr
+		stage1_5：mbr之后扇区，操作bootloader访问stage2所在的文件系统的驱动；
+		stage2：/boot分区
+
+	grub的安装：
+		grub-install：在系统能够正常启动使用的安装
+		grub>
+
+	rescue模式：紧急救援模式
+		启动一个位于光盘上Linux系统，其会在启动过程中去检测本地的硬盘设备，并寻找原来的根文件系统，借助于此系统完成某些修复；
+			此系统有自己的rootfs，但功能简陋：如果能找到硬盘上原来的根文件系统，可使用chroot命令切换至此rootfs，完成后续修复；
+
+	示例：
+		（1）修复bootloader；
+		（2）重装程序包；
+
+
+bash编程中的条件测试：
+	条件测试：真，假
+
+	bash中的条件测试；
+		(1) 命令的执行状态结果，即命令成功与否；
+			0：成功
+			1-255：失败
+
+			在if语句上的用法：
+				if COMMAND &> /dev/null;then
+				fi
+
+		(2) 条件测试表达式
+			test EXPRESSION
+			[ EXPRESSION ]
+			[[ EXPRESSION ]]
+				在if语句上的用法：
+					if 条件测试表达式格式调用;then
+
+	条件测试：
+		整数测试：
+			-eq, -ne, -lt, -le, -gt, -ge
+		字符串测试：
+			>, <, =, !=, =~
+			-n, -z
+		文件测试：
+			文件存在性及类型：-e, -f, -d, -h, -L, -b, -c, -S, -p
+			文件属组、属组及权限：-O, -G, -x, -r, -w, -u, -g, -k
+			文件时间戳：
+				-N
+				-nt, -ot
+			硬链接：-ef 
+
+	组合测试条件1：组合测试表达式
+		或：-o ，[ COND_EXPR1 -o COND_EXPR2]
+		与：-a
+		非：！
+
+		[ "$hname" == "localhost" -o "$hname" == "(none)"]
+
+	组合测试条件2：组合测试语句
+		与：&&
+		或：||
+		非：!
+
+		[ "$hname" == "localhost" ] || [ "$hname" == "(none)" ]
+
+		短路操作符：
+			COND1 && COND2：
+				COND1为“假”时，最终结果一定为“假”，因此COND2不用再测试；
+				COND1为“真”时，最终结果取决于COND2，因此COND2一定会测试；
+
+				由此，其相当于
+					if COND1;then
+						COND2
+					fi
+
+			COND1 || COND2：
+				COND1为“假”时，最终结果取决于COND2，因此COND2一定会测试；
+				COND1为“真”时，最终结果一定为“真”，因此COND2不用再测试；
+					~]# [ -d /tmp/test ] || mkdir /tmp/test
+
+					由此，相当于
+						if ! COND1;then
+							COND2
+						fi
+
+		多分支if语句：
+			if CONDITION1-TRUE;then
+				分支1
+			elif CONFITION2-TRUE;then
+				分支2
+			elif ONFITION3-TRUE;then
+				分支3
+			...
+			...
+			else 
+				分支n
+			fi
+
+			如果多个测试条件中是对同一个条件的多个不同取值进行测试，可替换简洁版的case；
+
+	case语句：
+		case 变量引用 in
+			PATTERN1)
+				分支1
+				;;
+			PATTERN2)
+				分支2
+				;;
+			...
+			*)
+				分支n
+				;;
+		ecac
+
+			PATTERN可使用通配符：
+				*：任意长度任意字符；
+				?：任意单个字符；
+				[]：指定范围内的任意单个字符；
+				a|b|c：或者
+
+	练习：写一个脚本
+		能接受四个参数：start, stop, restart, status
+			start：输出"starting 脚本名 finished。"
+			...
+			其它任意参数，均报错退出；
+
+			[root@vBird scripts]# cat mysrc.sh 
+			#!/bin/bash
+			#
+
+			svc=$(basename $0)
+			lockfile=/tmp/$svc
+
+			case $1 in
+				start)
+					if [ -e $lockfile ]; then
+						echo "$svc running"
+						exit 0
+					else
+						echo "starting $svc finished."
+						touch $lockfile && exit 0
+					fi
+					;;
+				stop)
+					echo "stoping $svc finished."
+					;;
+				restart)
+					echo "restarting $svc finished."
+					;;
+				status)
+					echo "running or stopped."
+					;;
+				*)
+					echo "Usage: $svc {start|stop|restart|status}"
+					exit 1
+					;;
+			esac
+
+
+SELinux：Secure Enhanced Linux
+	NSA（National Security Agency）设计，最小权限原则，任何进程运行时提供给它所需要最少资源；
+
+	进程的安全上下文：
+		进程：属主、属组
+		文件：属主、属组
+
+		httpd：apache apache
+			/var/www/html
+				index.html
+				index.php
+				index.jsp
+
+			httpd进程是否有权限访问/etc/fstab？
+
+		主 谓 宾
+			宝哥哥娶了林妹妹
+			subject, 动作, object
+
+			subject：进程
+				动作：
+			object：文件，进程，...
+
+		sandbox：沙箱
+			进程：额外标签，domain
+			资源：额外标签，type
+
+			httpd：httpd_d
+			/var/www/html：httpd_content_t
+
+		SELinux：
+			（1）各进程有其domain标签，各资源有其type标签；
+			（2）SELinux的规则库，定义了进程能够访问的资源；
+
+		运作模型：
+			strict：每个进程都受SELinux控制；
+			target：仅部分被选定进程受SELinux控制，额外的不接受控制；
+
+		target模型下的SELinux的启用模式：
+			enforcing：强制，即那些受限的进程必须严格按照规则库中的规则行为；
+			permissive：许可，那些受限的进程访问不被规则允许的资源时不会受到阻止，但会被记录和警告；
+			disabled：禁用；
+
+		SELinux的配置文件：/etc/selinux/config <-- /etc/sysconfig/selinux
+			修改配置文件：重启系统方能生效；
+
+			命令：
+				setenforce {1|0}
+					1:enforcing
+					0:permissing
+				getenforce
+
+		如果要???启用SELinux：
+			（1）修改资源标签；
+				d1 --> t1
+					t2 -修改为-> t1
+			（2）修改进程的布尔型开关；
+				进程有很多独立功能可单独控制，尤其是有安全隐患的功能；
+
+		修改标签：chcon
+			chcon [OPTION]... [-u USER] [-r ROLE] [-l RANGE] [-t TYPE] FILE...
+       		chcon [OPTION]... --reference=RFILE FILE...
+
+       	恢复默认标签：restorecon
+       		~]# restorencon [-P] PATh...
+
+       	布尔型开关：
+       		getsebool [-a] [boolean]
+       			~]# getsebool -a
+
+       		setsebool [ -P ] boolean value | bool1=val1 bool2=val2 ...
+       			-P：保存于策略库中，不使用-P选项，则仅对当前这次系统运行有效；重启后无效;
+       			~]# setsebool -P samba_export_all_rw 1
+
+       	类型强制：type-enforce
+       	规则：
+       		alone user_t bin_t: {read,write,getattr,setattr}
+
+       	查看SELinux状态：
+       		sestatus
+
+       	DAC：Discretionary access control
+       	MAC：mandatory access control
+
+
+回顾：
+	rescue，case语句，SELinux
+
+	rescue：启动一个运行于ram中仅具有基本修复工具的系统；
+
+	case语句：
+		case 变量引用 in
+			PATTERN1)
+				分支1
+				;;
+			PATTERN2)
+				分支2
+				;;
+			...
+			*)
+				分支n
+				;;
+		ecac
+
+	SELinux：
+		命令：
+			getenforce, setenforce, getsebool, setsebool, sestatus, chcon, restorecon
+
+		配置文件：/etc/selinux/config
+
+
+bash脚本编程：
+	1、交互式编程
+		read [-ers] [-a aname] [-d delim] [-i text] [-n nchars] [-N nchars] [-p prompt] [-t timeout] [-u fd] [name ...]
+			 -p：prompt，输入提示符；
+			 	[root@vBird ~]# read -p "Plz inout a user name:" name
+				Plz inout a user name:Jerry
+				[root@vBird ~]# echo $name
+				Jerry
+			-t：timeout，超时时间，单位秒；
+			-a：arry
+				name为属组，而非变量
+			-A：array	
+				name为关联数组；
+
+		示例：
+			1、写一个脚本，显示用户选定要查看的信息；
+				cpu) display cpu info
+				mem) display memory info
+				disl) display disk info
+				*)quit
+					[root@vBird scripts]# cat sysinfo.sh 
+					#!/bin/bash
+					#
+
+					cat << EOF
+					==========Menu==========
+					cpu) display cpu info
+					mem) display memory info
+					disk) display disk info
+					*) quit
+					==========Menu==========
+					EOF
+
+					read -p "Your option:" option
+
+					case $option in
+						cpu)
+							lscpu ;;
+						mem)
+							free ;;
+						disk)
+							fdisk -l /dev/[hs]d[a-z];;
+						*)
+							echo "Wrong option"
+							exit 1
+					esac
+
+			2、写一个脚本，提示用户输入一个用户名：
+				在用户存在时，判断其UID是否同GID；
+				同，则显示“Good guy”，不同，则显示“Bad guy”；
+
+				[root@vBird scripts]# cat showuserdebug.sh 
+				#!/bin/bash
+				#
+
+				read -p "Plz enter a user name:" name
+
+				! id $name &> /dev/null && echo "No this user." && exit 1
+
+				if [ `id -u $name` == `id -g $name` ];then
+					echo "God guy"
+				else 
+					echo "Bab guy"
+				fi
+
+				第二种实现方式：
+					[ `id -u $name` == `id -g $name` ] && echo "good guy" || echo "bad buy"
+
+	2、循环
+		循环执行：for
+			for var_name in list; do
+			for ((i=0;i<=100;i++)); do
+
+		(1) while循环：
+
+			while CONDITION; do
+				循环体
+				循环控制变量的修正表达式
+			done
+
+			其中，“CONDITION”，当条件测试结果为“真”，则进入循环，为“假”时，终止循环；
+				循环控制变量要用于CONDITION中，以实现循环条件构建；
+
+			示例：求100以内正整数之和；
+				[root@vBird scripts]# cat sum9.sh 
+				#!/bin/bash
+				#
+
+				declare -i sum=0
+				declare -i i=1
+
+				while [ $i -le 100 ];do
+					let sum+=$i
+					let i++
+				done
+
+				echo "$sum"
+				
+			示例：添加10个用户，user1-user10
+				[root@vBird scripts]# cat user6.sh 
+				#!bin/bash
+				#
+
+				declare -i i=1
+
+				while [ $i -le 10 ];do
+					! id user$i &> /dev/null && useradd user$i && echo "Add user$i finished." || echo "user$i exists"
+					let i++
+				done
+
+			示例：打印九九乘法表
+				[root@vBird scripts]# cat mul.sh 
+				#!bin/bash
+				#
+				declare -i i=1
+				declare -i j=1
+
+				while [ $i -le 9 ];do
+					let j=1
+					while [ $j -le $i ]; do
+						echo -n -e "${j}X${i}=$[$i*$j]\t"
+						let j++
+					done
+
+					echo 
+					let i++
+				done
+
+			示例：写一个脚本，判断给定的用户是否登录了当前系统；
+				(1) 如果登录了，则显示用户登录，脚本终止；
+				(2) 每3秒钟，查看一次用户是否登录；
+					[root@vBird scripts]# cat login.sh 
+					#!/bin/bash
+					#
+					read -p "PLz enter a user name:" name
+
+					who | grep "^$name\>" &> /dev/null
+					status=$?
+
+					while [ $status -ne 0 ]; do
+						sleep 3
+						who | grep "^$name\>" &> /dev/null
+						status=$?
+					done
+
+					echo "$name is here."
+
+					第二种：
+						root@vBird scripts]# cat login.sh 
+						#!/bin/bash
+						#
+						read -p "PLz enter a user name:" name
+
+						while ! who | grep "^$name\>" & /dev/null; do
+							sleep 3
+						done
+
+						echo "$name is here."
+
+			示例：写一个脚本，显示用户选定要查看的信息；
+				cpu) display cpu info
+				mem) display memory info
+				disl) display disk info
+				quit)quit
+				非此四项选择，则提示错误，并要求用户重新选择，直到其给出正确的选择为止；
+					[root@vBird scripts]# cat sysinfo2.sh 
+					#!/bin/bash
+					#
+
+					cat  << EOF
+					==========Menu==========
+					cpu) display cpu info
+					mem) display memory info
+					disk) display disk info
+					quit) quit
+					==========Menu==========
+					EOF
+
+					read -p "Your option:" option
+
+					while [ $option != 'cpu' -a $option != 'mem' -a $option != 'disk' -a $option != 'quit' ];do
+						echo "Wrong option."
+						read -p "Your option again:" option
+					done
+
+					case $option in
+						cpu)
+							lscpu ;;
+						mem)
+							free ;;
+						disk)
+							fdisk -l /dev/[sh]d[a-z] ;;
+						quit)
+							exit 0 
+					esac
+
+		(2) until循环
+
+			until CONDITION; do
+				循环体
+				控制变量修正语句
+			done
+
+			CONDITION条件为“假”时，执行循环；为“真”时退出循环；
+
+			示例：100以内所有正整数之和：
+				#!/bin/bash
+				#
+
+				declare -i sum=0
+				declare -i i=1
+
+				until [ $i -gt 100 ];do
+					let sum+=$i
+					let i++
+				done
+
+				echo "$sum"
+
+			示例：添加10个用户，tuser1-tuser10；
+
+
+		(3) while循环的特殊用法：
+			（a）用于遍历指定文件的每一行：
+				while read 变量名；do
+					循环体
+				done < /PATH/TO/SOMEFILE
+
+				变量用于保存一行数据；直到遇到文件尾，数据终止，循环退出；
+
+				示例：找出其UID为偶数的用户，显示用户名和其UID；
+					[root@vBird scripts]# cat userinfo.sh 
+					#!/bin/bash
+					#
+
+					[ $UID -ne 0 ] && echo "Only root can excute this script." && exit 1
+
+					while read line;do
+						userid=$(echo $line | cut -d: -f3)
+						if [ $[$userid%2] -eq 0 ];then
+							echo $line | cut -d: -f1,3
+						fi
+					done < /etc/passwd
+
+				示例：将给定文件的偶数行内字符统统修改为大写之后输出；
+					[root@vBird scripts]# cat displayfile.sh 
+					#!/bin/bash
+					#
+
+					declare -i linenumber=1
+					read -p "Plz enter a file path:" file
+
+					while read line;do
+						if [ $[$linenumber%2] -eq 0 ];then
+							echo -n "$linenumber "
+							echo $line | tr 'a-z' 'A-Z'
+						fi
+						let linenumber++
+					done < $file
+
+			(b) 死循环
+				while true;do
+					循环体
+				done
+
+		循环控制：
+			break [N]：结束循环；
+				退出当前循环；N表示循环嵌套层次；
+			continue [N]：提前结束本轮循环，而直接下一轮循环条件判断
+
+				whille CONDITION1;do
+					statement1
+					...
+					if CONDITION2;then
+						break [N]
+					fi
+					statementN
+					statementN+1
+					...
+				done 
+
+				示例：求100以内所有偶数之和；
+					[root@vBird scripts]# cat cont.sh 
+					#!/bin/bash
+					#
+
+					declare -i evensum=0
+					declare -i i=0
+
+					while [ $i -le 100 ];do
+						let i++
+						if [ $[$i%2] -eq 1 ];then
+							continue
+						fi
+						let evensum+=$i
+					done
+					echo "$evensum"
+
+				示例：判断用户centos是否登录，如果登录则显示之；否则，每3秒查看centos是否登录；
+					[root@vBird scripts]# cat userinfo.2.sh 
+					#!/bin/bash
+					#
+
+					user='centos'
+					while true;do
+						if who | grep "^$user\>" &> /dev/null;then
+							break
+						fi
+						sleep 3
+					done
+
+					echo "$user is here."
+
+	函数：function，功能
+		把一段代码组织成一个独立个体，并且被赋予了名字；需要用到此段代码时，只需要执行处给出名字（函数名）即可；
+			提高代码重用率
+			模块化编程
+
+		语法结构：
+			function f_name {
+				函数体
+
+			}	
+
+			f_name(){
+				函数体
+			}
+
+		调用函数：函数名
+			函数名出现的地方，自动替换为函数代码；
+
+			注意：函数不调用，其不会被执行；
+
+		函数的返回值：
+			函数执行过程结果向调用者的回馈；
+				（a）显示使用echo或printf命令
+				（b）函数中某些命令运行结果产生的输出；
+			函数退出状态码：
+				默认其退出码取决于函数体最后执行的那个语句的退出状态码；
+				自定义退出状态码：
+					return [N]
+						0-255
+							0：成功
+							1-255：失败
+
+					注意：函数运行时，一旦遇到return语句即会突出整个函数的运行；
+
+			函数可接受参数：
+				调用函数时，可以传递参数给函数，传递方法类似向脚本传递参数的方法，例如
+					f_name arg1 arg2 arg3 ...
+
+					在函数中可使用$1,$2,...来调用这些参数；
+					可在函数中使用特殊变量：
+									$#：参数个数
+									$@：参数列表
+									$*：参数列表
+
+			练习：写一个脚本
+				(1)用函数实现返回一个用户的UID和SHELL；用户名通过参数传递而来；
+				(2)提示用户输入一个用户名或输入“quit”退出；
+					当输入的是用户名，则调用函数显示用户信息；
+					当用户输入quit，则退出脚本；
+						[root@vBird scripts]# cat userinfo.3.sh 
+						#!/bin/bash
+						#
+
+						getUserInfo() {
+							[ $# -lt 1 ] && echo "one argument at least" && return 1
+							
+							! id $1 >& /dev/null && echo "No such user." && return 2
+
+							grep "^$1\>" /etc/passwd | cut -d: -f3,7
+
+							[ $? -eq 0 ] && return 0 || return 3
+						}
+
+						read -p "Plz enter a user nae or 'quit':" name
+
+						if [ "$name" == 'quit' ];then
+							exit 0
+						else
+							getUserInfo $name
+						fi
+
+				进一步地：显示键入的用户相关信息后，再次提醒输出用户名或quit
+						[root@vBird scripts]# cat userinfo.3.sh
+						#!/bin/bash
+						#
+
+						getUserInfo() {
+							[ $# -lt 1 ] && echo "one argument at least" && return 1
+							
+							! id $1 >& /dev/null && echo "No such user." && return 2
+
+							grep "^$1\>" /etc/passwd | cut -d: -f3,7
+
+							[ $? -eq 0 ] && return 0 || return 3
+						}
+
+						while true; do
+							read -p "Plz enter a user nae or 'quit':" name
+
+							if [ "$name" == 'quit' ];then
+								exit 0
+								break
+							else
+								getUserInfo $name
+							fi
+						done
+
+
+			练习：写一个脚本，完成如下功能（使用函数）
+				（1）提示用户输入一个可执行命令的名字；获取此命令依赖的所有库文件；
+				（2）复制命令文件至/mnt/sysroot目录下的对应的rootfs的路径上，例如，如果复制的文件路径是/usr/bin/useradd，则复制到/mnt/sysroot/usr/bin/目录中；
+				（3）复制此命令依赖的各库文件至/mnt/sysroot目录下的对应的rootfs的路径上，规则同上面命令相关的要求；
+
+
+
+

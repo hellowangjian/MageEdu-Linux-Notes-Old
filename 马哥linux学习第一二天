@@ -1,0 +1,895 @@
+马哥linux学习第一二天
+
+os----->计算机
+    《穿越计算机的迷雾》
+    《量子物理史话》
+
+编程语言：
+          微码编程接口：汇编语言
+
+           问题空间：1000+1000
+                编程语言
+
+输入设备-->硬件-->程序（运行，处理操作）-->输出
+
+程序：指令＋数据
+          指令集
+冯诺依曼：5大部件
+      cpu:运算和控制
+      内存
+
+00，01，10，11
+32bits，2^32，2^10=1024
+1024*1024*1024*4 bytes
+1024*1024*4 k bttes
+1024*4 m bytes
+4 g bytes
+内存最小引用单位byte（字节）
+
+Unix
+CTSS: Compatile Time-Sharing System
+BATCH:job1 $$$$ job2 $$$$ job3
+
+进程：活动状态的程序，执行中的程序
+
+Multics,
+          MULTIiplexed Information and Computing Service
+ken tompson, Dennis Ritchie(c语言之父)
+           文件系统
+ 
+          DEC:
+               PDP-7
+
+         Unics:
+               Uniplexed Information and Computing Service
+
+         Unix, nroff(文字排版程序，运行在PDP-11)
+
+Unix:汇编语言，B语言写程序
+       C语言：兼具低级语言特性的高级语言，容易移植。
+       1973年用C重写Unix      
+       1974：CACM
+
+AT&T
+
+Berkeley, BSRG, 1977 Bill Joy,
+            BSD:
+
+1980,DARPA,
+        TCP/IP
+
+SCP:CP/M, Tim Paterson, QDOS
+
+Microsoft, XENIX
+SUN
+
+   《硅谷传奇》
+Bill Gates,QDOS
+
+Apple, 图灵；
+          PARK, Bell
+             XEROX
+         GUI:Graphic User Interface
+               windows 1.0
+        
+         IBM，OS/2
+
+    DEC:PDP, VAX(VMS)
+                Windows NT, Windows VISTA, Windows 7
+
+    MAC OS
+
+    Unix: System V, BSD Lite
+          BSD:FreeBSD(386平台),OpenBSD,NetBSD
+          Linus,Linux
+
+         AT&T, Sun, IBM DEC HP
+
+        MIT, Richard Stallman, GNU(GNU is Not Unix), Free
+               GPL:General Public License
+                    LGPL: lesser
+               gcc, gnu c complier
+        FSF: Free Software Fundation
+                X window
+ 
+         1.0, Unix-like
+
+patch: Larry Wall, perl
+
+GNU, Linux=GNU/Linux
+
+MINIX:Andrew,4000行
+
+Unix的历史教训：
+        别和低价灵活的方案较劲；
+        越开源越繁荣；
+       
+Uinx的哲学基础：
+       让每个程序只做好一件事；如果有新任务，那么就新启动一个程序，而不要在原程序中增加功能；
+       假定每个程序的输出，都会做为另一个程序的输出，输出中不要有无谓的信息干扰；不要交互式输入；
+      尽可能早地将设计和编译的程序投入使用，哪怕是系统级的程序也不列外；
+      使用工具而不是人力来减轻负担；
+
+     简而言之：一个程序只做一件事，并做好；程序间要能互相协作；程序要能处理文本流；
+
+     Rob Pike：
+              O(n)
+
+     程序：算法＋数据结构
+
+ OS的的功用：
+      1、将硬件规格抽象为系统调用(System Call);
+      2、进程管理；
+      3、文件系统；
+      4、硬件驱动；
+      5、网络协议栈；
+      6、安全功能；
+      7、内存管理；
+
+shell：用户接口
+     CLI:命令行接口，Command Line Interface
+           sh, bash, ksh, zsh, csh, tchsh
+    GUI:图形用户接口，Graphic User Interface
+          Gnome
+          KDE
+          Xface
+
+源代码-->编译（编译器）-->目标代码
+
+        Linux发行版：
+                 Rad Hat
+                        RHEL
+                        Fedora
+                        CentOS
+                 slackware
+                       S.u.S.E
+                             OpenSUSE
+                 Debian
+                      Ubuntu
+
+Linux:项目源代码，独立存在；
+         GNU:GPL开源协定
+                gcc， bash，vim, openssl
+         Apache：Apache开源协定
+         BSD:BSD开源协定
+
+          GNU/Linux
+
+          Linux
+               https://www.kernel.org/
+                3.19.2
+                     version:
+                            major:主版本号
+                            minor：次版本号
+                            release：发行号，修正号
+
+          Linux发行版：
+                     kernel， GNU
+                          提供一个安装程序
+           
+                     Debian：Ubuntu
+                     slackware：S.u.S.E
+                     Red Hat:
+                            rhel:Rad Hat Enterprise Linux
+                                   每36个月一个发行周期
+                            fedora:个人桌面或工作站
+                                   6个月一个发行周期
+                              CentOS：Community ENTerprise OS   
+
+                            Red Hat Linux:1.0, 6.0, 8.0, 9.0  -->Fedora(Community)
+                            Red Hat Enterprise Linux:3.0, 4.0, 6.0, 7.0
+       
+                       Gentoo:
+                       LFS:linux from scratch
+                       kali:
+    
+                        Android: java
+                             Linux + java vm + android
+                                       gc
+                                ios:
+                                       FreeBSD
+                                       object -c
+                            malloc, free
+
+                         系统运行：
+                                     用户模式
+                                     系统模式（内核模式）
+                           库：
+                                提供共享功能模式
+                                减少程序体积
+                                            dll：dynamic link labrary
+                                            so：shared object
+
+        API：Application Programming Interface，应用编程接口
+               IEEE: POS (Portable Operating System) -->POSIX
+
+        ABI: Application Binary Interface
+
+        CPU架构类型：
+                     x86: intel, amd, 32bits
+                     x64:amd64
+                                 pc server
+                     arm:32bits, 64bits
+                      power
+                      power-pc
+                      sparc, unlrasparc
+                      m68000, m68k
+                      alpha
+
+       自由软件：GNU， GPL （free）
+
+                   自由学习，自由修改源代码
+                   可以出于任何目的的获取源代码
+                   自由分发源代码
+                   自由创建衍生版
+
+                     服务：
+ 
+                   开源协定： GPL，LGPL，Apache， BSD
+
+                    copyright，copyleft
+
+
+   linux的哲学思想
+                 一切皆文件（包括硬件）
+                 由众多目的单一的小程序组成；
+                 组合小程序完成复杂任务；
+                 尽量避免跟用户交互；为了方便脚本编程实现程序自动化执行；
+                 使用文本文件保存程序的配置数据；
+
+K.I.S.S：Keep It Simple，Stupid
+
+            OS:交互式使用：
+                      特殊应用程序：shell
+                            CLI: sh, csh, ksh, bash, tcsh, zsh                                    
+                        [root@CentOS7 ~]# echo $SHELL
+                        /bin/bash
+               
+                                    提供命令行界面
+                                     提供编程界面
+                                
+                            GUI：x－window，X protocol
+                                    Gnome: c语言
+                                    KDE：C++, qt
+                                    xfce: 
+
+        终端类型：
+                     物理终端，控制台： /dev/console
+                     虚拟终端: /dev/tty#(1-6)
+                                Ctrl+Alt+F#
+                     伪终端：/dev/pts/#
+                                ssh或telnet远程连接打开的终端，图形界面下的终端                                    
+                        [root@CentOS7 ~]# tty
+                        /dev/pts/0
+
+                      串行终端：/dev/ttyS
+          第一次启动图形服务：
+                                  startx &, Ctrl＋Alt＋F7
+                                  startx -- :1 &, Ctrl+Alt+F8
+
+            登录
+                  账号、密码
+
+                    用户
+                             管理员：有管理权限；root
+                             普通用户：仅系统资源使用权限
+
+                用户工作环境：
+                         CLI:提供命令提示符
+                                管理员：＃
+                                 普通用户：$
+                         GUI：提供桌面环境   
+
+shell的工作环境的定制：
+                 变量：变量名，值
+                        变量赋值
+                                      VAR_NAME=VALUE
+                        
+                                      PS1：定义命令提示符之前的信息
+                                                \u：自动替换为当前的用户名
+                                                \h：当前主机的主机名
+                                                \H：当前主机的完整主机名，FQDN
+                                                \w：当前工作路径，绝对路径
+                                                \W：当前工作路径，相对路径
+                                                \$：指定命令提示符
+                                              定义方法：export PS1=' '
+                                                              export PS1 ='\033[3#m   \033[0m'
+
+ 知识框架：
+                linux基础知识、系统管理
+                bash shell编程
+                Linux服务及安全
+                        openssl，web，file service （vsftpd，samba，nfs），dhcp，dns
+                MySql数据库
+                Linux集群：LB， HA
+                         lvs，haproxy，nginx
+                         heartbeat，corosync，keepalived
+                分布式应用：
+                         mogilefs
+                         mogodb
+                 缓存系统：
+                         memcached
+                         varnish
+                 虚拟化：xen，kvm
+                 云：openstack
+                 监控和自动化：zabbix，cobbler，puppet，ansbile
+                 大数据：hadoop
+
+Linux的文件系统：
+                 一切皆文件
+                        遍历
+
+                  层级格式：
+                            / -->
+                                  etc, usr, var, home
+                                            pam, sysconfig
+                                                            networking
+                            /etc/sysconfig/networking
+                
+                    两类数据：
+                            元数据(metadata)：索引
+                               数据(data)：文件内容
+
+                            路径分割符：/
+                                            /usr/local
+                                            
+                                            相对路径：从当前位置开始定位的路径表示形式
+                                            绝对路径：从根开始定位的路径表示形式
+
+                              文件有两类标示符：
+                                            名字：
+                                           数字：inode
+
+                                Linux文件名：
+                                                1、严格分区大小写字符
+                                                                file, File, File, FILE
+                                                 2、文件名可以使用除了/以外的任意字符
+                                                            特殊目录：
+                                                                        .：表示当前目录
+                                                                        ..：表示当前目录的上一级目录
+                                                  3、以.号开头的文件为隐藏文件
+
+                                登录以后：
+                                        家目录，主目录：/root. /home/USERNAME
+                                        工作目录(working directory),当前目录：pwd命令可显示
+                                                    pwd（print working dirctory）
+ 
+                         命令总结：ifconfig，echo，tty，startx，export
+
+                        命令有两类：
+                                        内建命令：builtin
+                                                    shell程序自带的，基本命令
+                                         外部命令：
+                                                    独立于shell程序之外的，有着可执行程序文件
+
+                                      查看其类型：
+                                                    type COMMAND
+
+     如何运行命令：在命令提示符下键入命令
+                            命令书写格式：
+                                            COMMAND OPTIONS ARGUMENTS
+                                                           选项：
+                                                                   形式
+                                                                        －－CHAR:短选项
+                                                                                        多个短选项可以合并：－1 ，－i，－ii
+                                                                         －－word；长选项
+                                                                巧用
+                                                                    定义命令运行行为
+                                                            参数：
+                                                                    功用：
+                                                                            指定命令的作用对象
+                        注意：有些选型可以带参数，用户指定选项的作用方式或活作用对象：
+                                                        mkfs －t  xfs，mksql－t btrfs        dev/sda3
+
+            命令的使用帮助：
+                            内置命令：
+                                    help COMMAND
+                                            help cd
+
+                                    cd命令的常见用法：
+                                                    . ：当前目录
+                                                    .. ：当前目录的上一级目录
+                                                    cd：回用户的家目录
+                                                   cd~：回用户的家目录
+                                                cd ~USERNANE：切换至指定用户的家目录
+                                                    cd -：在当前所在目录于上次所在目录之间反复切换
+
+                                                pwd：显示当前工作目录
+
+                                                bash的特性之一： history
+                                                            保存的条数：HISTSIZE=1000
+                                                            持久保存的位置：HISTFILE=
+                                                                            ~/.bash_history
+                        
+                                                                持久保存的历史命令的条目数量：HISTFILESIZE
+
+                                                    用法：
+                                                        history
+                                                        history 30：显示最近的30个
+                                                        history -c：清空命令历史中的命令
+                                                        history -d OFFSET：删除指定位置的命令
+                                                        history -a /PATH/TO/SOMFILE：保存当前命令历史缓冲区中的命令至指定文件中
+
+                                                    调用此前执行过的命令：
+                                                                            !#：再次执行命令历史中的第＃条命令
+                                                                            !!：再次执行上一条命令
+                                                                            !STRING：再次执行命令历史中最近一次以STRING开头的命令
+                                                     调用上一次命令的最后一个参数：
+                                                                                                    ESC，.
+                                                                                                        !$
+           外部命令：
+                          1、COMMAND --help
+                                获取简要命令使用帮助
+                          2、命令手册：manual
+                                    man COMMAND
+                                    命令手册：通常是由程序作者提供的，按照一定格式组织成文本文件，并压缩后存放在系统上的某位置；
+                                                     /usr/share/man/
+                                    man命令的执行，通常即为找到此文件打开并显示
+
+                                    命令手册有章节之分：1 - 9
+                                                        1、用户命令   普通用户可以使用的命令
+                                                        2、系统调用，system call
+                                                        3、库调用，library call
+                                                        4、设备文件
+                                                        5、配置文件
+                                                        6、游戏
+                                                        7、杂项
+                                                        8、管理命令
+
+                                                    nab [#] COMMAND
+        
+                                     whatis KEYWORD :
+                                                         显示指定关键字存在帮助手册的章节相关信息及简单说明
+
+                                      man -k  KEYWORD:
+                                                        模糊匹配的方式显示指定的关键字或关键字的描述信息中存在帮助手册相关信息
+
+                                       man命令借助于less命令查看文件内容：
+                                                       翻屏：
+                                                              空格键 or f：向文件尾部翻一屏；
+                                                              b：向文件首部翻一屏；
+                                                              Ctrl＋d：向文件尾部翻半屏；
+                                                              Ctrl＋u：向文件首部翻半屏；
+                                                              回车键：向文件尾部翻一行；
+                                                              k：向文件首部翻一行；                                                                                                                                 
+                                                        退出：
+                                                               q
+
+                                                         行定位：
+                                                                G：跳转至文件尾部
+                                                                ＃G：跳转至文件第＃行
+
+                                                          关键字搜索：
+                                                                     /KEYWORD：搜索指定关键字，从文件首部向文件尾部搜索
+                                                                     ?KEYWORD：搜索指定关键字，从文件尾部向文件首部搜索
+                                                                                n：与搜索方向相同；
+                                                                                N：与搜索方向向反；
+                                                           手册段落：
+                                                                    NAME：命令的名称及简要说明；
+                                                                    DESCRIPTION：命令功能的详细描述；
+                                                                    OPTIONS ：所有选项的相关说明；
+                                                                    SYSNOPSIS：使用格式；
+                                                                    EXAMPLES ：使用示例；
+                                                                    FILES：相关的配置文件；
+                                                                    SEE ALSO：相关参考；
+
+                                                           帮助格式中的字符串：
+                                                                        ［］：可选内容
+                                                                          <>：必选内容
+                                                                            ｜：多选一 
+                                                                            ...：同类内容可以有多个
+                                              
+                          3、info命令：获取在线文档
+                                        仅在man手册无法提供足够的可用帮助信息时才用
+
+                          4、许多应用程序都自带帮助文档：/usr/share/doc
+                                                    Changelog:更新日志
+                                                    INSTALL：安装说明
+                                                    README：程序说明信息
+
+                           5、主流发行版官方文档
+                                                   http://www.redhat.com/docs/
+
+                           6、google
+                                        linux site：magedu.com
+                                        linux file：pdf
+
+                            7、各应用程序官方会提供在线文档
+
+                         练习：shutdown， poweroff， reboot， hwclock， date, halt, who ,whoami, hash
+
+                              shutdown
+                                         shutdown [OPTION]... TIME [MESSAGE]
+                                                    -r：重启
+                                                    -h：关机
+                                                    -c：取消关机或重启的操作, Ctrl + c
+
+                                                   TIME：
+                                                            now
+                                                            ＋m：m分钟之后进行，＋0
+                                                                hh:mm：下个 hh:mm 关机或重启
+
+                                poweroff：shutdown -h +0
+                                reboot：shutdown -r +0
+                                halt：shutdown -h +0
+                                date:
+                                            date [MMDDhhmm[[CC]YY][.ss]]
+                                            date 03261140
+                                            date 0326114115.20
+
+                                            date [OPTION]... [+FORMAT]
+                                                        FORMAT：
+                                                                    %F：YYYY-MM-DD
+                                                                    %D：MM/DD/YY
+                                                                                %y
+                                                                                %Y
+                                                                                %m
+                                                                                %d
+                                                                    %T：HH:MM:SS
+                                                                                 %H, %k
+                                                                                 %M
+                                                                                 %S
+                                                                    %s：从Unix元年(1970年1月1号 00:00:00)至此刻所经过的秒数；
+                                                                                            时间戳， timestamp
+
+                                             如何显示为Year-Month-Day-Hour-Minute-Second, 例如2015-03-26-11-52-30 ？
+                                           
+
+                    
+                                   hwclock：获取或设置硬件时钟
+
+                                            Linux系统上可使用两套时间
+                                                        硬件时钟
+                                                        系统时钟
+
+                                                        hwclock
+                                                                -s, --hctosys
+                                                                -w, --systohc
+
+                                    cal：
+                                        cal [[month]year]
+
+                                    who：显示登录至当前系统的所有用户及登陆的终端
+
+                                                w：详细格式的who
+
+                                    whoami：显示当前有效用户
+
+                                    hash：
+                                            纪录或显示程序位置
+
+                                            shell通过环境变量PATH来定义应用程序文件查找路径；
+                                                 路径通常用冒号分隔，且查找次序为从左至右；
+
+                                            系统在执行外部命令时，会先查看shell的命令hash缓存表，如果存在，就直接引用；否则，则需要遍历PATH环境变量所指向的目录来查找；
+
+                                             哈希：
+                                                     key value
+
+                                                         以键为查找标准作比对，找到对应的键后，其对应的值则为所需要的结果；
+
+                                        which：显示应用程序文件位置
+                                                    --skip-alias
+                        
+                              命令总结：shutdown, poweroff, halt, reboot; date, hwclock, cal; who, w, whoami, type, which, hash;
+
+回顾：
+     bash查找外部可执行环境：环境变量PATH
+            第一次查找时会执行查找过程；结果会被缓存；
+                            hash：
+                                      -r：清空缓存
+                                      -d NAME：清除指名称对应的缓存
+
+ bash的基础特性
+      bash重要特性之二：命令补全
+                    根据内建命令或外部命令各自查找方式查找以用户指定的字符开头的命令：
+                                    如果用户指定的开头字符串能唯一标示某命令，则tab键可直接补全此命令
+                                    否则，则两次tab键可显示所有以指定字符串开头的命令；
+
+                            路径补全：
+                                        以用户指定的字符串为起始路径进行文件名查找，完成补全；
+                                        如果用户指定的开头字符串能唯一标示某文件，则tab键可直接补全此文件
+                                        否则，则两次tab键可显示所有以指定字符串开头的文件名；
+
+                                    一切皆文件；
+                                    文件系统基础特性：文件名严格区分字符大小写、根是所有文件的起始路径，路径分隔符是/，可使用除分隔符之外的任意字符作                                                                    为文件名；
+
+                             路径：/usr/share/doc
+                                        路径基名：doc
+                                        目录名：/usr/share
+                                #basename NAME [SUFFIX]
+                          [vBird@vBird ~]$ basename /usr/share/doc
+                          doc
+                          [vBird@vBird ~]$ basename /usr/share/doc/a.txt
+                          a.txt
+                          [vBird@vBird ~]$ basename /usr/share/doc/a.txt .txt
+                          a
+                          [vBird@vBird ~]$ 
+            
+                                #dirname NAME [SUFFIX]
+        
+                FHS：文件层级系统，LSB(Linux Standard Base)定义的Linux发行版基础目录名称命名法则及功用规定
+                                            /bin，/sbin：系统自身启动和运行时可能会用到的核心二进制程序；
+                                            /boot：系统引导启动时要加载的静态文件、内核和ramdisk及grub等；
+                                            /dev：devices的简写；所有设备的相关设备文件；
+                                            /etc：大多数应用程序的配置文件的集中存放位置；
+                                            /home：普通用户的家目录的统一存放位置，每一个用户的主目录通常默认为/home/USERNAME;
+                                                    /root：管理员root用户的主目录；
+                                            /lib, /lib64：libraries，库文件的存放位置；
+                                                    /lib/modules/KERNEL_VERSION/：内核模块文件存放的位置；
+                                            /lost+found：
+                                            /media，/mnt：外部存储设备的挂载路径；
+                                            /misc：备用目录；
+                                            /opt：早起用于安装第三方程序；
+                                            /proc：伪文件系统，由内核参数映射而来；
+                                                        内核有很多特性可通过内核参数进行配置，内核也有很多信息如统计数据等可通过内核参数进行输出；
+                                                        net.ipv4.ip_forword = /proc/sys net/ipv4/ip_forword
+
+                                            /sys：伪文件系统，由内核中硬件相关的信息映射而来；
+                                                    内核中与设备配置相关的信息；
+                                            /selinux：Security Enhanced Linux
+                                            /srv：service简写，服务类程序用到的中间数据；
+                                            /tmp：temporary，临时文件存放的位置；
+                                            /usr，universal，shared，read-only
+                                                        /usr/bin， /usr/sbin：系统运行过程中，用户为完成某些操作可能用到的程序；
+                                                        /usr/lib，/usr/lib64:
+                                                        /usr/share:
+                                                        /usr/src：source的简写，程序的源代码的存放；
+                                                        /usr/local：
+                                                                   bin，sbin：第三方程序安装位置
+                                                                   lib，lib64
+                                                        /var：various，经常会发生变化的文件存放位置；
+
+        文件管理类命令：
+                            文本文件的查看
+                            目录管理
+                            文本搜索
+                            文本排序
+
+                                ls：list简写；显示指定目录下的文件及字目录列表；
+                                    ls [OPTION]... [FILE]...
+            
+                                    常用选项：
+                                              -l：长格式显示文件的详细属性信息；
+                                                 drwxr-xr-x. 2 root root 4096 Mar 25 03:43 account
+                                                    左起第一位：文件类型
+                                                    后面的9位：文件访问权限
+                                                            r：读
+                                                            w：写
+                                                            x：执行
+                                                      数字：当前文件被硬链接的次数；
+                                                      属主：当前文件的所有者
+                                                      属组：当前文件所属的用户组
+                                                      数字：文件大小，单位为字节
+                                                      日期时间：当前文件最近一次被修改的时间
+
+                                               -a：显示所有文件，包括隐藏文件；
+                                               -r：逆序显示
+                                               -R：递归显示；
+                                               -d：显示目录自身属性，常于-l选项一起使用
+                                               -S：以文件大小显示
+                                               -i：显示文件的inode号码
+                                               -n：以id号显示
+                                               -m：以，为分隔符显示
+
+                            文件类型：
+                                    -：普通文件
+                                    d：dirctory，目录文件
+                                     l：link，符号链接文件
+                                    b：block，块设备文件，随机访问设备
+                                    c：character，字符设备文件，线性设备；
+                                    p：pipe，管道
+                                    s：socket，套接字文件
+
+                   文件内容的类型查看：
+                                           file /PATH/TO/FILE
+
+              目录管理：
+                        创建：mkdir，
+                                    make directory
+                               mkdir [OPTION]... DIRECTORY...
+                                       -v：verbose 显示创建过程
+                                       -p：parent，
+
+                
+                           注意：Linux不通过文件名后缀判断文件关联的应用程序；
+
+
+                        删除：rmdir
+                                        remove dirctory
+                                    仅能删除空目录
+                                        -v：verbose
+                                        -p：parent，删除指定的目录后，其所在的目录如果为空，则删除之；依次类推；
+
+                        查看：tree
+                                tree [OPTION]... [DIRRCTORY]...
+                                            -L #：指明显示的层级
+
+        bash重要特性之三：命令执行状态返回值
+                                 命令执行成功与否的状态，由bash自己追踪；保存在特殊变量"$?"中；
+                                  0-255:
+                                            0：成功
+                                            1-255：失败
+
+        bash重要特性之四：命令展开
+                        ~：自动展开为当前用户的主目录；
+                        ~USERNAME：自动展开为指定用户的家目录；
+
+                        {}：
+                              (x+y)z=xz+yz
+                              (x+y)(m+n)=xm+xn+ym+yn
+
+                               tmp/{x,y,z}
+                                        /tmp/x, /tmp/y, /tmp/z
+                                
+                                /tmp/{x,y}/{m,n}
+                                       /tmp/x/m, /tmp/x/n, /tmp/y/m, /tmp/y/n
+
+                        练习1：创建/tmp
+                                  a_c, a_b, b_c, b_d                 
+                            [root@vBird ~]# mkdir /tmp/{a,b}_{c,d} -v
+                            mkdir: 已创建目录 "/tmp/a_c"
+                            mkdir: 已创建目录 "/tmp/a_d"
+                            mkdir: 已创建目录 "/tmp/b_c"
+                            mkdir: 已创建目录 "/tmp/b_d"
+
+                         练习2：创建/tmp/mylinux下的
+                                            boot
+                                                   grup
+                                            bin
+                                            sbin
+                                            etc
+                                                rc.d
+                                                        init.d
+                                                sysconfig
+                                                        network-scripts
+                                             lib
+                                                modules
+                                             lib64
+                                             usr
+                                                local
+                                                      bin
+                                                      sbin
+                                              proc
+                                              sys
+                                              dev    
+                                              var
+                                                   log
+                                                   run
+                                                   lock
+                                               tmp    
+
+                                        [root@vBird ~]# mkdir -pv /tmp/mylinux/{boot/grub,bin,sbin,etc/{rc.d/init.d,sysconfig/network-scripts},lib/modules,lib64,usr/local/{bin,sbin},proc,sys,dev,var/{log,run,lock},tmp} 
+                                        mkdir: 已创建目录 "/tmp/mylinux"
+                                        mkdir: 已创建目录 "/tmp/mylinux/boot"
+                                        mkdir: 已创建目录 "/tmp/mylinux/boot/grub"
+                                        mkdir: 已创建目录 "/tmp/mylinux/bin"
+                                        mkdir: 已创建目录 "/tmp/mylinux/sbin"
+                                        mkdir: 已创建目录 "/tmp/mylinux/etc"
+                                        mkdir: 已创建目录 "/tmp/mylinux/etc/rc.d"
+                                        mkdir: 已创建目录 "/tmp/mylinux/etc/rc.d/init.d"
+                                        mkdir: 已创建目录 "/tmp/mylinux/etc/sysconfig"
+                                        mkdir: 已创建目录 "/tmp/mylinux/etc/sysconfig/network-scripts"
+                                        mkdir: 已创建目录 "/tmp/mylinux/lib"
+                                        mkdir: 已创建目录 "/tmp/mylinux/lib/modules"
+                                        mkdir: 已创建目录 "/tmp/mylinux/lib64"
+                                        mkdir: 已创建目录 "/tmp/mylinux/usr"
+                                        mkdir: 已创建目录 "/tmp/mylinux/usr/local"
+                                        mkdir: 已创建目录 "/tmp/mylinux/usr/local/bin"
+                                        mkdir: 已创建目录 "/tmp/mylinux/usr/local/sbin"
+                                        mkdir: 已创建目录 "/tmp/mylinux/proc"
+                                        mkdir: 已创建目录 "/tmp/mylinux/sys"
+                                        mkdir: 已创建目录 "/tmp/mylinux/dev"
+                                        mkdir: 已创建目录 "/tmp/mylinux/var"
+                                        mkdir: 已创建目录 "/tmp/mylinux/var/log"
+                                        mkdir: 已创建目录 "/tmp/mylinux/var/run"
+                                        mkdir: 已创建目录 "/tmp/mylinux/var/lock"
+                                        mkdir: 已创建目录 "/tmp/mylinux/tmp"
+                                        [root@vBird ~]# tree /tmp/mylinux
+                                        /tmp/mylinux
+                                        ├── bin
+                                        ├── boot
+                                        │   └── grub
+                                        ├── dev
+                                        ├── etc
+                                        │   ├── rc.d
+                                        │   │   └── init.d
+                                        │   └── sysconfig
+                                        │       └── network-scripts
+                                        ├── lib
+                                        │   └── modules
+                                        ├── lib64
+                                        ├── proc
+                                        ├── sbin
+                                        ├── sys
+                                        ├── tmp
+                                        ├── usr
+                                        │   └── local
+                                        │       ├── bin
+                                        │       └── sbin
+                                        └── var
+                                            ├── lock
+                                            ├── log
+                                            └── run
+
+                                        24 directories, 0 files
+                                        [root@vBird ~]# 
+
+                        练习3：在/tmp目录下
+                                    创建
+                                            x
+                                               y1
+                                                    m
+                                                    n
+                                               y2
+                                                    k
+                                               y3
+                                                    o
+                                                        q
+                                                    p
+                                #:mkdir -pv /tmp/x/{y1/{m,n},y2/k,y3{o/q,p}}
+
+        文件管理之文本查看命令：
+                    cat，tac，more，less，head，tail，touch，stat
+
+                               cat：concatenate，
+                                    cat [OPTION]... [FILE]...
+                                        -n：显示行号
+                                        -E：显示行结束符，非打印字符
+
+                                tac：文件逆序显示；
+
+                                    翻屏：
+                                        Shift＋Pageup/Pagedown
+
+                       分屏文本显示：more，less
+                                     more：分屏查看
+                                             more FILE
+                                                    -d：显示操作提示
+                                      less：
+                        
+
+                                      首尾显示：head，tail
+                                            
+                                                显示文件前n行：
+                                                            head [OPTION]... [FILE]...
+                                                                  
+                                                                    -n ＃：显示指定前＃行；
+                                                                            head -＃ [FILE]...
+                                                                
+                                                 显示文件后n行：
+                                                            tail [OPTION]... [FILE]...
+                                                                -n ＃：显示指定后＃行；
+                                                                            tail -＃ [FILE]...  
+
+                                                                -f：follow，
+                                                                        常用于监控日志
+
+                                      stat：查看文件的状态数据信息                                     
+                                        [root@vBird ~]# stat /tmp/fstab 
+                                          File: "/tmp/fstab"
+                                          Size: 853       	Blocks: 8          IO Block: 4096   普通文件
+                                        Device: 802h/2050d	Inode: 405247      Links: 1
+                                        Access: (0644/-rw-r--r--)  Uid: (    0/    root)   Gid: (    0/    root)
+                                        Access: 2015-11-04 02:56:22.362150806 +0800
+                                        Modify: 2015-11-04 02:56:22.360150845 +0800
+                                        Change: 2015-11-04 02:56:22.360150845 +0800
+                                        [root@vBird ~]# ls -l /tmp/fstab 
+                                        -rw-r--r--. 1 root root 853 11月  4 02:56 /tmp/fstab
+                                        [root@vBird ~]# du -h /tmp/fstab 
+                                        4.0K	/tmp/fstab
+                                                        时间戳：                                         
+                                                              access：最近一次被访问的时间；
+                                                              Modify：最近一次被修改的时间，即文件内容被改变；
+                                                              Change：最近一次被改变的时间，即文件属性发生改变；                                      
+
+                                                                                 touch：修改文件时间戳
+                                                                                                    touch [OPTION]... [FILE]...
+                                                                                                            -a：仅改变访问时间
+                                                                                                            -m：仅改变修改时间
+                                                                                                            -t STAMP：修改为指定时间而非当前时间，[[CC]YY]MMDDhhmm[.ss]
+                                                                                                            -c：不创建不存在的文件
+
+  命令总结：mkdir，rmdir，tree，cat，tac，more，less，head，tail，stat，touch，ls
+
+                                            

@@ -1,0 +1,71 @@
+第33天
+DHCP：
+	DHCP：Dynamic Host Configuration Protocol
+		IP/Netmask
+		Gateway
+		DNS Server
+
+	bootp：boot protocol --> dhcp
+		租约：
+			2hours：
+				50%：1hours --> 2hours
+					50%：1hours --> 2hours
+						75%：0.5hours --> 2hours
+							87.5%：0.25hours --> 2hours
+
+		1、Client：dhcp discover：发现
+		2、Server：dhcp offer：(IP/Netmask,gw)
+		3、Client：dhcp request
+		4、Server：dhcp ack
+
+		续租：
+			Client：dhcp request
+			Server：dhcp ack
+
+			Server：dhcp nak
+
+		Linux DHCP协议的实现
+
+		dhcp：
+			/usr/sbin/dhcpd
+				/etc/dhcp/dhcpd.conf --> /etc/rc.d/init.d/dhcpd
+				/etc/dhcp/dhcpd6.conf --> /etc/rc.d/init.d/dhcpd6
+			/usr/sbin/dhcprelay
+				/etc/rc.d/init.d/dhcprelay
+
+			67/udp
+			dhclient 68/udp
+
+			root@CentOS-6-7 ~]# cat /etc/dhcp/dhcpd.conf
+			#
+			# DHCP Server Configuration file.
+			#   see /usr/share/doc/dhcp*/dhcpd.conf.sample
+			#   see 'man 5 dhcpd.conf'
+			#
+
+			[root@CentOS-6-7 ~]# cp /usr/share/doc/dhcp-4.1.1/dhcpd.conf.sample /etc/dhcp/dhcpd.conf -f
+			cp：是否覆盖"/etc/dhcp/dhcpd.conf"？ y
+
+			dhcpd.conf：
+				option domain-name "magedu.com";
+				option domain-name-servers 172.16.0.1, 8.8.8.8;
+				 
+				default-lease-time 86400;
+				max-lease-time 86400;
+				subnet 172.16.0.p netmask 255.255.0.0{
+					range 172.16.100.151 172.16.100.170;
+					option routers 172.16.100.67;
+				}
+
+				host {
+					...
+				}
+
+				:.,$/^[^#]/#/g
+
+				服务器分配租约信息：
+					cat /var/lib/dhcpd/dhcpd.leases
+
+				其它配置选项：
+					filename：指明引导文件路径；
+

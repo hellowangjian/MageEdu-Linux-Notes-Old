@@ -1,0 +1,62 @@
+马哥Linux学习第十二天（进程管理）
+
+回顾：bash编程条件测试
+
+	if语句的结构：
+		单分支：
+			if CONDITION-is-TRUE;then
+				分支
+			fi
+		双分支：
+			if CONDITION-is-TRUE;then
+				分支1
+			else
+				分支2
+			fi
+		多分支：
+			if CONDITION1-is-TRUE;then
+				分支1
+			elif CONDITION2-is-TRUE;then
+				分支2
+			...
+			...
+			else
+				分支n
+			fi
+	测试形式：
+		(1)命令的执行状态结果，即命令成功与否；
+			if CONDITION &> /dev/null; then
+		(2)条件表达式
+			命令形式：
+				（a）test EXPRESSION
+					if test EXPRESSION;then
+				（b）[ EXPRESSION ]
+					if [ EXPRESSION ];then
+						Notes：[]在bash中也是一个命令
+			关键字：
+				（c）[[ EXPRESSION ]]
+					if [[ EPRESSION ]];then
+	测试方式：
+		整数测试：
+			-ge,-gt,-le,-lt,-ne,-eq
+		字符串测试：
+			双目：>,<,==,!=,=~
+			单目：-z,-n
+		文件测试：
+
+Linux进程查看与管理
+	
+	OS的基本功能：文件系统、网络功能、进程管理、内存管理、硬件驱动、安全功能
+
+	程序＝指令＋数据
+
+	CPU：
+		特权指令：运行内核级指令
+		普通指令：运行普通指令
+
+		应用程序：
+			运行普通指令：直接运行于CPU
+			运行特权指令：通过system call
+
+		
+

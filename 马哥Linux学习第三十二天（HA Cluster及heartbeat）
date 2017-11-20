@@ -1,0 +1,264 @@
+马哥Linux学习第三十二天（HA Cluster及heartbeat）
+
+Linux HA Cluster
+	
+	故障场景：
+		硬件故障
+			设计缺陷
+			使用过久不可避免的损坏
+			人为故障
+			...
+		软件故障：
+			设计缺陷
+			bug
+			人为误操作
+			...
+
+	A=MTBF/(MTBF+MTTR)
+		A：Availability
+		MTBF：mean time between failure
+		MTTR：mean time to repair
+
+		0<A<1：百分比，90%, 95%, 99%, 99.9%, 99.99%, 99.999%
+
+	提供冗余系统：
+		HA Cluster：为提升系统可用性，组合多台主机构建成为的集群；
+
+		split brain, partitioned cluster
+
+	vote system：投票系统
+		HA中的各节点无法探测彼此的心跳信息时，必然无法协调工作；此种状态即为partitioned cluster；
+
+		少数服从多数的原则：quorum
+			with quorum > total/2
+			without quorum <= total/2
+
+		仲裁设备：
+			quorum disk = qdisk
+			ping node
+
+		failover：失效转移，故障转移
+		failback：失效转回，故障转回
+
+	资源类型：
+		HA-aware：资源自身可直接调用HA集群底层的HA功能；
+		非HA-aware：必须借助于CRM完成在HA集群上实现HA功能；
+
+	资源的约束关系：
+		location：位置约束，定义资源对节点的倾向性；用数值表示，-oo, +oo
+		colocation：排列约束，定义资源彼此间“在一起”倾向性；-oo, +oo
+			分组：亦能实现将多个资源绑定在一起；
+		order：顺序约束，定义资源在同一个节点上启动时的先后顺序；
+
+	资源类型：
+		primitive：主资源，只能运行于集群内的某单个节点；（也称作native）；
+		group：组资源，容器，包含一个或多个资源，这些资源可通过“组”这个资源统一进行调度；
+		clone：克隆资源，可以在同一个集群内的多个节点运行多份克隆；
+		master/slave：主从资源，在同一个集群内部于两个节点运行两份资源，其中一个主，一个为从；
+
+	资源隔离：
+		级别
+			节点：STONITH（Shooting The Other Node In The Head）
+				power switch
+			资源：fencing
+				FC SAN switch
+
+	解决方案：
+		Messaging Layer：
+			heartbeat
+				v1, v2, v3
+			corosync
+			cman(RedHat,RHCS)
+			keepalived(完全不同上述三种)
+
+		CRM：
+			heartbeat v1 haresources (配置接口：配置文件，文件名为haresources)；
+			heartbeat v2 crm (在各节点运行一个crmd进程，配置接口：命令行客户端程序crmsh，GUI客户端：hb_gui)；
+			heartbeat v3, pacemaker (pacemaker可以以插件或独立方式运行；配置接口，CLI接口：crmsh，pcs；GUI：hawk（webgui），LCMC，pacemakermgmt)；
+			rgmanager(resource group manager, 配置接口，CLI：clustat，cman_tool；GUI：Conga(luci+ricci))
+
+		组合方式：
+			heartbeat v1
+			heartbeat v2
+			heartbeat v3 + pacemaker
+			corosync + pacemaker
+			cman + rgmanager (RHCS)
+			cman + pacemaker
+
+		LRM：Local Resource Manager，由CRM通过子程序提供；
+		RA：Resource Agent
+			heartbeat legacy：heartbeat传统类型的RA，通常位于/etc/ha.d/hareaources.d/目录下
+			LSB：Linux Standard Base, /etc/rc.d/init.d目录下的脚本，至少接受4个参数：{start|stop|restart|status}；
+			OCF：Open Cluster Framework
+				子类别：provider
+			STONITH：Shooting The Other Node In The Head，专用于实现调用STONITH设备功能的资源；通常为clone类型；
+
+		heartbeat：心跳信息传递机制
+			serail cable：作用范围有限，不建议使用；
+			ethernet cable：
+				UDP Unicast
+				UDP Multicast
+				UDP Broadcast
+
+			组播地址：用于标识一个IP组播域：IANA（Internet Assigned number authority）把D类地址空间分配给IP组播使用；其范围是：224.0.0.0-239.255.255.255；
+				永久组播地址：224.0.0.0-224.0.0.255；
+				临时组播地址：224.0.1.0-238.255.255.255.255；
+				本地组播地址：239.0.0.0-239.255.255.255.255，仅在特定本地范围内有效；
+
+		HA案例：ha web services
+			资源有三个：
+				ip，httpd，filesystem
+
+				fip：floating ip，192.168.10.100
+				daemon：httpd
+
+			约束关系：使用“组”资源，或通过排列约束让资源运行于同一节点；
+					顺序约束：有次序地启动资源；
+
+			程序选型：
+				heartbeat v2 + haresource 
+				heartbeat v2 + crm（hb_gui）
+
+		配置HA集群的前提：
+			（1）节点间时间必须同步，使用ntp协议实现；
+			（2）节点间需要通过主机名互相通信，必须解析主机名至ip地址；
+				（a）建议名称解析功能使用hosts文件来实现；
+				（b）通信中使用的名字于节点名字必须保持一致：“uname -n”命令，或“hostname”展示出的名字保持一致；
+			（3）考虑仲裁设备是否会用到；
+			（4）建议各节点之间的root用户能够基于密钥认证；
+				# ssh-keygen -t rsa -P''
+				# ssh-copy-id -i /root/.ssh/id_rsa.pub /root@HOSTNAME
+
+			注意：定义成为集群服务中的资源，一定不能开机自动启动；因为它们将有crm管理；
+
+		demo：
+			# yum install net-snmp-libs libnet PyXML
+			# rpm -ivh heartbeat-2.1.4-12.el6.x86_64.rpm heartbeat-pils-2.1.4-12.el6.x86_64.rpm heartbeat-stonith-2.1.4-12.el6.x86_64.rpm
+
+			配置文件：
+				/etc/ha.d目录下：从/usr/share/doc/heartbeat-2.1.4/目录下cop过来：
+					# cp /usr/share/doc/heartbeat-2.1.4/{ha.cf,haresources,authkeys} /etc/ha.d/
+						ha.cf: 主配置文件，定义各节点上的heartbeat HA集群的基本属性；
+						authkeys：集群内节点间彼此传递消息时使用加密算法及密钥；必须为600权限，不然无法启动hearbeat
+							# chmod 600 /etc/ha.d/authkeys
+						haresources: 为heartbeat v1提供资源管理器配置接口；v1版本专用的配置接口；
+
+
+				# ip link set eth0 multicast on|off
+
+
+回顾：
+	HA Cluster：Heartbeat
+
+	A=MTBF/(MTBF+MTTR)
+		HA Cluster通过减小MTTR实现可用性提升；
+	HA Web Services：
+		fip，httpd(nginx)，filesystem
+
+		通过资源转移，保证其可用性；
+
+	HA Cluster：
+		Messaging Layer：Infrastructure，实现心跳信息传递、集群事务消息传递；
+			heartbeat，corosync，cman，keepalived
+		CRM：Cluster Resources Manager，集群资源管理器；
+			haresources, crm, pacemaker, rgmanager
+		LRM：Local Resources Manager
+		RA：Resources Agent
+			heartbeat legacy, lsb, ocf(provider), stonith
+
+	partitioned cluster：
+		vote system：
+			with quorum
+				with quorum
+				without quorum
+
+		fencing：
+			节点：stonith，
+			资源：fencing，
+
+	资源的约束：
+		location：-oo, +oo
+		coloction
+		order
+
+	资源的类型：
+		primitive, group, clone, master/slave
+
+	HA Cluster：
+		heartbeat v2 (v1 crm)
+		heartbeat v2 (v2 crm)
+		corosync + pacemaker
+		cman + rgmanager
+
+
+HA Cluster(2)
+	
+	HA Cluster的工作模型：
+		A/P：两节点集群，active，passive；工作于主备模型；
+			HA Service通常只有一个：HA resources 可能会有多个；
+		A/A：两个节点集群，active/active，工作于双方模型；
+		N-M：N个节点，M个服务；通常N>M；
+		N-N：N个节点，N个服务
+
+	partitioned：
+		with quorum
+		without quorum
+			stopped
+			ignore
+			freeze
+			suicide
+
+	资源运行的倾向性：
+		rgmanager：
+			failover domain，node priority
+		pacemaker：
+			资源黏性：运行于当前节点的倾向性；
+			资源约束：
+				位置约束：资源对运行于某节点的倾向性
+					inf：正无穷
+					-inf：负无穷
+					n：
+					-n：
+				排列约束：资源运行于同一节点的倾向性
+					inf
+					-inf
+					n
+					-n
+				顺序约束：启动的先后顺序
+					A --> B --> C
+					C --> B --> A
+
+		DC：Designated Coordinator
+
+	heartbeat v2 (v1 crm：haresources)
+		配置文件：autykeys, ha.cf, haresources
+
+		ip, httpd, ha web service
+
+		配置过程：
+			前提：时间同步，基于主机名互相访问、仲裁设备、ssh互信通信
+			heartbeat v2：CentOS 6.6
+
+	heartbeat v2 (v2 crm)：
+		启用方法：
+			ha.cf配置文件，添加
+			crm on
+
+			注意：此时会禁用v1 haresources
+
+		ha web service：
+			ip，httpd
+
+		ha mysql service：
+			ip，mysqld，shared storage
+
+			172.16.100.21
+			mysqld
+			shared storage
+
+作业：基于heartbeat v2 crm 实现HA LAMP组合；要求，部署wordpress，用户编辑的文章中的任何数据在节点切换后都能正常访问；
+
+
+
+
+

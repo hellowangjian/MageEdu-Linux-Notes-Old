@@ -1,0 +1,683 @@
+
+回顾：find，文件特殊权限
+	
+	find [查找路径][查找条件] [处理动作]
+		查找条件：-perm [+|-]MODE, -Type {f|d|l|b|c|p|s}, -name, -iname, -user, -group, -uid, -gid, -nouser, -nogroup, -size, -ctime, -mtime, -atime, -amin, -mmin, -cmin
+		处理动作：-print, -ls, -exec COMMAND {} \; , -ok, -xargs
+
+	文件特殊权限：SUID, SGID, STICKY
+		chmod u+s FILE...
+		chmod g+s FILE...
+		chmod o+t FILE...
+
+文本编辑器：vim
+	
+	vi：visual interface
+		vim --> vi iMproved
+
+	ASCII：
+		0000 0000：a
+		0000 0001：b
+		...
+		1111 1111
+
+	UTF：
+		GB18030
+		GB2312
+		GBK
+
+	文本编辑器类别：
+		全屏文本编辑器
+			nano
+			vi，vim
+			emacs
+		行文本编辑器
+			sed
+
+	vi-->vim
+
+		模式化的编辑器：
+			多种不同的模式：
+				编辑模式：命令模式
+				输入模式：插入模式
+				末行模式：vim有许多内置命令，此模式即为其命令的接口
+
+			1、打开文件
+				＃vim [OPTIONS][FILE]...
+
+			2、模式间转换
+
+				默认为编辑模式
+
+				编辑模式-->输入模式：
+					i：在当前光标所在处，转换为输入模式
+					I：在当前光标所在行行首，转换为输入模式
+					a：append，在当前光标所在字符后方，转换为输入模式
+					A：在当前光标所在行行尾，转换为输入模式
+					o：在当前光标所在行的下方新建一个空白行，并转换为输入模式
+
+				输入模式-->编辑模式
+					ESC
+
+				编辑模式-->末行模式：
+					:
+
+				末行模式-->编辑模式：
+					ESC
+
+			3、退出vim
+				末行模式：
+					:q! 强制退出，不保存编辑的内容退出
+					:wq 保存退出
+					:x 保存退出
+					:wq!, :x! 强制保存退出
+
+				编辑模式：
+					ZZ：保存并退出
+
+			4、编辑命令
+
+				光标移动：
+					字符间移动
+						     k
+						H<--   -->l
+							 j
+
+						#{h|j|k|l}：一次移动＃个字符间距
+
+					单词间移动：
+						w：下一个单词的词首
+						e：当前或下一个单词的词尾
+						b：当前或前一个单词的词首
+
+						#{w|e|b}：一次移动#个单词
+
+					行首行尾间跳转：
+						0：跳转至绝对行首
+						^：行首的第一个非空白字符
+						$：跳转至绝对行尾
+
+					句子间跳转：
+						)：下一个句子的句首
+						(：上一个句子的句首
+
+					段落间跳转：
+						}：下一段
+						{：前一段
+
+					行间快速移动：
+						＃G：
+							#：目标行编号
+						G：文尾
+						1G：文首
+
+						末行模式：
+							:# 跳转至第#行
+
+					编辑操作：
+						x：删除光标所在处的字符
+							#x：删除光标所在处及向后的共#个字符
+
+						r：replace，替换光标所在处的字符
+
+						d：删除命令
+							dd：删除光标所在行
+							#dd：删除光标所在行及下行的共#行；
+							与跳转命令一同使用：
+								d$：删除光标所在处至行尾的内容；D命令
+								d^：删除光标所在处至行首的内容；
+
+								dw
+								db
+								de
+									上述三个命令支持前面使用#来指明涵盖的单词的个数；
+
+						p：粘贴, put, paste
+							行级别：
+								p：粘贴在光标所在当前行的下方
+								P：粘贴在光标所在当前行的上方
+							字符级别：
+								p：粘贴在光标所在处的后方
+								P：粘贴在光标所在处的前方
+
+						y：yank，复制
+							yy：复制光标所在行，相当于Y命令
+							#yy：复制光标所在行及下行的共#行；
+							与跳转命令一同使用：
+								y$：复制光标所在处至行尾的内容；
+								y^：复制光标所在处至行首的内容；
+
+								yw
+								yb
+								ye
+									上述三个命令支持前面使用#来指明涵盖的单词的个数；
+
+						c：change，修改
+							cc：删除光标所在行整行内容，并立即转换为输入模式；
+							#cc：
+
+							 c$, C
+							 c^, c0
+							 cw, cb, ce
+
+						撤销操作：
+							u：undo
+								#u：一次撤销最近的共#次编辑操作
+
+							撤销此前的撤销操作：
+								Ctrl+r
+
+							重复前一条命令：
+								.
+
+						vimtutor
+				5、可视化模式
+					v：选择光标所在行的光标左侧的内容
+					V：光标所在行整行都会被选定
+
+				6、编辑模式下的翻屏命令
+					Ctrl＋f：向文件尾部翻一屏
+					Ctrl＋b：向文件首部翻一屏
+					Ctrl＋d：向文件尾部翻半屏
+					Ctrl＋u：向文件首部翻半屏
+
+				7、文本查找
+					/PATTERN
+					?PATTERN
+
+					  n：
+					  N：
+
+				8、文本替换
+
+					末行模式：内置命令行接口，有命令历史纪录功能
+						有部分内置命令用于编辑操作，此时可使用地址定界法进行
+
+				 	内容定界：
+						startline[,endline]
+							#：第#行
+							.：当前行
+							$：最后一行
+							%：全文
+
+							相对定界：
+								+#：从指定位置向下#个行
+								-#：从指定位置向上#个行
+
+								10,-1
+
+					文本替换命令：s(substitute)
+						s/要查找的内容/要替换的内容/修饰符
+							/：分隔符，用于分隔“查找的内容”和“替换为的内容”；此分割符可使用其他字符，如@，#等；
+							要查找的内容：可使用正则表达式；此部分可以在后面“替换为的内容”部分中使用“&”全部饮用；
+							要替换的内容：不可使用正则表达式，一般为正常文本，但可以使用正则表达式中的\1, \2, ...保存的内容；
+							修饰符：
+								i：查找时不区分字符大小写
+								g：global，全局替换：
+
+							注意：引用
+
+			练习：
+				1、复制/etc/rc.d/rc.sysinit文件至/tmp目录，将/tmp/rc.sysinit文件中的以至少一个空白字符开头的行的行首加#；
+					:%s/^[[:space:]]/#&/
+
+				2、复制/boot/grub/grub.conf至/tmp目录中，删除/tmp/grub.conf文件中的行首的空白字符；
+					:%s@^[[:space:]]\{1,\}@@
+
+				3、删除/tmp/rc.sysinit文件中以#开头，且后面跟了至少一个空白字符的行的#和空白字符；
+					:%s/^[[:space:]]\+//
+
+				4、为/tmp/grub.conf文件中前三行的行首加#号；
+				 	:1,3s@^@#@
+
+				5、将/etc/yum.repos.d/Centos-Media.repo文件中所有的enable＝0或gpgcheck=0的最后的0修改为1；
+					:%s@\(gpgcheck\|enabled\)=0@\1=1@
+
+
+				9、多文件模式
+					打开文件
+						vim [OPTION]... [FILE]...
+							+#：快速定位至第#行；
+							+PATTERN：快速定位至被模式第一次匹配的行；
+
+					多文件：
+						vim FILE1 FILE2 FILE3 ...
+
+						末行模式：
+							:next 下一个
+							:prev 前一个
+							:first 第一个
+							:last 最后一个
+
+						保存并退出所有文件
+							:wqall
+							:wall
+							:qall
+
+					多窗口：
+						-o：水平分割窗口
+						-O：垂直分割窗口
+
+						Ctrl＋w,ARROW
+
+						注意：单个文件也可以分割为多个窗口进行查看
+							Ctrl＋w，s：水平分割
+							Ctrl＋w，v：垂直分割
+
+				10、界面显示特性
+
+					开启或关闭显示行号
+						:set number,:set nu
+						:set nonumber,:set nonu
+
+					语法高亮的开启和关闭
+						:syntax on
+						:syntax off
+
+					搜索高亮的开启和关闭
+						:set hlsearch
+						:set nohlsearch
+
+					自动缩进的开启和关闭
+						:set autoindent,:set ai
+						:set noautoindent,:set noai
+
+					区分字符大小写的开启和关闭
+						:set ignorecase,:set ic   不区分
+						:set noignorecase,:set no ic  区分
+
+					高亮显示匹配的符号对儿：
+						:set showmatch,:set sm
+						:set noshowmatch,:set nosm
+
+				11、vim的配置文件
+					全局：/etc/vimrc
+					个人：~/.vimrc
+
+				12、文件编辑非法退出
+					r：恢复
+					删除/tmp下的.swp文件
+
+			总结：模式化编辑器
+
+		回顾：
+			1G，G，$，0，^，
+			dd，yy，p，P
+			范围s/要查找的内容/替换为的内容/修饰符
+				g，i
+			vim +# FILE
+			-o,-O
+			Ctrl+w,ARROW
+
+
+Linux任务计划：
+	
+	一次性任务计划：at，batch
+	周期性任务计划：cron
+
+	at：
+		at TIME
+		at>
+
+		提交任务：Ctrl＋d
+		作业结果：以邮件形式发送系统上的当前用户
+
+		邮件收发：
+			服务启动与否状态查看：
+				netstart -tnl | grep ":25\>"
+
+				默认收发邮件仅能在本机上的用户间进行，且只能通过回环接口上的地址进行；
+
+			#mail
+				q：退出
+				N：查看第N封邮件
+
+			发邮件给指定用户：
+			#mail USERNAME [@HOSTNAME]
+					~]# mail hadoop
+					Subject: Test Mail
+					hello, How are you?
+					EOT
+				使用Ctrl+d提交
+
+				-s "SUBJECT"
+					~]$ mail -s "Test Mail 2" hadoop
+					Hello
+					EOT
+
+				echo | mail
+					~]$ echo "How are you?" | mail -s "Test Mail 3" hadoop
+
+		TIME的格式：
+			精确时间：
+				HH:MM
+			模糊时间：
+				now+#UNIT
+					~]# at now+3minute
+				noon
+				midnight
+				teatime [16:00]
+				tomorrow
+		作业队列查看：
+			at -l, atq
+
+		删除尚未运行的作业：
+			at -d [JOB_NUM],at rm
+
+		把at要执行的所有任务放置于文件中，让at读取此文件作为要运行的任务：
+			at -f /PATH/TO/SOMEFILE TIME
+
+	batch：无需指定时间，会自动在将来的某个系统资源较空闲的时间点运行；
+
+	周期性任务计划：cron
+		CentOS 5：vixie－cron
+		CentOS 6：cronie
+
+		依赖于后台服务，查看运行状态：
+		[root@vBird ~]# service crond status
+		crond (pid  1842) is running...
+
+		crond：cron daemon
+
+		cron任务有两类：
+			系统cron：/etc/crontab
+			用户cron：定义在/var/spool/cron/目录中与用户名相同的文件中
+
+			每行定义一个独立的任务
+				SHELL=/bin/bash
+				PATH=/sbin:/bin:/usr/sbin:/usr/bin
+				MAILTO=root
+				HOME=/
+
+				# For details see man 4 crontabs
+
+				# Example of job definition:
+				# .---------------- minute (0 - 59)
+				# |  .------------- hour (0 - 23)
+				# |  |  .---------- day of month (1 - 31)
+				# |  |  |  .------- month (1 - 12) OR jan,feb,mar,apr ...
+				# |  |  |  |  .---- day of week (0 - 6) (Sunday=0 or 7) OR sun,mon,tue,wed,thu,fri,sat
+				# |  |  |  |  |
+				# *  *  *  *  * user-name command to be executed
+					时间点(周期性任务)
+					user-name：用户身份
+					command：要运行的任务
+
+			注意：建议在定义cron任务时，所用到的命令使用绝对路径：如果用到脚本，脚本中的命令使用绝对路径，或自定一个拥有完整路径的环境变量；
+
+			时间点：
+				分钟 小时 天 月 周几
+
+				每年：2 3 4 5 *
+				每月：20 18 6 * *
+				每天：20 9 * * *
+				每小时：3 * * * *
+				每分钟：* * * * *
+				每周：16 17 * * 3
+
+			时间表示法：
+				1、每个时间位都应该使用其可用的有效取值范围内的值：*就用于表示使用其所有有效取值；
+
+					17 * * * * /bin/echo "howdy"
+					8 9 * * * /bin/echo "howdy"
+					16 17 * * 3 /bin/echo "howdy"
+
+				2、*/#：在对应的时间位有效取值上每#个时间单位一次
+					*/3 * * * * /bin/echo "howdy"
+					9 */3 * * * /bin/echo "howdy"
+
+					*/7 * * * * /bin/echo "howdy"
+						注意：并不能精确做到每7分钟一次：
+
+				3、连续时间点：－
+					40 3 * * 1-5 /bin/echo "howdy"
+
+				4、离散时间点：,
+					30 2 * * 2,4,6 /bin/echo "howdy"
+
+			任务运行后的结果：邮件发送给任务相关用户：
+				丢弃邮件通知：输出重定向
+					COMMAND > /dev/null
+					COMMAND &> /dev/null
+					COMMAND >/dev/null 2>&1
+
+					/dev/null：软件模拟出的设备，bit bucket，数据黑洞：
+
+			用户cron任务的定义：
+				crontab命令：
+					-l：列出当前用户已经定义的所有任务；
+					-e：打开编辑界面定义任务；
+					-r：remove，移除所有任务；
+
+					注意：删除一个任务应该通过编辑界面删除行实现；
+
+					-u USERNAME 
+						-l
+						-e
+						-r
+
+				注意：如果crontab中的用户命令中需要使用%时，需要对其进行转义；
+					* * * * * /bin/touch file-$(date +\%F-\%H-\%M-\%S)
+					* * * * * /bin/touch file-$(date +'%F-%H-%M-%S')
+
+
+		练习：
+			1、每4小时执行一次对/etc目录的备份，备份至/backup目录中，保存的目录名为形如etc-201504020202
+				#mkdir /backup
+				27 */4 * * * /etc/cp -a /etc/ /backup/etc-$(date +'%Y%m%d%H%M') > /dev/null
+
+			2、每周2，4，6备份/var/log/messages文件至/backup/messagess_logs/目录中，保存的文件名形如如messages-20150402
+				#mkdir /backup/messagess_logs
+				1 1 * * 2,4,6 /etc/cp -a /var/log/messages /backup/messagess_logs/messages-$(date +'%Y%m%d') > /dev/null
+
+			3、每天每两小时取当前系统/proc/meminfo文件中的所有以S开头的信息至/stats/memory.txt文件中
+				#mkdir /stats
+				21 */2 * * * /bin/grep "^S" /proc/meminfo >> /stats /memory.txt
+
+			4、工作日的工作时间内，每两小时执行一次echo “howdy”
+				5 9-17/2 * * 1-5 /bin/echo "howdy"
+
+		anacron：为cron提供了补充：
+
+	facl:
+		File ACL：让用户为指定文件添加除了基本访问控制功能之外扩展授权机制；
+
+		getfacl：FILE ...
+		setfacl -m 目标:权限 FILE...
+			目标：
+				用户：u:USERNAME
+				组：  g:GROUP
+
+			权限：r,w,x
+
+		setfacl -x 目标 FILE...
+			目标：
+				用户：u:USERNAME
+				组：  g:GROUP
+
+			-R：递归授权或取消权限；
+
+		访问控制列表可被继承：使用默认访问控制列表来实现
+
+
+		启用facl之后的权限应用模型：
+			属主 -->
+			用户级别的facl -->
+			属组 -->
+			组级别的facl -->
+			other
+
+	注意：只有文件系统在挂载时启用了facl的功能，facl才能被支持；
+
+Linux bash 编程入门
+
+	编程语言：
+		编译型语言：编译器，c，c＋＋
+		解释型语言：解释器
+			解释器可独立运行
+
+
+	程序：指令＋数据
+	程序：算法＋数据结构
+
+	变量：保存数据的载体：命名的内存空间；
+		declare -x|i|-r
+		本地变量：Name=VALUE, unset Name
+		环境变量：export Name＝VALUE
+		局部变量：local Name=VALUE
+		位置参数变量：$1, $2, ...
+		特殊变量：$?
+
+	shell脚本：shebang
+	#!/bin/bash
+	#!/usr/bin/python
+	#!/usr/bin/perl
+
+	脚本文件，其它以#开头的行均为注释行，将会被解释器忽略；
+
+	bash脚本：内核会启动一个专门shell进程来运行程序文件：脚本运行结束，此shell进程也即终止；
+
+		过程式编程语言：
+			顺序执行
+			选择执行：测试条件，当条件满足时，执行其中对应条件下的那部分代码；
+			循环执行：一段代码被反复执行多次；循环需要有退出条件；
+
+	练习：
+		1、创建一个组newgroup，id号8088
+
+		2、创建一个用户，名字为stu1，id号为5005,以newgroup为附加组
+
+		3、创建目录/tmp/hellobash
+
+		4、复制/etc/rc.d/rc.sysinit至/tmp/hellobash目录中
+
+	运行的方法：
+		1、给脚本以执行权限，而后指定脚本路径运行；
+			内核会通过读取脚本文件第一行来判断启动什么解释器来运行此脚本；
+
+		2、显示给定解释器来运行；
+			＃ bash SCRIPT_FILE
+
+		bash命令能检查脚本语法错误，
+			-n
+			注意：不是命令语法错误
+
+			-x：调试运行
+
+	位置参数变量：
+		./myscript.sh hello magedu
+			$1,$2
+	特殊变量：
+		$0：当前脚本的完整路径名
+
+	循环执行：
+
+		bash中的循环控制语句：
+			for
+			while
+			until
+
+		for循环
+			语法：
+				for 变量名 in 列表；do
+					循环体
+				done
+			运行特性：
+				第一遍：将列表中的第一个元素赋值“变量名”定义的变量，而后执行完成的循环体；
+				第二遍：
+				...
+				直到元素遍历结束，循环退出
+
+		示例：添加10个用户：stu100，stu109；密码同用户名；
+			for username in stu100 stu101 sti102;do
+				useradd $username
+				echo $username | passwd --stdin $username
+			done
+
+		列表的生成方式：
+			1、直接列出：
+			2、生成整数列表：
+				(1){start_num..end_num}，例如{0..9}
+				(2)seq LAST或
+				   seq FIRST LAST
+				   seq FIRST STEP LAST
+				   注意：seq是命令，所以要使用命令引用对其结果进行引用；
+
+			3、用命令的执行结果生成
+
+
+		示例：添加上述的10个用户
+			for i in {0..9}; do
+				useradd stu10$i
+				echo stu10$i | passwd --stdin stu10$i
+			done
+
+	练习：
+		1、创建目录/tmp/testdir-当前日期时间；
+			#!/bin/bash
+			dirpath=/tmp/testdir-$(date +'%F-%H-%M-%S')
+			mkdir $dirpath
+			for i in {1..100};do
+				touch $dorpath/file$i
+				echo -e "Create \033[31mfile$i\033[0m finished."
+			done
+
+		2、在此目录中创建100个空文件：file1-file100
+
+		3、显示/etc/passwd文件中位于偶数行的用户的用户名
+ 			lines=$(wc -l /etc/passwd | cut -d' ' -f1)
+ 			for i in $(seq 2 2 $lines);do
+ 				head -$i /etc/passwd | tail -1 | cut -d: -f1
+ 			done
+
+ 		4、创建10个用户user10-user19；密码同用户名；
+
+ 		5、在/tmp/目录下创建10个空文件file10-file19;
+
+ 		6、把file10的属主和属组改为user10，依次类推；
+
+ 		#!/etc/bash
+		dirpath=/tmp/file1
+		for i in $(seq 0 9);do
+		 useradd user1$i
+		 echo user1$i | passwd --stdin user1$i
+		 touch $dirpath$i
+		 chown user1${i}:user1${i} $dirpath$i
+		done
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

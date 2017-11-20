@@ -1,0 +1,472 @@
+马哥Linux学习第二十五天（nat，tcp_wrapper，iptables layer7，syslog日志系统）
+
+回顾：
+	iptables/netfilter
+		netfilter：
+			四表：filter，nat，mangle，raw（低-->高）
+			五链：PREROUTING，INPUT，FORWARD,OUTPUT，POSTROUTING
+
+		iptables：编写规则送往netfilter的工具
+			链：-N, -X, -F, -P, -E, -Z
+			规则：-A, -I, -D, -R
+				查看：-L
+					-n, -x, -v, -vv, -vvv, --line-numbers
+
+			匹配条件：
+				多条件：与关系
+
+				通用匹配：
+					-s, -d, -p {tcp|udp|icmp}, -i, -o
+				扩展匹配：-m MOD_NAME
+					隐式扩展:
+						-p tcp: --sport PROT[-PORT], --dport, --tcp-flags LIST1 LIST2, --syn (--tcp-flags syn,ack,fin,rst syn)
+						-p udp: --sport, --dport
+						-p icmp: --icmp-type 
+							0: echo-reply
+							8：echo-request
+					显式扩展：-m MOD_NAME --specific-options
+						multiport: 多个离散端口的同时匹配；--dports, --sports, --ports
+						iprange：地址范围的匹配（不适于写为网络地址）；--src-range, --dst-range
+						string: 字符串匹配；--string, --algo {kmp|bm}
+						time: 基于时间进行匹配；--datestart, --datestop, --timestart, --timestop, --weekdays
+						connlimit: 做连接数限制，对每IP能够发起并发连接数作匹配；--limit-above
+						limit: 做速率匹配，令牌桶算法；--limit, --limit-burst
+
+iptables/netfilter(3)
+	
+	显式扩展（续）
+		connection template：连接追踪模板，用于记录各连接及相关状态；基于IP实现，与是否为TCP协议无关；通过倒计时的方式删除条目；
+
+			记录连接的状态：
+				NEW: 新建立的连接，连接追踪模板中无相应的条目时，客户端第一次发出的请求；
+				ESTABLISHED：NEW状态之后，连接追踪模板中的条目删除之前所进行的通信过程，都称为ESTABLISHED；
+				RELATED：相关联的连接，如ftp协议的命令连接与数据连接即为相关联的连接；
+				INVALIED: 无法识别的状态；
+
+		state扩展：启用连接追踪模板记录连接，并根据连接匹配连接状态的扩展；
+			启用连接追踪功能之前：简单包过滤防火墙；
+			启用连接追踪功能：带状态检测的包过滤防火墙；
+
+			专用选项：
+				--state STATE
+					~]# iptables -I INPUT 1 -d 172.16.227.156 -p tcp -m multiport --dports 22,80 -m state --state NEW,ESTABLISHED -j ACCEPT
+					~]# iptables -I OUTPUT 1 -s 172.16.227.153 -m state --state ESTABLISHED -j ACCEPT
+
+					~]# iptables -R INPUT 2 -d 172.16.227.153 -p icmp --icmp-type 8 -m state --state NEW,ESTABLISHED -j ACCEPT
+
+			调整连接追踪功能所能容纳的连接的最大数目：
+				/proc/sys/net/nf_conntrack_max
+
+			当前追踪的所有连接：
+				/proc/net/nf_conntrack
+
+			不同协议或连接类型追踪时的时长属性：
+				/proc/sys/net/netfilter/
+					~]# cat /proc/sys/net/netfilter/nf_conntrack_icmp_timeout 
+					30
+
+
+			如何放行被动模式下的ftp服务：
+				(1) 装载模块：
+					# modprobe nf_conntrack_ftp
+
+				(2) 放行请求报文
+					放行入站请求端口为21的请求报文；
+					放行所有状态为ESTABLISHED和RELATED状态的入站报文；
+
+				(3) 放行出站响应报文
+					放行所有状态为ESTABLISHED的出站报文；
+						# iptables -A OUTPUT -s 172.16.227.153/32 -m state --state ESTABLISHED -j ACCEPT 
+
+	如何保存及重载规则：
+		保存：
+			(1) service iptables save
+				/etc/sysconfig/iptables文件；
+
+			(2) iptables-save > /PATH/TO/SOMEFILE
+				~]# iptables-save > /root/myiptables.rules
+
+		重载：
+			(1) service iptables reload
+
+			(2) iptables-restore < /PATH/FROM/SOMEFILE
+				~]# iptables-save < /root/myiptables.rules
+
+	NAT：Network Address Translation
+
+		仅从请求报文判断，地址转换：
+			源地址转换：SNAT
+			目标地址转换：DNAT
+			端口转换：PNAT
+
+		NAT Server: 能根据需要实现所谓的SNAT、DNAT或PNAT；
+			并非是用户空间运行的进程完成转换功能，靠的是内核中地址转换规则；
+
+			SNAT: CIP --> SIP: CIP --> SNAT(PIP) --> SIP
+				CIP: 本地客户端地址
+			DNAT：RemoteIP --> PIP: RemoteIP --> DNAT(SIP) --> SIP
+				RemoteIP：远程客户端地址；
+			PNAT：端口转换
+
+			私有的客户端访问互联网的方法：
+				(1) SNAT
+				(2) Proxy
+
+			SNAT：主要用于实现让内网客户端访问外部主机时使用；
+				注意：要定义在POSTROUTING链；也可以在OUTPUT上使用；
+
+				定义方法：
+					iptables -t nat -A POSTROUTING -s 内网网络或主机地址 -j SNAT --to-source NAT服务器上的某外网地址
+						# iptables -t nat -A POSTROUTING -s 192.168.2.0/24 -j SNAT --to-source 192.168.1.100
+
+					另一个TARGET：
+						MASQUERADE：地址伪装；
+							能自行判断该转为哪个源地址；
+
+						iptables -t nat -A POSTROUTING -s 内网网络或主机地址 -j MASQUERADE
+							# iptables -t nat -A POSTROUTING -s 192.168.100.0/24 -o em1 -j MASQUERADE 
+
+			DNAT：主要用于发布内部服务器，让内网中的服务器在外网中可以被访问到；
+				注意：要定义在PREROUTING链；
+
+				iptables -t nat -A PREROUTING -d NAT服务器的某外网地址 -p 某协议 --dport 某端口 -j DNAT --to-destination 内网某服务器地址[:PORT]
+					~]# iptables -t nat -A PREROUTING -d 192.168.1.100 -p tcp --dport 80 -j DNAT --to-destination 192.168.2.11:8080
+
+		FULLNAT: 全地址转换
+			在请求报文到达时：既修改源地址，又修改目标地址
+
+
+回顾：
+	state扩展，nat
+
+		state扩展：
+			tcp finite state machine: 有限状态机
+				closed, listen, syn_sent, syn_rcvd, established, fin_wait_1, fin_wait_2, close_wait, last_ack， time_wait
+
+			state: 无论tcp, udp, icmp协议，都能够基于connection track template完成连接追踪；
+				NEW, ESTABLISHED, RELATED, INVALID
+
+			内核模块：nf_conntrack, nf_conntrack_ftp
+
+			专用选项：--state
+
+		nat: 网络地址转换；用到的表为nat；
+			SNAT：源地址转换；
+			DNAT：目标地址转换；
+			FULLNAT：源地址和目标都进行转换；
+
+			nat表相对应链：PREROUTING, OUTPUT, POSTROUTING
+				SNAT：OUTPUT, POSTROUTING
+					-j SNAT --to-source
+					-j MASQUERADE
+				DNAT：PREROUTING
+				PNAT：
+					-j DNAT --to-destination IP[:PORT]
+
+iptables(4)：
+	
+	TARGET: 
+		ACCEPT
+		DROP
+		REJECT
+
+		SNAT
+		DNAT
+		MASQUERADE
+
+		LOG：日志
+		REDIRECT：端口重定向；
+		RETURN: 返回至调用者；
+		MARK：防火墙标记
+
+
+	练习：INPUT和OUTPUT默认策略为DROP；
+
+		1、限制本地主机的web服务器在周一不允许访问；新请求的速率不能超过100个每秒；web服务器包含了admin字符串的页面不允许访问；web服务器仅允许响应报文离开本机；
+			iptables -A INPUT -p tcp --dport 80 -m time ! --weekdays Mon -j ACCEPT
+			iptables -A INPUT -m limit --limit 100/second --state NEW -j ACCEPT
+			iptables -A OUTPUT -m string --string "admin" --algo kmp -j REJECT
+			iptables -A OUTPUT -m state --state ESTABLISHED -j ACCEPT
+
+		2、在工作时间，即周一到周五的8:30-18:00，开放本机的ftp服务给172.16.0.0网络中的主机访问；数据下载请求的次数每分钟不得超过5个；
+			iptables -A INPUT -p tcp -m state --state NEW,ESTABLESHED -j ACCEPT
+			iptables -A INPUT -p tcp --dport 21 -m time --timestart 08:30 --timestop 18:00 --weekdays Mon,Tue,Wen,Thu,Fri -m limit --limit 5/minute -j ACCEPT
+
+		3、开放本机的ssh服务给172.16.x.1-172.16.x.100中的主机，x为你的座位号，新请求建立的速率一分钟不得超过2个；仅允许响应报文通过其服务端口离开本机；
+			iptables -A INPUT -p tcp --dport 22 -m iprange --src-range 172.16.1.1-172.16.1.100 -m limit --limit 2/minute -j ACCEPT
+			iptables -A OUTPUT -p tcp --sport 22 -m state --state ESTABLESHED -j ACCEPT
+
+		4、拒绝TCP标志位全部为1及全部为0的报文访问本机；
+			iptables -A INPUT -p tcp --tcp-flags ALL ALL -j DROP
+			iptables -A INPUT -p tcp --tcp-flags ALL NONE -j DROP
+
+		5、允许本机ping别的主机；但不开放别的主机ping本机；
+			iptables -A OUTPUT -p icmp --icmp-type 8 -j ACCEPT
+			iptables -A INPUT -p icmp --icmp-type 0 -j ACCEPT
+
+	练习：判断下述规则的意义：
+		# iptables -N clean_in
+			在filter表中创建一个自定义连clean_in
+		# iptables -A clean_in -d 255.255.255.255 -p icmp -j DROP
+			在filter表clean_in链中定义一个所有目标地址为255.255.255.255，协议为icmp的包全部DROP
+		# iptables -A clean_in -d 172.16.255.255 -p icmp -j DROP
+			在filter表clean_in链中定义一个所有目标地址为172.16.255.255，协议为icmp的包全部DROP
+
+		# iptables -A clean_in -p tcp ! --syn -m state --state NEW -j DROP
+			协议为tcp三次握手中的第一次中不是syn为为1 ACK,FIN,RST为0所有包全部DROP
+		# iptables -A clean_in -p tcp --tcp-flags ALL ALL -j DROP
+			拒绝tcp总所有标志位为1的包通过
+		# iptables -A clean_in -p tcp --tcp-flags ALL NONE -j DROP
+			拒绝tcp总所有标志位为0的包通过
+		# iptables -A clean_in -d 172.16.100.7 -j RETURN 
+			在链clean_in中匹配目标地址为172.16.100.7的包，返回主链
+
+
+		# iptables -A INPUT -d 172.16.100.7 -j clean_in
+			过滤目标地址为172.16.100.7的包调用clean_in链检查
+
+		# iptables -A INPUT  -i lo -j ACCEPT
+			放行lo接口上的入流量
+		# iptables -A OUTPUT -o lo -j ACCEPT
+			放行lo接口上的出流量
+
+
+		# iptables -A INPUT  -i eth0 -m multiport -p tcp --dports 53,113,135,137,139,445 -j DROP
+			在接口eth0上过滤tcp端口53，113，135，137，139，445入流量全部DROP
+		# iptables -A INPUT  -i eth0 -m multiport -p udp --dports 53,113,135,137,139,445 -j DROP
+			在接口eth0上过滤tcp端口53，113，135，137，139，445入流量全部DROP
+		# iptables -A INPUT  -i eth0 -p udp --dport 1026 -j DROP
+			在接口eth0上过滤udp端口1026入流量全部DROP
+		# iptables -A INPUT  -i eth0 -m multiport -p tcp --dports 1433,4899 -j DROP
+			在接口eth0上过滤tcp端口1433,4899入流量全部DROP
+		# iptables -A INPUT  -p icmp -m limit --limit 10/second -j ACCEPT
+			允许icmp协议每秒中10个数据包进出本机
+	
+	课外任务：研究recent扩展的用法
+
+		利用iptables的recent模块来抵御DOS攻击: 
+
+
+		ssh: 远程连接，
+
+		iptables -I INPUT -p tcp --dport 22 -m connlimit --connlimit-above 3 -j DROP
+
+
+		iptables -I INPUT  -p tcp --dport 22 -m state --state NEW -m recent --set --name SSH
+		iptables -I INPUT  -p tcp --dport 22 -m state --state NEW -m recent --update --seconds 300 --hitcount 3 --name SSH -j LOG --log-prefix "SSH Attack: "
+		iptables -I INPUT  -p tcp --dport 22 -m state --state NEW -m recent --update --seconds 300 --hitcount 3 --name SSH -j DROP
+
+		1.利用connlimit模块将单IP的并发设置为3；会误杀使用NAT上网的用户，可以根据实际情况增大该值；
+
+		2.利用recent和state模块限制单IP在300s内只能与本机建立2个新连接。被限制五分钟后即可恢复访问。
+
+		下面对最后两句做一个说明：
+
+		1.第二句是记录访问tcp 22端口的新连接，记录名称为SSH
+		--set 记录数据包的来源IP，如果IP已经存在将更新已经存在的条目
+
+		2.第三句是指SSH记录中的IP，300s内发起超过3次连接则拒绝此IP的连接。
+		--update 是指每次建立连接都更新列表；
+		--seconds必须与--rcheck或者--update同时使用
+		--hitcount必须与--rcheck或者--update同时使用
+
+		3.iptables的记录：/proc/net/xt_recent/SSH
+
+	课外任务：如何实现利用layer7扩展实现基于应用层协议的访问控制
+
+	tcp_wrapper：tcp包装器
+		(1) 访问控制工具组件；
+		(2) 仅对使用tcp协议且在开发时调用了libwrap相关库的服务程序有效；
+
+		判断服务是否能够由tcp_wrapper进行访问控制：
+			(1) 动态编译：ldd命令查看其链接至的库文件即可；
+				~]# ldd `which sshd`
+				...
+				libwrap.so.0 => /lib64/libwrap.so.0 (0x00007ff82da30000)
+				...
+			(2) 静态编译：strings命令查看其结果中是否包含
+				hosts.allow
+				hosts.deny
+
+				~]# strings /sbin/rpcbind 
+
+		tcp_wrapper通过读取配置文件中的访问控制规则来判断某服务是否可被访问
+			hosts.allow
+				/etc/hosts.allow 
+			hosts.deny
+				/etc/hosts.deny
+
+		配置文件语法：
+			daemon_list: client_list [:options]
+
+			daemon_list：
+				应用程序的文件名称，而非服务名；
+				应用程序的文件列表，使用逗号分隔；
+					例如：vsftpd, in.telnetd: 172.16.0.0/255.255.0.0
+				ALL: 所有受tcp_wrapper控制的应用程序；
+
+			client_list:
+				IP地址；
+				主机名；
+				网络地址：必须使用完整格式掩码，不能使用长度格式的掩码；所以172.16.0.0/16是不合法的；
+				简短格式的网络地址：172.16.表示172.16.0.0/255.255.0.0
+				ALL: 所有客户端地址；
+				KNOWN: 所有已知的的主机，主机名可以被解析的
+				UNKNOWN：主机名不可以被解析
+				PARANOID: 正向解析与反向解析不匹配的。
+
+			特殊的变量：EXCEPT
+				in.telnetd: 172.16. EXCEPT 172.16.100.3
+
+			[:options]
+				deny: 用于在hosts.allow文件中实现拒绝访问的规则
+					in.telnetd: 172.16. :deny
+				allow：用于在hosts.deny文件中实现允许访问的规则
+					in.telnetd: 172.16. :allow
+				spawn: 启动一个额外程序；
+					in.telnetd: ALL: spawn /bin/echo `date` login attempt from %c to %s, %d >> /var/log/telnet.log
+
+					# man hosts.allow
+						%c     Client information.
+						%d     The daemon process name (argv[0] value).
+						%s     Server information:
+
+			练习：控制vsftpd仅允许172.16.0.0/255.255.0.0网络中的主机访问，但172.16.100.3除外；对所被被拒绝的访问尝试都记录在/var/log/tcp_wrapper.log日志文件中；
+
+			hosts.allow:
+				vsftpd: 172.16. EXCEPT 172.16.100.3
+
+			hosts.deny: 
+				vsftpd: ALL : spawn /bin/echo
+
+
+接下来的内容：
+	rsyslog, nsswitch, pam, sudo, rsync, sed, awk
+
+rsyslog：
+	日志：历史事件的相当记录
+	记录的内容：事件发生的时间、事件内容
+	日志级别：事件的关键性程序，loglevel
+
+	Linux：应用程序，内核
+		syslogd
+		klogd
+
+		程序包：syslog --> rsyslog
+
+	rsyslog:
+		多线程；
+		UDP, TCP, SSL, TLS, RELP
+		MySQL, PGSQL, Oracle等多种关系数据库中
+		强大的过滤器，可实现过滤系统信息中的任意部分
+		自定义输出格式
+		适用于企业级别日志记录需求
+
+		elk: elasticsearch, logstash, kibana
+
+		日志生成方：应用程序和内核
+			每个应用程序都可自行记录日志
+			内核也可记录日志
+
+	核心概念：
+		facility: 设施，从功能或程序上对日志进行分类，并由专门的工具负责记录相应的日志信息；
+			auth
+			authpriv
+			cron
+			daemon
+			kern
+			lpr
+			mail
+			mark
+			news
+			security
+			syslog
+			user
+			uucp
+			local0 - local7
+		priority：级别
+			debug
+			info
+			notice
+			warn, warning
+			err, error
+			crit
+			alert
+			emerg, panic
+
+			指定级别的方式：
+				*: 所有级别
+				none: 没有级别
+				priority: 比此级别高的（包含）所有级别的日志信息都会记录
+				=priority: 仅记录指定级别
+
+	rsyslog的配置文件：/etc/rsyslog.conf
+		RULES：
+			facility.priority 		target
+			设施.级别   				何处
+
+			~]# vim /etc/rsyslog.conf
+			mail.*                                                  -/var/log/maillog
+
+		target:
+			文件路径：将日志记录于指定的文件中；在文件路径之前使用"-"，表示异步写入；
+			用户：将日志信息通知给文件
+				*: 所有用户
+			日志服务器：@SERVER
+			管道：| COMMAND
+
+		文件记录日志文件的格式：
+			事件产生的时间 	主机 	进程(PID)： 	事件
+
+		
+		有些日志记录二进制格式，例如，两个日志文件：
+			成功登录系统的日志：/var/log/wtmp
+				查看命令：last
+			失败的登录的尝试：/var/log/btmp
+				查看命令：lastb
+
+			lastlog命令：显示当前系统每个用户各自最近一次的登录信息；
+
+	模块：
+		启用本机成为日志服务器：
+			$ModLoad imudp
+			$UDPServerRun 514
+
+			$ModLoad imtcp
+			$InputTCPServerRun 514
+
+		rsyslog支持把日志存储于mysql中：
+			(1) 有可用的MySQL服务器；
+			(2) 安装rsyslog-mysql程序包；
+				~]# yum install rsyslog-mysql
+			(3) 创建rsyslog依赖的数据库；
+				# mysql < /usr/share/doc/rsyslog-mysql-VERSION/createDB.sql
+				创建相关用户并授权
+				mysql> GRANT ALL ON Syslog.* TO 'rsyslog'@'127.0.0.1' IDENTIFIED BY 'rsyslog';
+				mysql> GRANT ALL ON Syslog.* TO 'rsyslog'@'localhost' IDENTIFIED BY 'rsyslog';
+
+			(4) 配置rsyslog启用ommysql模块；
+				~]# vim /etc/rsyslog.conf 
+				#### MODULES ####
+				$ModLoad ommysql
+			(5) 定义某facility把日志记录至指定的数据库的指定表中；
+				#### RULES ####
+				facility.priority  :ommysql:SERVER_IP,DATABASE,USERNAME,PASSWORD
+				重启rsyslog服务
+				# service rsyslog restart
+			(6) 可选：使用loganalyzer （WebGUI）来展示日志信息；
+				依赖：lamp组件；
+					# yum install httpd php php-mysql php-gd
+					下载loganalyzer，并展开；这里以loganalyzer-3.6.5为例
+					# cp -r loganalyzer-3.6.5/src /var/www/html/loganalyzer
+					# cp loganalyzer-3.6.5/contrib/* /var/www/html/loganalyzer
+					# cd /var/www/html/loganalyzer
+					# chmod +x configure.sh secure.sh
+					# ./configure.sh
+					# ./secure.sh
+					# chmod 666 config.php
+
+					访问：http://SERVER_IP/loganalyzer/install.php
+
+		博客作业：loganalyzer和rsyslog server；
+		

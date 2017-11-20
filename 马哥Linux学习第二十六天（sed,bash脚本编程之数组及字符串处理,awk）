@@ -1,0 +1,790 @@
+马哥Linux学习第二十六天（sed,bash脚本编程之数组及字符串处理,awk）
+
+sed命令：
+	
+	grep,sed,awk
+		grep：文本搜索工具；egrep，fgrep
+		sed：stream editor，流编辑器；
+		awk(gawk)：文本格式化工具，报告生成器
+
+	sed命令：
+
+		正则表达式元字符：
+			字符匹配：.,[],[^]
+			次数匹配：*,\?,\+,\{m,n\},\{n\}
+			位置锚定：^,$,\<,\>
+			分组及引用：\(\),\1,\2, ...
+			多选一：a|b|c
+
+		vim编辑器中文本的查找替换：
+			地址定界s/要查找的内容/替换为的内容/
+				要查找的内容：可使用正则表达式
+				替换为的内容：不支持正则表达式，但支持引用前面正则表达式分组中的内容
+				地址定界：%, startline, endline   /pat1/,/pat2/
+
+		语法：
+			sed [OPTION]... {script} [input-file]...
+
+				-r：支持扩展正则表达式；
+				-n：静默模式；
+				-e script1 -e script 2 -e script3：指定多脚本运行；
+				-f /path/to/script_file：从指定的文件中读取脚本并运行；
+				-i：直接修改源文件；
+
+		工作机制：每次读取一行文本读取至"模式空间(pattern space)"中，在模式空间中完成处理；将处理结果输出至标准输出设备；
+
+		地址定界：
+			#：指定行；
+				tmp]# sed '3d' fstab
+			$：最后一行；
+			/regexp/：任何能够被regexp所匹配到的行
+				tmp]# sed '/^#/d' fstab 
+			\%regexp%：同上，只不过换做%为regexp边界符；
+			/regexp/|：匹配时忽略字符大小写
+			\%regexp%|：匹配时忽略字符大小写
+			startline,endline：
+				#,/regexp/：从#好行开始，到第一次被/repexp/所匹配到的行结束，中间的所有行
+				#,#
+				/regexp1/,/regexp2/：从第一被/repexp1/匹配到的行开始，到第一次被/repexp2/匹配到的行结束，中间的所有行；
+				#,+n：从#号行开始，一直向下的n行；
+			first~step：指定起始行，以及步长；
+
+		sed的编辑命令
+			d：删除模式空间中的行；
+				tmp]# sed -i '1,3d' fstab 
+			=：显示行号；
+				tmp]# sed '/^#/=' /tmp/fstab 
+			a \text：附加text，支持使用\n实现多行附加；
+				# sed '/^Listen/a Listen 8080' /etc/httpd/httpd.conf
+			i \text：插入text，支持使用\n实现多行插入；
+			c \text：用text替换匹配到的行；
+				tmp]# sed  '5,7c \new text' fstab 
+			p: 打印模式空间中的行；
+				tmp]# sed -n '5,7p' fstab 
+			s/regexp/replacement/：替换由regexp所匹配到的内容为replacement；
+				tmp]# sed 's/^#//' fstab 
+				g: 全局替换；
+				i: 不区分大小写
+					# sed -i  's@ENGINE=MyISAM@ENGINE=InnoDB@ig' hellodb.sql 
+			w /path/to/somefile：把指定的内容另存至/path/to/somefile路径所指定的文件中；
+				tmp]# sed '5,9w /tmp/test1.txt' fstab 
+			r /path/from/somefile：在文件的指定位置插入另一个文件的所有内容，完成文件合并；
+				tmp]# sed '8r /etc/issue' fstab 
+
+		练习：
+			(1) 删除/boot/grub/grub.conf文件中所有行的行首的空白字符；
+				sed 's/^[[:space:]]\+//' /boot/grub/grub.conf
+			(2) 删除/etc/fstab文件中所有以#开头，后跟至少一个空白字符的行的行首的#和空白字符；
+				sed 's/^#[[:space:]]\+//' /etc/fstab
+			(3) 把/etc/fstab文件的奇数行另存为/tmp/fstab.3；
+				sed '1~2w /tmp/fstab.3' /etc/fstab
+			(4) echo一个文件路径给sed命令，取出其基名；进一步地，取出其路径名；
+					tmp]# echo '/etc/sysconfig/network-scripts/' | grep -o "[^/]\+/\?$"
+				取基名：echo "/etc/sysconfig/network-scripts/" | sed 's@^.*/\([^/]\+\)/\?$@\1@'
+				取路径名：echo "/etc/sysconfig/network-scripts/" | sed 's@[^/]\+/\?$@@'
+
+
+		sed命令另一个称作"hold space"的内存空间：
+
+		高级命令：
+			h：用模式空间中的内容覆盖保持空间的内容；
+			H：把模式空间中的内容追加至保持空间中内容的后面；
+			g：从保持空间中取到其内容，并将其覆盖模式空间中的内容；
+			G：从保持空间中取到其内容，并将其追加在模式空间中的内容的后面；
+			x：把保持空间和模式空间中的内容进行交换；
+			n：读取匹配到的行的下一行至模式空间；（会覆盖模式空间中的原有内容）；
+			N：读取匹配到的行的下一行至模式空间，追加在模式空间中原有内容的后面；
+			d：删除模式空间中的内容；
+			D：删除多行模式空间中的首行；
+
+			注意：命令功能可使用!取反；分号可用于分隔脚本；
+
+		示例：
+			sed 'G' /etc/issue： 在文件中的每行后方添加空白行；
+			sed '$!d' /etc/fstab：保留最后一行；
+			sed '/^$/d;G' /etc/issue: 保证指定的文件每一行后方有且只有一个空白行；
+			sed 'n;d' /etc/issue：保留奇数行；
+			sed -n '1!G;h;$p' /etc/issue
+			sed '$!N;$!D' /etc/issue：显示最后两行
+
+	sed命令：
+		-e 'script' -e 'script'
+		'script;script;script'
+
+		script
+		script
+		script
+
+		-f /path/from/script
+
+
+bash脚本编程：
+
+	函数：
+		function f_name {
+			函数体
+		}
+
+		f_name() {
+			函数体
+		}
+
+		(1) 模块化编程；
+		(2) 代码结构更清晰；
+		...
+
+	变量类型：
+		本地变量、环境变量、局部变量、特殊变量、位置变量
+
+		局部变量：作用域为函数上下文的变量
+			local V_NAME=VALUE
+
+	函数递归：
+		函数直接或间接调用函数本身；
+
+		斐波那契数列：1 1 2 3 5 8 13
+		阶乘：n!=n*(n-1)!=n*(n-1)*(n-2)!
+			#!/bin/bash
+			#
+			fact() {
+			    if [ $1 -eq 0 -o $1 -eq 1 ]; then
+			        echo 1
+			    else
+			        echo $[$1*$(fact $[$1-1])]
+			    fi
+			}
+
+			fact 4	
+			
+	数组：
+		数组：变量阵列，通过同一个名字进行存取操作；
+			连续的多个独立的内存空间（元素），每个内存空间相当于一个变量；
+			数组元素：数组名[索引]
+				索引：从0开始编号
+
+		声明数组：
+			declare -a Array_Name
+
+		bash的数组支持稀疏格式；
+
+		数组元素赋值：
+			(1) 一次只赋值一个元素
+				a_name[index]=value
+
+				weekday[0]="Sunday"
+				weekday[1]="Monday"
+
+			(2) 一次赋值全部元素
+				weekday=("Sunday" "Monday" "Tuesday")
+
+			(3) 指定索引进行赋值
+				weekdays=([0]="Sunday" [3]="Thu" [6]="Sat")
+
+					# echo ${weekdays[0]}
+					Sunday
+
+			(4) read -a a_name
+				# read -a hello
+				a bc mn
+				# echo ${hello[0]}
+				a
+
+
+		引用数组元素：${array_name[index]}
+
+		获取数组长度：${#array[*]}, ${#array[@]}
+			即数组中元素的个数；
+				# echo ${#hello[*]}
+				3
+
+		练习：写一个脚本，生成10个随机数，保存至数据组中；而后显示数组索引为偶数的元素的值；
+
+			#!/bin/bash
+			#
+			for ((i=0;i<10;i++)); do
+			    rand[$i]=$RANDOM
+			    echo ${rand[$i]}
+			done
+
+			echo "========================"
+
+			for i in `seq 0 2 9`; do
+			    echo ${rand[$i]}
+			done
+
+
+		练习：写一个脚本
+			定义一个数组，数组元素为/var/log目录下所有以.log结尾的文件的名字；显示每个文件的行数；
+
+				#!/bin/bash
+				#
+				declare -a files
+
+				files=(/var/log/*.log)
+
+				for i in `seq 0 $[${#files[*]}-1]`; do
+				    wc -l ${files[$i]}
+				done
+
+		课外练习：写一个脚本，生成10个随机数；排序它们；
+			冒泡排序：
+				#!/bin/bash
+				#
+
+				for ((i=0;i<10;i++));do
+					rand[$i]=$RANDOM
+					echo ${rand[$i]}
+				done
+
+				echo "==============="
+
+				declare -i tmp
+
+				for ((j=0;j<10;j++)); do
+				    for ((i=0;i<10-1-j;i++));do
+					if [ ${rand[$i]} -gt ${rand[$i+1]} ]; then
+					tmp=${rand[$i]}
+					rand[$i]=${rand[$i+1]}
+					rand[$i+1]=$tmp
+					fi
+				    done
+				done
+					
+				for i in `seq 0 9`;do
+					echo ${rand[i]}
+				done
+
+
+		数组切片：从数组中挑选指定的某个或某些元素：
+			${array[@]:offset:number}
+
+				offset: 偏移的元素的个数；
+				number：要取出的元素的个数；
+					# weekdays=("Sun" "Mon" "Tue" "Wed" "Thu" "Fri" "Sat")
+					# echo ${weekdays[@]:2:2}
+					Tue Wed
+
+			${array[@]:offset}
+				取出偏移量之后剩余所有的元素；
+					# echo ${weekdays[@]:2}
+					Tue Wed Thu Fri Sat
+
+			${array[@]}
+				# echo ${weekdays[@]}
+				Sun Mon Tue Wed Thu Fri Sat
+
+		从数组中删除元素：
+			unset array[index]
+				# unset weekdays[3]
+				# echo ${weekdays[@]}
+				Sun Mon Tue Thu Fri Sat
+
+		bash从4.0版本起支持关联数组：
+			数组索引可为自定的字符串；
+
+			定义方法：declare -A array_name
+				# wdays=([sun]="sunday" [mon]="Monday" [tue]="Tuesday")
+				# echo ${wdays[sun]}
+				sunday
+
+		练习：写一个脚本，能从所有同学中随机挑选一个同学回答问题；
+				#!/bin/bash
+				#
+				students=("Tom" "Jerry" "Jack" "Charles" "Horace" "George" "Hunter" "Bill" "Dennis" "Asher")
+				random=$((RANDOM % ${#students[@]}))
+				echo "Please ${students[$random]} answer this questions."
+                                                        
+			进一步地：可接受一个参数，做为要挑选的同学的个数；
+
+
+
+	bash的字符串处理：
+
+		字符串切片：${var:offset:length}
+			# mypath="/etc/sysconfig/network-scripts/"
+			# echo ${mypath:5}
+			sysconfig/network-scripts/
+
+			取出字符串的最后几个字符：${var: -length}
+				注意：-length之前有空白字符；
+					# echo ${mypath: -10}
+					k-scripts/
+
+		基于模式取子串：
+			${var#*word}：自左而右，查找var变量中存储的字符串中第一次出现的由word所指明的字符，删除此字符及其左侧的所有内容；
+				# echo ${mypath#*s}
+				ysconfig/network-scripts
+			${var##*word}：自左而右，查找var变量中存储的字符串中最后一次出现的由word所指明的字符，删除此字符及其左侧的所有内容；
+				# mypath="/etc/sysconfig/network-scripts"
+				# echo ${mypath##*/}
+				network-scripts
+			${var%word*}：自右而左，查找var变量中存储的字符串中第一次出现的由word所指明的字符，删除此字符及其右侧的所有内容；
+				# echo ${mypath%c*}
+				/etc/sysconfig/network-s
+			${var%%word*}：自右而左，查找var变量中存储的字符串中最后一次出现的由word所指明的字符，删除此字符及其右侧的所有内容；
+				# echo ${mypath%%c*}
+				/et
+
+			示例：
+				url="http://www.magedu.com:80"
+
+				取端口：echo ${url##*:}
+				取协议：echo ${url%%:*}
+
+		查找替换：
+			${var/pattern/replacement}：查找var变量存储的字符中第一次由pattern匹配到的内容，并替换为replacement；
+				# url="http://www.magedu.com:80"
+				# echo ${url/www/WWW}
+				http://WWW.magedu.com:80
+			${var//pattern/replacement}：查找var变量存储的字符中所有能够由pattern匹配到的内容，并替换为replacement；
+				# echo ${url/w/W}
+				http://Www.magedu.com:80
+				# echo ${url//w/W}
+				http://WWW.magedu.com:80
+			${var/#pattern/replacement}：查找var变量存储的字符中最开始处能够由pattern匹配到的内容，并替换为replacement；
+				# echo ${url/#h/H}
+				Http://www.magedu.com:80
+			${var/%pattern/replacement}：查找var变量存储的字符中最后位置能够由pattern匹配到的内容，并替换为replacement；
+				# echo ${url/%0/9}
+				http://www.magedu.com:89
+
+		查找删除：
+
+			${var/pattern}：查找var变量存储的字符中第一次由pattern匹配到的内容，并删除；
+			${var//pattern}：查找var变量存储的字符中所有能够由pattern匹配到的内容，并删除；
+			${var/#pattern}：查找var变量存储的字符中最开始处能够由pattern匹配到的内容，并删除；
+			${var/%pattern}：查找var变量存储的字符中最后位置能够由pattern匹配到的内容，并删除；
+
+		字符串大小写转换：
+			${var^^}：把var变量中的所有小写字母，统统替换为大写；
+				# echo ${url^^}
+				HTTP://WWW.MAGEDU.COM:80
+			${var,,}：把var变量中的所有大写字母，统统替换为小写；
+				# echo $url
+				HTTP://WWW.MAGEDU.COM:80
+				# echo ${url,,}
+				http://www.magedu.com:80
+
+		变量赋值：
+			${var:-word}：如果变量var为空或未声明，则返回word所表示的字符串；否则，则返回var变量的值；
+			${var:=word}：如果变量var为空或未声明，则返回word所表示的字符串，并且把word赋值给var变量；否则，则返回var变量的值；
+			${var:?error}：如果变量var为空或未声明，则返回error为错误信息；否则，则返回var变量的值；
+			${var:+word}：如果变量var为空或未声明，忽略；否则，则返回word；
+
+		
+回顾：sed, bash编程中字符串处理
+	
+	sed流式文本处理器，Stream EDitor
+		pattern space, hold space
+
+	bash字符串处理机制：字符串切片、基于模式取子中、查找替换、查找删除、字符串大小写转换
+
+	变量赋值
+
+awk：
+	Linux文本处理三剑客：
+		grep, egrep, fgrep：文本过滤
+		sed：文本编辑 (行编辑器)
+		awk：报表生成器，文本格式化
+
+		创始人：Alfred Aho, Peter Weinberger, Brian Kernighan	
+
+		awk --> nawk --> GNU awk (gawk)
+
+	功能：过程式编程语言
+
+	awk的运行方式：
+		(1) awk命令行
+			# awk
+		(2) awk程序文件
+			# awk -f /path/from/awk_script
+		(3) awk脚本
+			#!/bin/awk -f
+
+	基本用法：
+		gawk [OPTIONS] 'program' FILE1 FILE2 ...
+			program: PATTERN{ACTION STATEMENT}
+				由语句组成，各语句间使用分号分隔; 
+
+				ACTION: print, printf
+
+		选项：
+			-F[]: 指明输入字段分隔符；
+				# awk -F: '{print $1,$3}' /etc/passwd
+			-v VAR_NAME=VALUE: 变量赋值；
+			-f /PATH/FROM/AWK_SCRIPT：
+				# awk -f awk.script -F: /etc/passwd
+
+		1、awk的输出命令之一：print
+
+			用法：print item1, item2, ...
+				item：
+					字符串：用引号引用；
+						print "hello", "world"
+					变量：显示变量的值；
+						print name
+
+						引用变量：直接使用变量名
+							# awk -F: -v f1=1 '{print f1}' /etc/passwd
+					数值：无须加引号
+
+			要点：
+				(1) 各item之间需要使用逗号分隔；而输出时的分隔符为默认为空白字符；
+				(2) 输出的各item可以为字符串或数值、当前记录的字段($#)、变量或awk的表达式；数值会被隐式转换为字符串进行输出；
+				(3) print后面的item省略时，相当于运行“print $0”，用于输出整行；
+				(4) 输出空白字符：print " "
+
+		2、变量
+			内建变量，自定义变量
+
+			2.1 内置变量
+				FS：input Fields Separator，输入字段分隔符，默认为空白；
+					-v FS="[ ,:.]"
+						# awk -v FS=":" '{print $1,$3}' /etc/passwd
+						# awk -v FS="[ ,]" '{print $3}' awk.txt 
+				RS：input Record Separator，输入时的行分隔符，默认为换行符；
+						# awk -v RS=" " '{print $0}' /etc/passwd
+				OFS：Output Field Separator, 输出时的字段分隔符，默认为空白字符；
+						# awk -F: -v OFS=":" '{print $1,$3,$7}' /etc/passwd
+				ORS：Output Record Separator，输出时的行分隔符，默认为换行符；
+						# awk -v RS=" " -v ORS=" " '{print $0}' /etc/passwd
+
+				NF：number of field in current record, 当前行的字段数；
+					print NF
+					print $NF
+						# awk '{print $NF}' /etc/issue
+				NR：number of records，行数；命令后跟的所有文件将统一计数；
+					# awk '{print NR}' /etc/fstab /etc/issue 
+				FNR：行数，各文件单独计数；
+					# awk '{print FNR}' /etc/fstab /etc/issue 
+
+				FILENAME：当前正被awk读取的文件的文件名；
+					# awk '{print FNR,FILENAME}' /etc/fstab /etc/issue
+
+				ARGC：awk命令行中的参数的个数；
+					# awk '{print ARGC}' /etc/fstab /etc/issue 
+				ARGV：数组，保存了命令行参数本身；
+					ARGV[index]
+						ARGV[0], ARGV[1]
+							# awk  '{print ARGV[2]}' /etc/fstab /etc/issue
+
+			2.2 自定义变量
+				(1) -v VAR_NAME=VALUE
+					变量名区分字符大小写；
+						~]$ awk -v test='hello gawk' 'BEGIN{print test}'
+						hello gawk
+
+				(2) 在program中自定义变量
+					# awk 'BEGIN{FS=":";f1=3}{print $f1}' /etc/passwd
+
+
+		3、awk的输出命令之二：printf
+
+			语法：printf FORMAT,item1,item2,...
+
+			要点：
+				(1) 必须提供FORMAT；
+				(2) 与print语句不同，printf不会自动换行，需要显式指定换行符：\n
+				(3) FORMAT中需要分别为后面的每个item指定一个格式符，否则item则无法显示；
+
+			格式符：都以%开头，后跟单个字符；
+				%c: 显示字符的ASCII码；
+				%d, %i：显示为十进制整数；
+				%e, %E: 科学计数法显示数值；
+				%f：显示为浮点数；
+				%g, %G：以科学计数法或浮点数格式显示数值；
+				%s: 显示为字符串；
+				%u：显示无符号整数；
+				%%: 显示%符号自身；
+
+			修饰符：
+				#[.#]：
+					左边的#：用于指定显示宽度；
+					右边的#: 显示精度；
+				+：显示数值符号
+				-：左对齐
+
+				例如：awk -F: '{printf "%20s:%-20d\n",$1,$3}' /etc/passwd
+
+		4、操作符
+
+			算术操作符：
+				x+y, x-y, x*y, x/y, x^y, x%y
+					# awk 'BEGIN{print 4*5}'
+				-x: 负值
+				+x: 转换为数值
+
+			字符操作符：字符串连接
+				# awk 'BEGIN{print "hello","awk"}'
+				hello awk
+
+			赋值操作符：
+				=, +=, -=, *=, /=, %=, ^=
+				++, --
+
+				# awk -v sum=2 'BEGIN{print sum^=4}'
+				16
+
+			比较操作符：
+				>, >=, <, <=, ==, !=
+
+			模式匹配操作符：
+				~：是否能由右侧指定的模式所匹配；
+				!~：是否不能由右侧指定模式所匹配；
+
+			逻辑操作符：
+				&&：与运算
+				||: 或运算
+
+			条件表达式：
+				selector?if-true-expression:if-false-expression
+
+				# awk -F: '{$3>=500?usertype="Common User":usertype="Sysadmin or Sysuser";printf "%15s:%-s\n",$1,usertype}' /etc/passwd
+
+			函数调用：
+				function_name(argu1, argu2, ...)
+
+		5、PATTERN
+
+			(1) empty：空模式，匹配所有行；
+			(2) /Regular Expression/：仅将ACTION应用于能够被Regular Expression所匹配到的行；
+				例如：awk -F: '/^[ab]/{print $1,$3}' /etc/passwd
+			(3) relational expression：关系表达式，即结果为“真”、“假”的表达式， 或者其结果能类同于“真”或“假”的表达；一般来说，其结果为非0数值或非空字符串即可类同为“真”，否则，则类同为“假”；
+				例如：awk -F: '$3>=500{print $1,$3}' /etc/passwd
+				例如：awk -F: '$1~/root/{print $1,$3}' /etc/passwd
+			(4) line ranges：行范围，类似sed或vim中的地址定界方式
+				startline,endline：/pattern1/,/pattern2/
+					~]$ awk -F: '/^root/,/^mail/{print $1}' /etc/passwd
+					root
+					bin
+					daemon
+					adm
+					lp
+					sync
+					shutdown
+					halt
+					mail
+				注意：不支持直接给出数字的格式
+					~]$ awk -F: '(NR>=2&&NR<=10){print $1}' /etc/passwd
+					bin
+					daemon
+					adm
+					lp
+					sync
+					shutdown
+					halt
+					mail
+					operator
+			(5) BEGIN/END：两个特殊模式
+				BEGIN：在文件格式化操作开始之前事先执行的一次操作；通常用于输出表头或做出一个预处理操作；
+					# awk -F: 'BEGIN{print "username uid \n-------------"};(NR>=2&&NR<=10){printf"%10-s%d\n",$1,$3}' /etc/passwd
+					username uid 
+					-------------
+					bin       1
+					daemon    2
+					adm       3
+					lp        4
+					sync      5
+					shutdown  6
+					halt      7
+					mail      8
+					uucp      10
+				END：在文件格式操作完成之后，命令退出之前执行的一次操作；通常用于输出表尾或做出清理操作；
+					# awk -F: 'BEGIN{print "username uid \n-------------"}(NR>=2&&NR<=10){printf"%10-s%d\n",$1,$3}END{print "-----END-----"}' /etc/passwd
+					username uid 
+					-------------
+					bin       1
+					daemon    2
+					adm       3
+					lp        4
+					sync      5
+					shutdown  6
+					halt      7
+					mail      8
+					uucp      10
+					-----END-----
+
+		6、常用ACTION
+
+			(1) EXPRESSIONS：例如变量赋值
+			(2) Control Statements：控制语句，如if, while等；
+			(3) Compound Statements：复合语句，{}中的语句
+			(4) input statements：输入语句
+			(5) output statements：输出语句，print、printf
+
+		7、控制语句
+
+			if (condition) { statements } [else { statement }]
+				# awk -F: '{if($3>=1000) print $1,$3}' /etc/passwd
+			while (condition) { statements }
+			do statement while (condition)
+			for(expr1;expr2;expr3) { statements }
+			for(var in array) { statements }
+			switch (expression) {case VALUE or /REGEXP/: statement; ...; default: statementN}
+			break
+			continue
+			delete array[index]
+			delete array 
+			exit [ expression ]
+			{ statements }
+
+			7.1 if-else
+
+				语法：if (condition) statement [ else statement ]
+					if (condition) {statements} [else {statements}]
+
+					~]# awk -F: '{if ($3>=500) print $1,$3}' /etc/passwd
+					~]# awk '{if (NF>=6) print NF,$0}' /etc/rc.d/rc.sysinit
+					~]# awk -F: '{if ($3>=500) {print $1,"is a common user"} else {print $1,"is a sysadmin or sysuser"}}' /etc/passwd
+
+					使用场景：对awk取得的整行或行中的字段做条件判断；
+
+			7.2 while循环
+				语法：while (condition) statement
+					while (condition) {statements}
+
+					条件为“真”时循环，为“假”时退出循环；
+
+				使用场景：通常用于在当前行的各字段间进行循环；
+
+				~]# awk '{i=1;while(i<=NF){if (length($i)>=6) {print $i};i++}}' /etc/issue
+
+			7.3 do-while循环
+				语法：do statement while (condition)
+					do {statements} while (condtion)
+					意义：至少执行一次循环体
+
+			7.4 for循环
+				语法：for (expr1;expr2;expr3) statement
+					for (expr1;expr2;expr3) {statements}
+
+				for (variable assignment;codition;iteration process) {for-body}
+
+				# awk '{for(i=1;i<=NF;i++){if(length($i)>=6) print $i}}' /etc/issue
+
+				第二种用法：用于遍历数组中的元素
+					for (var_name in array) {for-body}
+
+			7.5 swtich
+				语法：switch (expression) {case VALUE or /REGEXP/: statement; ...; default: statementN}
+
+			7.6 break and continue
+				break [n]：退出当前循环，n是一个数字，用于指定退出几层循环；
+				continue：提前结束本轮循环而进入下一轮；
+
+			7.7 next
+				提前结束对本行文本的处理，而提前进入下一行的处理操作；
+
+				~]# awk -F: '{if($3%2==0) next;print $1,$3}' /etc/passwd
+				bin 1
+				adm 3
+				sync 5
+				halt 7
+				operator 11
+				gopher 13
+				nobody 99
+				vcsa 69
+				saslauth 499
+				postfix 89
+				rpcuser 29
+				mysql 27
+				stu1 5005
+
+
+		8、数组
+
+			关联数组：array[index-expression]
+
+				index-expression：
+					可以使用任意字符；
+					如果某数组元素事先不存在，则在引用时，awk会自动创建此元素并将其值初始化为空串；
+						因此，若要判断数组中的某元素是否存在，要使用“index in array”的方式进行判断；
+
+					要遍历数组中的元素，则要使用for (var_name in array)的方式进行；此时，var_name会遍历array的每个索引，所以，要显示数组元素的值，要使用array[var_name]
+
+					weekdays
+						weekdays[mon]="Monday"
+						weekdays[tue]="Tuesday"
+						...
+
+					for (i in weekdays)：此时，i变量会遍历weekdays数组的每个索引，即mon, tue，而非元素的值“Monday”或"Tuesday"等；
+						要获取元素的值：weekdays[i]
+
+				例如：
+					练习：统计指定文件中所有行中每个单词出现的次数；
+						可定义一个数组，用单词本身当索引，而元素的值存储单词出现的次数
+
+						How are you? How old are you?
+
+						count[How]=2
+						count[are]=2
+						count[you?]=2
+						count[old]=1
+
+
+						整个文件统一统计：~]# awk '{for(i=1;i<=NF;i++) {count[$i]++}}END{for(j in count) {print j,count[j]}}' /root/count.txt					
+						每行单独统计：~]# awk '{for(i=1;i<=NF;i++) {count[$i]++};for(j in count) {print j,count[j]};delete count}' /root/count.txt
+
+					练习：统计当前系统上所有tcp连接的各种状态的个数；
+
+						~]# ss -tan | awk '!/^State/{state[$1]++}END{for(i in state) print i,state[i]}'
+						ESTAB 1
+						TIME-WAIT 10000
+						LISTEN 10
+
+					练习：统计指定的web访问日志中各ip的资源访问次数：
+						~]# awk '{ip[$1]++}END{for(i in ip) print i,ip[i]}' /var/log/httpd/access_log
+						172.16.227.1 385
+						192.168.1.12 20008
+						::1 18
+
+		9、函数
+
+			内建函数和用户自定义函数
+
+			9.1 内建函数
+
+				数值处理：
+					rand()：返回0至1之间的一个随机数；
+
+				字符串处理：
+					length([s])：返回指定的字符串的长度；
+						# awk 'BEGIN{print length("hello")}'
+						5
+
+					sub(r,s[,t])：基于r所表示的模式来匹配字符串t中的内容，将其第一次被匹配到的内容替换为s所表示的字符串；
+						# awk '{sub("are","ARE",$0);print $0}' count.txt 
+						How ARE you? How old are you?
+						What ARE you doing.
+
+					gsub(r,s[,t])：基于r所表示的模式来匹配字符串t中的内容，将其所有被匹配到的内容均替换为s所表示的字符串；
+						# awk '{gsub("are","ARE",$0);print $0}' count.txt 
+						How ARE you? How old ARE you?
+						What ARE you doing.
+
+					split(s,a[,r])：以r为分隔符去切割字符串s，并将切割后的结果保存至a表示的数组中；
+
+						注意：awk的数组下标从1开始编号
+
+						~]# awk '{split($0,userinfo,":");print userinfo[1]}' /etc/passwd
+
+					substr(s,i[,n])：从s所表示的字符串中取子串，取法：从i表示的位置开始，取n个字符；
+						# awk -F: '{text=substr($1,2,2);print text}' /etc/passwd
+						oo
+						in
+						ae
+
+				时间类函数：
+					systime()：取当前系统时间，结果形式为时间戳；
+						# awk 'BEGIN{print systime()}'
+						1495172971
+
+			9.2 用户自定义函数
+
+				function f_name(p,q) {
+					...
+				}
+
+		
+
+

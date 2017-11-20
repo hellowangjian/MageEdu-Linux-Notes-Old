@@ -1,0 +1,698 @@
+马哥Linux学习第三十三天（Corosync、pacemaker、drbd）
+
+回顾：
+	heartbeat v2 crm, hb_gui
+
+	HA：MessgingLayer
+		heartbeat, corosync, cman, keepalived
+
+	CRM
+		haresources,crm,pacemaker, rgmanager
+
+	LRM
+	RA
+		heartbeat legacy, lsb, ocf, stonith
+
+	资源的类型：
+		primitive，group，clone，master/slave
+
+	约束：
+		location，order，colocation
+
+	heartbeat v2 crm
+		ha.cf 
+			crm on
+
+			mgmtd, 5560/tcp
+
+			crm_mon, hb_gui
+
+HA Cluster(3)
+	
+	CIB: Cluster Information Base
+		cib.xml
+
+		/var/lib/heartbeat/crm/cib.xml
+
+	DC: Designated Coordinator
+
+	HA:
+		Messaging and Infrastructure Layer
+			Heartbeat Layer
+		Membership Layer
+			CCM
+		Resource Allocation Layer
+			CRM:
+				DC: LRM, PE, TE, CIB
+				other: LRM, CIB
+		Resource Layer
+			RA
+
+	partitioned cluster: split brain
+		vote system:
+			with quorum: >total/2
+			without quorum: <= total/2
+
+		without quorum:
+			stop
+			ignore
+			freeze
+			suicide
+
+	共享存储：
+		NAS：Network Attached Storage
+		SAN：Storage Area Network
+
+		集群文件系统：
+			GFS2, OCFS2
+
+	corosync:
+		AIS: Application Interface Standard,  
+
+		SA Forum: OpenAIS
+
+		OpenAIS: 提供了一种集群模式，包含集群框架、集群成员管理、通信方式、集群监测，但没有集群资源管理功能；
+
+			组件包括：AMF, CLM, CPKT, EVT等；分支不同，包含的组件略有区别；
+
+				分支：picacho, whitetank, wilson, 
+					corosync (集群管理引擎)
+						只是openais的一个子组件；
+
+			分裂成为两个项目：
+				corosync, wilson(ais的接口标准)
+
+		CentOS 5: 
+			cman + rgmanager
+		CentOS 6: 
+			cman + rgmanager
+			corosync + pacemaker
+
+				命令行管理工具：
+					crmsh: suse, CentOS 6.4-
+					pcs: RedHat, CentOS 6.5+
+
+		crm的常用子命令：
+			status
+			node
+			configure
+			ra
+			resource：定义所有资源的状态
+
+			configure常用的子命令：
+				primitive
+				group
+				clone
+				ms
+				location
+				colocation
+				order
+				show
+				property
+
+				primitive <rsc_id> class:provider:ra params param1=value1 param2=value2 op op1 param1=value op op2 parma1=value1
+					op_type :: start | stop | monitor
+
+		案例：ha web service
+			webip: 172.16.100.23
+			node1: 172.16.100.6
+			node2: 172.16.100.7
+
+				1、定义ip、web资源
+					# crm configure
+					# primitive webip ocf:heartbeat:IPaddr parms ip=172.16.100.23 nic=eth0 cidr_netmask=16 
+					# verify
+					# commit
+					# primitive webserver lsb:httpd
+					# verify
+					# commit
+
+				2、定义为组资源，先定义先启动
+					group <name> <rsc> [<rsc>...]
+
+					# group webservice webip webserver
+					# verify
+					# commit
+
+				3、删除组资源，删除后组内的资源还会继续存在；
+					先停止资源
+						# resource stop webservice
+					再删除资源
+						# configure delete webservice
+
+					经过测试新版本的crmsh3.0删除组资源已经不需要先停止资源了，可以直接删除；其它资源还需先停止资源；
+
+				4、定义排列约束：colocation
+					colocation <id> <score>: <rsc>[:<role>] <with-rsc>[:<role>]
+
+						# colocation webserver_with_webip inf: webserver webip
+						# verify
+						# commit
+
+				5、定义顺序约束：order
+					order <id> [{kind|<score>}:] first then [symmetrical=<bool>]
+						[symmetrical=<bool>]：对称模式，默认为ture，先启动后停止，后启动先停止
+						kind：Mandatory(强制)，Optional(可选的)，Serialize(串行化的)
+
+						# order webip_befor_webserver Mandatory: webip webserver
+
+				6、位置约束：location
+					location <id> <rsc> [<attributes>] {<node_pref>|<rules>}
+						简单的指定方式：
+							# location webip_on_node2 webip 50: node2.magedu.com
+						稍微复杂一点的方式：
+							# location webip_on_node2 webip rule 50: #uname eq node2.magedu.com
+
+				7、定义资源对当前节点的黏性：default-resource-stickiness=
+					需在全局定义
+						# property default-resource-stickiness=50
+
+				8、配置两个节点的corosync/pacemaker集群，设置两个全局属性：
+					stonith-enabled=false	# 禁用stonith；
+					no-quorum-policy=ignore	# 忽略cluster without quorum状态；让集群节点在不具有法定票数时继续运行资源。
+
+					no-quorum-policy=：
+						What to do when the cluster does not have quorum  Allowed values: stop, freeze, ignore, suicide	
+
+				9、定义资源监控：monitor
+					也可以在定义资源时后面跟op定义monitor:
+						# primitive webip ocf:heartbeat:IPaddr params ip=172.16.100.23 nic=eth0 cidr_netmask=16 op monitor interval=10s timeout=20s
+
+					monitor <rsc>[:<role>] <interval>[:<timeout>]
+						# monitor webip 10s:20s
+						# monitor webserver 10s:20s
+
+					定义监控后pacemaker会根据设定的时间监控资源，如果此资源停止，则尝试启动此资源，如果尝试启动失败，则迁移此资源及相关资源至其它节点启动；
+
+				10、最终的xml文件内容：
+					node node1.magedu.com \
+					        attributes standby=off
+					node node2.magedu.com \
+					        attributes standby=off
+					primitive webip IPaddr \
+					        params parms ip=172.16.100.23 nic=eth0 cidr_netmask=16 \
+					        op monitor interval=10s timeout=20s
+					primitive webserver lsb:httpd
+							op monitor interval=10s timeout=20s
+					order webip_befor_webserver Mandatory: webip webserver
+					location webip_on_node2 webip \
+					        rule 50: #uname eq node2.magedu.com
+					colocation webserver_with_webip inf: webserver webip
+					property cib-bootstrap-options: \
+					        have-watchdog=false \
+					        dc-version=1.1.15-5.el6-e174ec8 \
+					        cluster-infrastructure="classic openais (with plugin)" \
+					        expected-quorum-votes=2 \
+					        stonith-enabled=false \
+					        no-quorum-policy=ignore \
+					        default-resource-stickiness=50
+
+				11、清理资源状态：
+					有时状态会影响资源在某一节点启动；
+					crm(live)resource# cleaup webserver
+
+		博客作业：corosync/pacemaker, 实现高可用的MariaDB; 
+			挂载nfs文件系统：
+				# configure primitive webstore ocf:heartbeat:Filesystem params device="172.16.100.8:/mydata" directory="/mydata" fstype="nfs" op monitor interval=20s timeout=40s op start timeout=60s op stop timeout=60s
+
+回顾：
+	corosync + pacemaker, crmsh(CLI)配置ha, web service
+
+	corosync: Messaging Layer
+	pacemaker: 
+		corosync的插件；
+		独立的守护进程；
+
+	CentOS 6.4-: crmsh(suse)
+		1.x
+		2.x
+		依赖于pssh
+	CentOS 6.5+: pcs(RedHat)
+
+	crmsh命令：
+		子命令：
+			status, node, configure, resource, ra
+
+		configure：
+			resource: primitive, group, clone, ms
+			constraint: location, order, colocation
+
+			operation:
+				monitor: interval, timeout
+				start
+				stop
+
+		resource:
+			start, stop, status, migrate, cleanup
+
+		ra:
+			classes
+			list
+			info
+
+drbd：
+	
+	存储的类型：
+		DAS：Direct Attached Storage
+		NAS: Network Attached Storage
+		SAN: Storage Area Network
+
+		DAS: 
+			ide, usb, sata, scsi, sas
+
+	drbd：
+		1、跨主机的块设备镜像系统
+		2、基于网络实现数据镜像；
+		3、工作内核，软件；
+
+		工作于内核
+
+		用户空间管理工具：
+			drbdadm：接近用户
+			drbdsetup：接近drbd设备
+			drbdmeta：接近drbd设备
+
+		工作特性：实时、透明、同步或异步；
+
+		数据同步模型：三种协议
+			Protocal A, B, C
+				A: Async
+				B: Semi-Sync
+				C: sync
+
+		每组drbd设备都由"drbd resource"进行定义：
+			名字：只能由空白字符之外ASCII字符组成；
+			drbd设备：/dev/drbd#
+				主设备号：147, 
+				次设备号：从0开始编号
+			磁盘配置：各主机上用于组成此drbd设备的磁盘或分区；
+			网络配置：数据同步时的网络通信属性；
+
+		工作模型：
+			master/slave
+			dual master: 要求必须在HA集群使用集群文件系统；
+
+		案例：实现drbd存储；
+
+			配置前提：时间同步、基于主机名访问；
+
+
+			kmod-drbd84-8.4.5-504.1.el6.x86_64.rpm
+			drbd84-utils-8.9.1-1.el6.elrepo.x86_64.rpm
+
+			1、安装epel源
+				rpm -ivh https://mirrors.ustc.edu.cn/epel/epel-release-latest-6.noarch.rpm
+				rpm --import https://www.elrepo.org/RPM-GPG-KEY-elrepo.org
+				rpm -Uvh http://www.elrepo.org/elrepo-release-6-6.el6.elrepo.noarch.rpm
+
+			2、准备共享的磁盘或分区
+				node1:
+				[root@node1 ~]# fdisk /dev/sdb 
+				Device contains neither a valid DOS partition table, nor Sun, SGI or OSF disklabel
+				Building a new DOS disklabel with disk identifier 0x94824bf2.
+				Changes will remain in memory only, until you decide to write them.
+				After that, of course, the previous content won't be recoverable.
+
+				Warning: invalid flag 0x0000 of partition table 4 will be corrected by w(rite)
+
+				WARNING: DOS-compatible mode is deprecated. It's strongly recommended to
+				         switch off the mode (command 'c') and change display units to
+				         sectors (command 'u').
+
+				Command (m for help): n
+				Command action
+				   e   extended
+				   p   primary partition (1-4)
+				p
+				Partition number (1-4): 1
+				First cylinder (1-652, default 1): 
+				Using default value 1
+				Last cylinder, +cylinders or +size{K,M,G} (1-652, default 652): 
+				Using default value 652
+
+				Command (m for help): w
+				The partition table has been altered!
+
+				Calling ioctl() to re-read partition table.
+				Syncing disks.
+
+				node2:同node1
+
+			3、安装：
+				drbd共有两部分组成：内核模块和用户空间的管理工具。其中drbd内核模块代码已经整合进Linux内核2.6.33以后的版本中，因此，如果您的内核版本高于此版本的话，你只需要安装管理工具即可；否则，您需要同时安装内核模块和管理工具两个软件包，并且此两者的版本号一定要保持对应。
+
+				# yum -y install drbd84 kmod-drbd84
+
+					 ~]# rpm -qa | grep drbd
+					kmod-drbd84-8.4.9-1.el6.elrepo.x86_64   //安装内核模块
+					drbd84-utils-8.9.8-1.el6.elrepo.x86_64	//安装管理工具
+
+			4、配置：
+				配置文件：
+					/etc/drbd.conf
+						/etc/drbd.d/global_common.conf: 提供全局配置，及多个drbd设备相同的配置；
+						/etc/drbd.d/*.res: 资源定义；
+
+						global: 全局属性，定义drbd自己的工作特性；
+						common: 通用属性，定义多组drbd设备通用特性；
+						*.res：资源特有的配置
+
+					/etc/drbd.d/global_common.conf下的部分指令：
+						usage-count no：让linbit公司收集目前drbd的使用情况，yes为参加，我们这里不参加设置为no；
+						handlers：定义处理器，一旦发生分裂时的处理方法；
+						startup ：启动时的处理方法；
+						options ：定义同步属性；
+						disk ：定义磁盘；
+							on-io-error detach; #同步错误的做法是分离
+						net ：定义网络；
+							cram-hmac-alg "sha1"; #设置加密算法sha1
+							shared-secret "mydrbdlab"; #设置加密key  
+						syncer：定义同步器；
+							rate 1000; #定义同步时使用多高的速率KB/s
+
+				node1:
+				[root@node1 ~]# grep -v "#" /etc/drbd.d/global_common.conf 
+
+				global {
+				        usage-count no;
+				}
+
+				common {
+				        handlers {
+
+				        }
+
+				        startup {
+				        }
+
+				        options {
+				        }
+
+				        disk {
+				                on-io-error     detach;
+				        }
+
+				        net {
+				                cram-hmac-alg "sha1";
+				                shared-secret "mydrbdshared123";
+				        }
+
+				        syncer {
+				                rate 500M;
+				        }
+				}
+
+			5、创建资源定义：
+
+				[root@node1 ~]# vim /etc/drbd.d/mystore.res
+					resource mystore {
+					        device          /dev/drbd0;
+					        disk            /dev/sdb1;
+					        meta-disk       internal;
+					        on node1.magedu.com {
+					                address 127.16.100.6:7789;
+					        }
+					        on node2.magedu.com {
+					                address 172.16.100.7:7789;
+					        }
+
+					}
+
+				两个节点的配置要保持一致，因此，可以基于ssh将刚才配置的文件全部同步至另外一个节点。
+				# scp  /etc/drbd.d/*  node2:/etc/drbd.d/
+
+			6、在两个节点上初始化已定义的资源并启动服务：
+
+				1）初始化资源，在Node1和Node2上分别执行：
+				# drbdadm create-md mystore
+
+				2）启动服务，在Node1和Node2上分别执行：
+				/etc/init.d/drbd start
+
+				3）查看启动状态：
+				# cat /proc/drbd
+				version: 8.4.9-1 (api:1/proto:86-101)
+				GIT-hash: 9976da086367a2476503ef7f6b13d4567327a280 build by mockbuild@Build64R6, 2016-12-13 18:38:15
+				 0: cs:Connected ro:Secondary/Secondary ds:Inconsistent/Inconsistent C r-----
+				    ns:0 nr:0 dw:0 dr:0 al:8 bm:0 lo:0 pe:0 ua:0 ap:0 ep:1 wo:f oos:5236960
+
+				 也可以使用drbd-overview命令来查看：
+				 # drbd-overview 
+ 				0:mystore/0  Connected Secondary/Secondary Inconsistent/Inconsistent
+
+ 				从上面的信息中可以看出此时两个节点均处于Secondary状态。于是，我们接下来需要将其中一个节点设置为Primary。在要设置为Primary的节点上执行如下命令：
+ 				# drbdadm primary --force resource
+
+ 				让node1成为主节点：
+ 					# drbdadm primary --force mystore
+ 					# cat /proc/drbd   #数据在同步
+					version: 8.4.9-1 (api:1/proto:86-101)
+					GIT-hash: 9976da086367a2476503ef7f6b13d4567327a280 build by mockbuild@Build64R6, 2016-12-13 18:38:15
+					 0: cs:SyncSource ro:Primary/Secondary ds:UpToDate/Inconsistent C r-----
+					    ns:824628 nr:0 dw:0 dr:828056 al:8 bm:0 lo:0 pe:2 ua:3 ap:0 ep:1 wo:f oos:4413664
+					        [==>.................] sync'ed: 15.8% (4308/5112)M
+					        finish: 0:01:52 speed: 39,308 (39,204) K/sec
+					# ssh node2 "cat /proc/drbd"
+					version: 8.4.9-1 (api:1/proto:86-101)
+					GIT-hash: 9976da086367a2476503ef7f6b13d4567327a280 build by mockbuild@Build64R6, 2016-12-13 18:38:15
+					 0: cs:SyncTarget ro:Secondary/Primary ds:Inconsistent/UpToDate C r-----
+					    ns:0 nr:3940352 dw:3940352 dr:0 al:8 bm:0 lo:0 pe:0 ua:0 ap:0 ep:1 wo:f oos:1296608
+					        [==============>.....] sync'ed: 75.3% (1264/5112)M
+					        finish: 0:00:32 speed: 40,364 (39,012) want: 87,440 K/sec
+
+				同步完成：
+					# cat /proc/drbd 
+					version: 8.4.9-1 (api:1/proto:86-101)
+					GIT-hash: 9976da086367a2476503ef7f6b13d4567327a280 build by mockbuild@Build64R6, 2016-12-13 18:38:15
+					 0: cs:Connected ro:Primary/Secondary ds:UpToDate/UpToDate C r-----
+					    ns:5236960 nr:0 dw:0 dr:5237624 al:8 bm:0 lo:0 pe:0 ua:0 ap:0 ep:1 wo:f oos:0
+
+			7、格式化文件系统：
+				[root@node1 ~]# mke2fs -t ext4 /dev/drbd0 
+				mke2fs 1.41.12 (17-May-2010)
+				Filesystem label=
+				OS type: Linux
+				Block size=4096 (log=2)
+				Fragment size=4096 (log=2)
+				Stride=0 blocks, Stripe width=0 blocks
+				327680 inodes, 1309240 blocks
+				65462 blocks (5.00%) reserved for the super user
+				First data block=0
+				Maximum filesystem blocks=1342177280
+				40 block groups
+				32768 blocks per group, 32768 fragments per group
+				8192 inodes per group
+				Superblock backups stored on blocks: 
+				        32768, 98304, 163840, 229376, 294912, 819200, 884736
+
+				Writing inode tables: done                            
+				Creating journal (32768 blocks): done
+				Writing superblocks and filesystem accounting information: done
+
+				This filesystem will be automatically checked every 38 mounts or
+				180 days, whichever comes first.  Use tune2fs -c or -i to override.
+
+			8、挂载：
+				[root@node1 ~]# mount /dev/drbd0 /mnt/
+				[root@node1 ~]# cd /mnt/
+				[root@node1 mnt]# ls
+				lost+found
+				[root@node1 mnt]# cp /etc/issue ./
+				[root@node1 mnt]# ls
+				issue  lost+found
+
+			9、卸载并将node1降为从节点:
+				[root@node1 ~]# umount /dev/drbd0 
+				[root@node1 ~]# drbdadm secondary mystore
+				[root@node1 ~]# drbd-overview 
+ 				0:mystore/0  Connected Secondary/Secondary UpToDate/UpToDate 
+
+ 			10、将node2提升为主节点，并挂载：
+ 				[root@node1 ~]# drbdadm secondary mystore
+				[root@node1 ~]# drbd-overview 
+				 0:mystore/0  Connected Secondary/Secondary UpToDate/UpToDate 
+				[root@node1 ~]# ssh node2
+				Last login: Mon Jun 12 00:49:55 2017 from node1.magedu.com
+				[root@node2 ~]# drbdadm primary mystore
+				[root@node2 ~]# drbd-overview 
+				 0:mystore/0  Connected Primary/Secondary UpToDate/UpToDate 
+				[root@node2 ~]# mount /dev/drbd0 /mnt
+				[root@node2 ~]# cd /mnt
+				[root@node2 mnt]# ls
+				issue  lost+found
+
+
+
+	在pacemaker中定义克隆资源的专用属性：
+		clone-max：最多克隆出的资源份数；
+		clone-node-max：在单个节点上最多运行几份克隆；
+		notify：当一份克隆资源启动或停止时，是否通知给其它的副本；默认为true；
+		globally-unique：每一份副本是否运行不同的功能；默认为true；
+		order：所有的副本是不是串行启动；默认为true；
+		interleave：一旦某一个副本启动或停止时是不是要改变顺序约束的行为；默认为true；
+		master-max：最多启动几份master资源；
+		master-node-max：同一个节点最多运行几份master类型资源；
+
+
+	案例：corosync/pacemaker + drbd 实现 HA Mariadb：
+
+		1、将drbd磁盘定义为主资源：
+			crm(live)configure# primitive mystor ocf:linbit:drbd params drbd_resource="mystore" op monitor role="Master" interval=10s timeout=20s op monitor role="Slave" interval=20s timeout=20s op start timeout=240 op stop timeout=100s
+
+		2、定义clone资源：
+			ms <name> <rsc>
+			  [description=<description>]
+			  [meta attr_list]
+			  [params attr_list]
+
+			  crm(live)configure# ms ms_mystor mystor meta clone-max="2" clone-node-max="1" master-max="1" master-node-max="1" notify="true"
+
+		3、定义文件系统资源
+			
+			# mkdir /mydata
+			crm(live)configure# primitive mydata ocf:heartbeat:Filesystem params device="/dev/drbd0" directory="/mydata" fstype="ext4" op monitor interval=20s timeout=40s op start timeout=60s op stop timeout=60s
+
+			定义排列约束，因为文件系统必须和Master节点一起
+			crm(live)configure# colocation mydata_with_ms_mystor_master inf: mydata ms_mystor:Master
+
+			定义顺序约束
+			crm(live)configure# order mydata_after_ms_mystor_master Mandatory: ms_mystor:promote mydata:start
+
+		4、安装mariadb
+			哪个节点是Master你就要在那个节点上配置mariadb；
+			两个节点都要安装mariadb；
+			注意文件权限，使用mysql作为/mydata/data目录的属主和属组：
+				chown -R mysql:mysql /mydata/data/
+			安装过程，略。参考corosync+pacemaker实现mariadb高可用文档；
+			vip：172.16.100.27
+
+		5、定义VIP资源
+			crm(live)configure# primitive myip ocf:heartbeat:IPaddr params ip="172.16.100.27" op monitor interval=10s timeout=10s 
+
+		6、定义mysql服务资源
+			crm(live)configure# primitive myserver lsb:mysqld op monitor interval=20s timeout=20s
+
+		7、定义myip要与drbd的主节点在一起，资源的排列约束
+			crm(live)configure# colocation myip_with_ms_mystor_master inf: myip ms_mystor:Master
+
+		8、定义myserver要与mydata在一起，资源的排列约束
+			crm(live)configure# colocation myserver_with_mydata inf: myserver mydata
+
+		9、定义myserver要在mydata启动之后启动
+			crm(live)configure# order myserver_after_mydata Mandatory: mydata:start myserver:start
+
+
+		10、定义myserver要在myip启动之后启动
+			crm(live)configure# order myserver_after_myip Mandatory: myip:start myserver:start
+
+		node node1.magedu.com \
+			attributes standby=off
+		node node2.magedu.com \
+			attributes standby=off
+		primitive mydata Filesystem \
+			params device="/dev/drbd0" directory="/mydata" fstype=ext4 \
+			op monitor interval=20s timeout=40s \
+			op start timeout=60s interval=0 \
+			op stop timeout=60s interval=0
+		primitive myip IPaddr \
+			params ip=172.16.100.27 \
+			op monitor interval=10s timeout=20s
+		primitive myserver lsb:mysqld \
+			op monitor interval=20s timeout=20s
+		primitive mystor ocf:linbit:drbd \
+			params drbd_resource=mystore \
+			op monitor role=Master interval=10s timeout=20s \
+			op monitor role=Slave interval=20s timeout=20s \
+			op start timeout=240s interval=0 \
+			op stop timeout=100s interval=0
+		ms ms_mystor mystor \
+			meta clone-max=2 clone-node-max=1 master-max=1 master-node-max=1 notify=true
+		colocation mydata_with_ms_mystor_master inf: mydata ms_mystor:Master
+		colocation myip_with_ms_mystor_master inf: myip ms_mystor:Master
+		colocation myserver_with_mydata inf: myserver mydata
+		order mydata_after_ms_mystor_master Mandatory: ms_mystor:promote mydata:start
+		order myserver_after_mydata Mandatory: mydata:start myserver:start
+		order myserver_after_myip Mandatory: myip:start myserver:start
+		property cib-bootstrap-options: \
+			dc-version=1.1.11-97629de \
+			cluster-infrastructure="classic openais (with plugin)" \
+			expected-quorum-votes=2 \
+			stonith-enabled=false \
+			no-quorum-policy=ignore \
+			default-resource-stickiness=50 \
+			last-lrm-refresh=1432892808
+
+	博客作业：上述内容；
+
+回顾：corosync／openais，crm
+	
+	HA：
+		Messaging/infrastructure Layer   //基础架构层
+		CCS //集群成员管理层
+		CRM + LRM
+		RA
+			crm ra classes
+
+		corosync + pacemaker
+			resource-agents, cluster-glue
+
+		CLI：
+			crmsh：sles
+			pcs/pcsd
+		GUI：
+			pcs(web gui)
+			hawk
+			lcmc
+
+		Conga(web gui)
+
+corosync/openais(2)
+	
+	crmsh：
+		资源类型：configure
+			primitive
+			group
+			clone
+			msster/slave
+
+			全局属性：
+				property
+					stonith-enabled=
+					no-quorum-policy=
+					default-resource-stickiness=
+					symetric-cluster={true|false}
+						true：资源可以运行于集群中的任意节点；
+						false：资源仅能运行为为其指定的节点
+
+							failover domain：由集群中的一个或多个节点组成范围；
+
+		资源代理：ra
+			classes
+			list
+			info
+
+		资源管理：
+			start
+			status
+			migrate
+			stop
+			cleanup
+			manage
+			unmanage
+
+		约束：
+			location
+			colocation
+			order
+
+		status
+		node
+
+
+		
+
+
+
+
+
+

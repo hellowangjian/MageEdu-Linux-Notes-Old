@@ -1,0 +1,545 @@
+马哥Linux学习第二十天（http协议进阶、httpd的基本应用、编译使用httpd-2.4）
+回顾：
+	httpd的配置：
+		Listen [IP:] PORT
+		KeepAlived {On|Off} 持久连接；
+		MPM：
+			prefork, worker, event
+		DSO：
+			LoadModule
+			httpd -M
+		DocumentRoot
+		<Directory>
+			Options Indexes FollowSymlinks
+			Order
+			Allow from
+			Deny from
+		</Directory>
+		<Location>
+
+		DirectoryIndex
+		ErrorLog
+		CustomLog
+		LogFormat
+			%{Referer}：引用Referer首部的值；
+		Alias /URL/ "/path/to/somedir/"
+		基于用户访问控制；
+			认证方式：basic，digest
+				AuthType Basic
+				AuthName ""
+				AuthUserFile
+				AuthGroupFile
+				Require user
+				Require group
+				Require valid-user
+
+			.htpasswd：
+				htpasswd
+		虚拟主机：IP,Port,FQDN
+
+httpd协议和httpd的配置
+	
+	URL：Uniform Resource Locator
+		URL方案：scheme
+		服务器地址：ip:port
+		资源路径：
+
+		http://www.magedu.com:80/bbs/index.php
+		https://www.magedu.com:443/index
+
+		基本语法：
+			<scheme>://<user>:<password>@<host>:<port>/<path>;<params>?<query>#<frag>
+				params：参数
+					http://www.magedu.com/bbs/hello;gender=f
+				query:
+					http://www.magedu.com/bbd/item.php?username=tome&title=abc
+				frag:
+					https://access.redhat.com/documentation/en-US/Red_Hat_Enterprise_Linux/7/html-single/System_Administrators_Guide/index.html#chap-Gaining_Privileges
+
+		相对URL
+		绝对URL
+
+	http协议：
+		http/0.9, http/1.0, http/1.1, http/2.0
+
+		http协议：stateless
+			服务器无法持续追踪访问者来源
+				cookie，session
+
+		http事务：
+			请求：request
+			响应：response
+
+			报文语法格式：
+				request报文
+					<method> <request-URL> <version>
+					<headers>
+
+					<entity-body>
+
+				response报文
+					<version> <status> <reason-phrase>
+					<headers>
+
+					<entity-body>
+
+				method：请求方法，标明客户端希望服务器对资源执行的动作
+					GET、HEAD、POST
+				version：
+					HTTP/<major>.<minor>
+				status：
+					三位数字，如200，301，302，404，502；标记请求处理过程中发生的情况；
+				reason-phrase：
+					状态码所标记的状态的简要描述；
+				headers：
+					每个请求或响应报文可包含任意个首部；每个首部都有首部名称，后面跟一个冒号，而后跟上一个可选空格，接着是一个值；
+				entity-body：请求时附加的数据或响应时附加的数据；
+
+			method(方法)：
+				GET：从服务器获取一个资源；
+				HEAD：只从服务器获取文档的响应首部；
+				POST：向服务器发送要处理的数据；
+				PUT：将请求的主体部分存储在服务器上；
+				DELETE：请求删除服务器上指定的文档；
+				TRACE：追踪请求到达服务器中间经过的代理服务器；
+				OPTIONS：请求服务器返回对指定资源支持使用的请求方法；
+
+				协议查看或分析的工具：
+					tcpdump，tshark，wireshark
+
+			status(状态码)：
+				1xx：100-101,信息提示；
+				2xx：200-206,成功；
+				3xx：300-305,重定向；
+				4xx：400-415,错误类信息，客户端错误；
+				5xx：500-505,错误类信息，服务器端错误；
+
+				常用的状态码：
+					200：成功，请求的所有数据通过响应报文的entiy-body部分发送；OK
+					301：请求的URL指向的资源已经被删除，但在响应报文中通过首部Location指明了资源现在所处的新位置；Moved Permanently；
+					302：与301相似，但在响应报文中通过Location指明资源现在所处临时新位置；Found
+					304：客户端发出了条件式请求，但服务器上的资源未曾发生改变，则通过响应此响应状态码通知客户端；Not Modified
+					401：需要输入帐号和密码认证方能访问资源；Unauthorizd
+					403：请求被禁止；Forbidden
+					404：服务器无法找到客户端请求的资源，Not Found
+					500：服务器内部错误；Internal Server Error
+					502：代理服务器从后端服务器收到一条伪响应：Bad gateway；
+
+			headers：
+				格式：
+					Name：Value
+
+					Accept-Ranges:bytes
+					Cache-Control:no-cache
+					Connection:keep-alive
+					Content-Length:318
+					Content-Type:image/x-icon
+					Date:Sun, 27 Nov 2016 12:20:26 GMT
+					ETag:"a1eb9-13e-5307727d19658"
+					Expires:Sun, 27 Nov 2016 12:20:26 GMT
+					Last-Modified:Thu, 14 Apr 2016 19:46:50 GMT
+
+					Accept:*/*
+					Accept-Encoding:gzip, deflate, sdch, br
+					Accept-Language:zh-CN,zh;q=0.8
+					Connection:keep-alive
+					Host:www.redhat.com
+					Referer:https://www.redhat.com/en
+					User-Agent:Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.98 Safari/537.36
+
+				首部的分类：
+					通用首部
+					请求首部
+					响应首部
+					实体首部
+					扩展首部
+
+					通用首部：
+						Date：报文的创建时间
+						Connection：连接方式，如keep-alive,close
+						Via：显示报文经过的中间节点
+						Cache-Control：控制缓存
+						Pragma：与缓存相关
+
+					请求首部：
+						Accept：通知服务器自己可接受的媒体类型；
+						Accept-Charset：字符集
+						Accept-Encoding：接受的编码格式，如gzip
+						Accept-Language：接受的语言，如：zh-CN
+
+						Clietn－IP
+						Host：请求的服务器名称和端口号
+						Referer：包含当前正在请求的资源的上一级资源；
+						User-Agent：客户端代理
+
+						条件式请求首部：
+							Expect：
+							If-Modified-Since：自从指定的时间之后，请求的资源是否发生过修改；
+							If-Unmodified-Since：
+							If-None-Match：本地缓存中存储的文档的ETag标签是否与服务器文档的ETag不匹配；
+							If-Match：
+
+						安全请求首部：
+							Authorization：向服务器发送认证请求，如帐号和密码；
+							Cookie：客户端向服务器发送cookie
+							Cookie2:
+
+						代理请求首部：
+							Proxy-Authorization：向代理服务器认证；
+
+					响应首部：
+						信息性：
+							Age：响应持续时长
+							Server：服务器程序软件名称和版本
+
+						协商首部：某资源有多种表示方法时使用
+							Accept-Ranges：服务器可接受的请求范围类型
+							Vary：服务器查看的其它首部列表；
+
+						安全响应首部：
+							Set-Cookie：向客户端设置cookie；
+							Set-Cookie2；
+							WWW-Authenticate：来自服务器的对客户端的质询认证表单
+
+					实体首部：
+						Allow：列出对此实体可使用的请求方法
+						Location：告诉客户端真正的实体位于何处
+
+						Content-Encoding：内容编码格式
+						Content-language： 
+						Content-Length：主体的长度
+						Content-Location；实体真正所处位置；
+						Content-Type：主体的对象类型
+
+						缓存相关：
+							ETag：实体的扩展标签；
+							Expires：实体的过期时间；
+							Last-Modified：最后一次修改的时间
+
+		15 curl命令
+			curl是基于URL语法在命令行方式下工作的文件传输工具，它支持FTP，FTPS，HTTP，GOPHER，TELNET，DICT，FILE及LDAP等协议。curl支持HTTPS认证，并且支持HTTP的POST，PUT等方法，FTP上传，kerberos认证，HTTP上传，代理服务器，cookies，用户名/密码认证，下载文件断点续传，上载文件断点续传，http代理服务器管道（proxy tunneling），甚至它还支持IPv6，socks5代理服务器器，通过http代理服务器上传文件到FTP服务器等等，功能十分强大。
+
+				curl [options] [URL...]
+
+				curl的常用选项：
+					-A/--user-agent <agent string> 设置用户代理发送给服务器
+						curl -A "chrome 40" http://192.168.56.151
+					--basic 使用HTTP基本身份认证
+					--tcp-nodelay：使用TCP_NODELAY选项
+					-e/--referer <URL>：来源网址
+						curl -e "http://www.magedu.com" http://172.16.227.153
+					--cacert <CA certificate> CA证书（SSL）
+					--compressed 要求返回是压缩的格式
+					-H/--header <header> 定义首部信息传递给服务器
+					-I, --head 只显示响应报文首部信息
+					--limit-rate <speed> 设置传输速率
+					-u/--user <user:password> 设置服务器的用户和密码
+					-0/--http1.0 使用HTTP 1.0
+
+				另一个工具：elinks
+					elinks [OPTION]... [URL]...
+						elinks http://172.16.227.153
+						-dump：不进入交互式模式，而直接将URl的内容输出至标准输出；
+							elinks -dump http://172.16.227.153
+
+		16 使用mod_deflate模块压缩页面优化传输速度
+			适用场景：
+				(1) 节约带宽，额外消耗cpu，同时，可能有些较老浏览器不支持；
+				(2) 压缩适于压缩的资源，例如文本文件；
+
+			[root@CentOS-6-7 ~]# vim /etc/httpd/conf/httpd.conf
+
+			SetoutputFilter DEFLATE
+
+			# mode_deflate configuration
+
+			# Restrict compression to these MIME types
+			AddOutputFilterByType DEFLATE text/plain
+			AddOutputFilterByType DEFLATE text/html
+			AddOutputFilterByType DEFLATE application/xhtml+xml
+			AddOutputFilterByType DEFLATE text/xml
+			AddOutputFilterByType DEFLATE application/xml
+			AddOutputFilterByType DEFLATE application/x-javascript
+			AddOutputFilterByType DEFLATE text/javascript
+			AddOutputFilterByType DEFLATE text/css
+
+			# Level of compression (Highest 9 - lovest 1)
+			DeflateCompressionLevel 9
+
+			# Netscape 4.x has some problems.
+			BrowserMatch ^Mozilla/4 gzip-only-text/html
+
+			# Netscape 4.06-4.08 have some more problems
+			BrowserMatch ^Mozilla/4\.0[678] no-zip
+
+			# MSIE masquerades as Netscape, but it is fine
+			BrowserMatch \bMSI[E] !no-gzip !gzip-only-text/html
+
+			去除从当前行至最后一行所有行首空格：
+				.,$s@^[[:space:]]*@@
+
+			[root@CentOS-6-7 ~]# httpd -t
+			httpd: Could not reliably determine the server's fully qualified domain name, using CentOS-6-7.Hunter.com for ServerName
+			Syntax OK
+			[root@CentOS-6-7 ~]# service httpd reload
+			Reloading httpd: 
+
+
+			[root@CentOS-6-7 ~]# cp /etc/rc.d/rc.sysinit /vhost/a.com/htdocs/rc.txt
+
+			hunters-mbp:~ Hunter$ curl -I http://www.a.com/rc.txt
+			HTTP/1.1 200 OK
+			Date: Thu, 10 Nov 2016 08:25:37 GMT
+			Server: Apache/2.2.15 (CentOS)
+			Last-Modified: Thu, 10 Nov 2016 08:14:42 GMT
+			ETag: "43db9-4e81-540edf7381fbc"
+			Accept-Ranges: bytes
+			Content-Length: 20097
+			Vary: Accept-Encoding
+			Content-Type: text/plain; charset=UTF-8
+
+			hunters-mbp:~ Hunter$ curl --compress -I http://www.a.com/rc.txt
+			HTTP/1.1 200 OK
+			Date: Thu, 10 Nov 2016 08:26:58 GMT
+			Server: Apache/2.2.15 (CentOS)
+			Last-Modified: Thu, 10 Nov 2016 08:14:42 GMT
+			ETag: "43db9-4e81-540edf7381fbc"
+			Accept-Ranges: bytes
+			Vary: Accept-Encoding
+			Content-Encoding: gzip
+			Content-Length: 6555
+			Content-Type: text/plain; charset=UTF-8
+
+		17、https
+
+			http over ssl = https 443/tcp
+				ssl:v3
+				tls:v1
+
+				https://
+
+			SSL会话的简化过程
+				（1）客户端发送可供选择的加密方式，并向服务器请求证书；
+				（2）服务器端发送证书以及选定的加密方式给客户端；
+				（3）证书验证；
+					如果信任给其发证书的CA；
+						（a）验证证书来源的合法性：用CA的公钥解密证书上数字的签名；
+						（b）验证证书的内容的合法性：完整性验证
+						（c）检查证书的有效期限；
+						（d）检查证书是否被吊销；
+						（e）证书中拥有者的名字，与访问的目标主机要一致；
+				（4）客户端生成临时会话密钥（对称密钥），并适用服务器端的公钥加密此数据发送给服务器，完成密钥交换；
+				（5）服务用此密钥加密用户请求的资源，响应给客户端；
+
+				注意：SSL会话是基于IP地址创建，所以单个IP的主机上，仅可以使用一个https虚拟主机
+
+			回顾几个术语：PKI,CA,CRL,x.509 (v1 v2 v3)
+
+			配置httpd支持https：
+				（1）为服务器申请数字证书；
+					测试：通过私有CA发证书
+						（a）创建私有CA
+						（b）在服务器创建证书签署请求
+						（c）CA签证
+
+				（2）配置httpd支持使用ssl，及使用证书；
+					# yum -y install mod_ssl
+
+					配置文件：/etc/httpd/conf.d/ssl.conf
+							<VirtualHost 172.16.227.151:443>
+							DocumentRoot “/vhost/a.com/htdocs"
+							ServerName www.a.com:443
+							SSLCertificateFile /etc/httpd/ssl/httpd.crt
+							SSLCertificateKeyFile /etc/httpd/ssl/httpd.key
+
+				（3）测试基于https访问响应的主机；
+					openssl s_client [-connect host:port] [-cert filename] [-CApath directory] [-CAfile filename]
+
+		18、httpd自带的工具程序
+			httpasswd：basic认证基于文件实现时，用到的帐号密码文件生成工具；
+			apachectl：httpd自带的服务控制脚本，支持start、stop
+			apxs：由httpd-devel包提供的，扩展httpd使用第三方模块的工具；
+			rotatelogs：日志滚动工具；
+				access.log -->
+						access.log,access.1.log-->
+							accesss.log,access.1.log,access.2.log
+			suexec：访问某些有特殊权限配置的资源时，临时切换至指定用户身份运行；
+			ab：apache benchmark
+
+		19、httpd压力测试工具
+			ab
+			webbench
+			http_load
+
+			jmeter
+			loadrunner
+
+			tcpcopy
+
+			ab [OPTIONS] URL
+				-n：总的请求数
+				-c：模拟的并发数
+				-k：以持久连接测试
+
+				# ab -n 1000 -c 10  http://www.a.com/rc.txt
+
+			ulimit -n #：调整当前用户所同时打开的文件数；
+
+	练习题：
+		1、建立httpd服务器（基于编译的方式进行），要求：
+			（a）www1.stuX.com，页面文件目录为/web/vhosts/www1；错误日志为/var/log/httpd/www1.err，访问日志为/var/log/httpd/www1.access
+			（b）www2.stuX.com，页面文件目录为/web/vhosts/www2；错误日志为/var/log/httpd/www2.err，访问日志为/var/log/httpd/www2.access
+			（c）为两个虚拟主机建立各自的主页文件index.html，内容分别为其对应的主机名；
+			（d）通过www1.stuX.com/server-status输出httpd工作状态相关信息，且只允许提供账号密码才能访问(status:status)；
+
+		2、为上面的第2个虚拟机提供https服务，使得用户可以通过https安全的访问此web站点；
+			（1）要求使用证书认证，证书中要求使用的国家（CN）、州（HA）、城市（ZZ）和组织（MageEdu）；
+			（2）设置部门为Ops，主机名为www2.stuX.com，邮件为admin@stuX.com；
+
+	httpd-2.4：
+
+		新特性：
+			（1）MPM支持运行DOS机制；
+			（2）支持event MPM；
+			（3）支持异步读写；
+			（4）支持每模块及每个目录分别使用各自的日志级别；
+			（5）每请求配置：<If>
+			（6）增强版的表达式分析器；
+			（7）支持毫秒级的keepalive timeout；
+			（8）基于FQDN的虚拟主机不再需要NameVirtualHost指令；
+			（9）支持用户自定义变量；
+
+		新模块：
+			（1）mod_proxy_fcgi：实现php与httpd结合时实现以fastcgi方式用到的模块。
+			（2）mod_ratelimit：实现客户端访问的速率限制。
+			（3）mod_remoteip：指明远程客户端ip地址
+
+		修改了一些配置机制：
+			不再支持使用Order，Deny，Allow来做基于IP的访问控制；
+
+		httpd依赖于apr，apr-util，apr-icon
+			依赖于apr-1.4+，arp-util-1.4+,[apr-iconv]
+			apr：apache protable runtime
+			开发环境包组：Development Tools, Server Platform Development
+				开发程序包：pcre-devel
+				编译安装步骤：
+					（1）apr-1.4+
+						# ./configure --prefix=/usr/local/apr
+						# make && make install
+					（2）apr-util-1.4+
+						# ./configure --prefix=/usr/local/apr-util --with-apr=/usr/local/apr
+						# make && make install
+					（3）httpd-2.4
+						# ./configure --prefix=/usr/local/apache24 --sysconfdir=/etc/httpd24 --enable-so --enable-ssl --enable-cgi --enable-rewrite --with-zlib --with-pcre --with-apr=/usr/local/apr --with-apr-util=/usr/local/apr-util --enable-modules=most --enable-mpms-shared=all --with-mpm=prefork
+
+						# make && make install
+
+						--sysconfdir：配置安装路径；
+						--enable-so：支持DSO机制，支持模块动态装卸载；
+						--enable-ssl：启用ssl功能，编译进程序；
+						--enable-cgi：支持cgi模式；
+						--enable-rewrite：支持url重写，依赖pcre-devel包，需事先安装；
+							# yum install pcre-devel
+						--with-zlib：实现网络传输压缩库；
+						--with-pcre：支持pcre；
+						--with-apr：apr安装的路径；
+						--with-apr-util：apr-util安装的路径;
+						--enable-modules：启用的模块，most：编译大部分模块；
+						--enable-mpms-shared：mpms做成共享模式功能；
+						--with-mpm：mpm默认机制；
+
+						启动服务：
+							~]# vim /etc/profile.d/httpd.sh 
+							export PATH=/usr/local/apache24/bin:$PATH
+							~]# . /etc/profile.d/httpd.sh 
+							~]# apachectl start
+
+						创建连接头文件：
+							]# ln -sv /usr/local/apache24/include/ /usr/include/httpd
+							"/usr/include/httpd" -> "/usr/local/apache24/include/"
+
+						设置MANPATH：
+							]# vim /etc/man.config 
+							MANPATH /usr/local/apache24/man
+
+						动态切换mpm模块：
+							]# vim /etc/httpd24/httpd.conf 
+							#LoadModule mpm_prefork_module modules/mod_mpm_prefork.so
+							LoadModule mpm_event_module modules/mod_mpm_event.so
+
+						修改中心主机网页文件位置：
+							修改'Main' Server的DocumentRoot
+								修改后要加<Directory>进行授权后才能访问
+
+						基于IP的访问控制法则：
+							允许所有主机访问：Require all granted
+							拒绝所有主机访问：Require all deny
+
+							控制特定IP访问：
+								Require ip IPADDR：受权指定来源地址的主机访问
+								Require not IPADDR：拒绝指定来源地址的主机访问
+
+								IPADDR：
+									IP：172.16.100.2
+									Network/mask：172.16.0。0/255.255.0.0
+									Network/Lenght：172.16.0.0/16
+									Net：172.16
+
+							控制特定主机（HOSTNAME）访问
+								Require host HOSTNAME
+								Require not host HOSTNAME
+
+								HOSTNANE：
+									FQDN：特定主机
+									DOMAIN：指定域内的所有主机
+
+						虚拟主机：
+							基于IP、Port和FQDN都支持；
+							基于FQDN的虚拟主机也不再需要NameVirutalHost指令；
+
+						ssl：
+							启用模块：
+							LoadModule ssl_module modules/mod_ssl.so
+
+							启用配置文件：
+							Include /etc/httpd24/extra/httpd-ssl.conf
+
+							报如下错误：
+								AH00526: Syntax error on line 92 of /etc/httpd/extra/httpd-ssl.conf:
+								SSLSessionCache: 'shmcb' session cache not supported (known names: ). Maybe you need to load the appropriate socache module (mod_socache_shmcb?).
+							需在主配置文件中加载socache_shmcb_module：
+								LoadModule socache_shmcb_module modules/mod_socache_shmcb.so
+
+						服务脚本：
+							~]# cp /etc/rc.d/init.d/httpd /etc/rc.d/init.d/httpd24
+							~]# vim /etc/rc.d/init.d/httpd24 
+								apachectl=/usr/local/apache24/bin/apachectl
+								httpd=${HTTPD-/usr/local/apache24/bin/httpd}
+								prog=httpd
+								pidfile=${PIDFILE-/usr/local/apache24/logs/httpd.pid}
+								lockfile=${LOCKFILE-/var/lock/subsys/httpd24}
+								RETVAL=0
+								STOP_TIMEOUT=${STOP_TIMEOUT-10}
+							~]# cp /etc/rc.d/init.d/httpd /etc/rc.d/init.d/httpd24
+							~]# vim /etc/rc.d/init.d/httpd24 
+							~]# chkconfig --add httpd24
+							~]# chkconfig --list | grep http
+							httpd          	0:关闭	1:关闭	2:关闭	3:关闭	4:关闭	5:关闭	6:关闭
+							httpd24        	0:关闭	1:关闭	2:关闭	3:关闭	4:关闭	5:关闭	6:关闭
+							~]# chkconfig httpd24 on
+							~]# killall httpd
+							~]# service httpd24 start
+							Starting httpd: AH00558: httpd: Could not reliably determine the server's fully qualified domain name, using CentOS-6-7.Hunter.com. Set the 'ServerName' directive globally to suppress this message
+							                                                           [  OK  ]
+
+
+
+
+
+
+
+
+
+
+
+

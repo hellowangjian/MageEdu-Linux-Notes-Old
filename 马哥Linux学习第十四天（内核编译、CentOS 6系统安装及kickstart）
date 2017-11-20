@@ -1,0 +1,216 @@
+马哥Linux学习第十四天（内核编译、CentOS 6系统安装及kickstart）
+
+回顾：
+	CentOS启动流程之内核：
+		GRUB Legacy：
+			配置文件：
+				/boot/grub/grub.conf
+					default,timeout,splashimage,hiddenmenu,title,root(hd0,0),kernel /vmlinuz－VERSION, initrd
+
+				ramdisk：
+					initrd,initramfs
+
+				grub安装：
+					grub-install
+					grub > setup(hd#)
+
+				grub保护机制：
+					password --md5 密码串
+
+		模块管理：
+			lsmod，modinfo，modprobe [-r] MOD_NAME,insmod, rnmod
+
+		与内核交互：/proc, /sys
+
+		ramdisk：dracut，mkinitrd
+
+	内核编译：
+
+Linux内核编译(2)及CentOS系统安装
+
+	screen命令：
+		打开：# screen
+		终止：# exit
+		拆除：Ctrl＋a，d
+		查看所有已经打开的screen ID：# screen -ls
+		恢复链接至某screen：# screen -r SCREEN_ID
+
+	内核编译的步骤：
+
+		# make help：获取make命令的使用帮助
+
+		选定配置（其中一种即可，但偶尔会结合两种或以上的方式进行）：
+			# make config：遍历每个选项；
+			# make menuconfig：打开文本窗口；
+			# make xconfig：Qt窗口，依赖于KDE开发组件；
+			# make gconfig：gtk窗口，依赖于GTK开发组件；
+			# make allnoconfig：所有可选择项均不选择
+
+			结果会保存至内核选项的配置文件中：.config
+
+		编译：
+			# make [-j #]
+				多线程编译
+
+		安装模块：
+			# make modules_install
+
+		安装内核：
+			# make install
+
+
+	内核编译进阶：
+
+		1、在原有曾经编译过的内核源码基础上再次进行重编译之前，要清理源代码：
+			# make clean：保留.config配置文件及外部模块的相关文件；
+			# make mrproper：删除所有编译生成的文件，包括.config和各种备份文件；
+			# make distclean：相当于mrproper，以及删除编辑器备份及补丁文件；
+
+		2、只编译其中部分代码：
+			（1）只编译选定目录中的代码
+				# make dir/
+
+			（2）只编译一个模块
+				# make dir/file.[oisS]
+
+			（3）完整编译一个模块
+				# make dir/file.ko
+
+		3、查看内核版本信息
+		 	# make kernelrelease
+		 	# make kernelversion
+
+		4、只编译内核核心，不编译模块
+		 	# make bzImage
+
+		5、交叉编译
+			编译操作所在的平台非目标代码运行的平台，事实上，目标代码将运行于另一个不通的平台；
+			# make ARCH=arch_name
+
+			要获取目标平台的帮助：
+				# make ARCH=arch_name help
+
+			例如:
+				# make ARCH=arm bockw_defconfig
+
+	练习：
+		1、编译内核，并启用之；
+		2、为运行于虚拟机上的CentOS 6添加一个新硬盘，提供两个主分区；
+			（1）为硬盘新建两个主分区；并为其安装grub
+			（2）为硬盘的第一个主分区提供内核和ramdisk文件；为第二个分区提供rootfs；
+			（3）为rootfs提供bash、ls、cat程序及所依赖的库文件；
+			（4）为grub提供配置文件；
+			（5）启动目标主机；
+
+
+CentOS系统安装：
+	
+	安装过程：通过安装程序anaconda来进行；
+
+		bootloader --> vmlinz,initrd.img --> anaconda
+
+		anaconda支持两种模式：
+			GUI：
+			text
+
+	anaconda把安装过程分成两个阶段：
+		安装前配置阶段：
+			键盘类型
+			语言
+			时区
+			管理员密码
+			磁盘及其分区方式
+			要安装的程序包
+		安装阶段：
+			在目标磁盘创建分区，执行格式化；
+			将选定的程序包安装至目标磁盘；
+			生成bootloader；
+
+		第一次启动：
+			配置iptables,selinux,core dump
+
+	系统安装的基本分区：
+		/：根分区
+		swap：交换分区
+
+		注意：如果根分区放置于逻辑卷，由于grub无法驱动并访问逻辑卷，就必须将/boot单独分区，并使用基本磁盘分区
+
+		/：逻辑卷
+			/usr
+			/var
+			/home
+			/usr/local
+			/tmp
+
+		/boot：基本磁盘分区
+		swap	
+
+
+	anaconda支持读取配置文件的内容来完成安装过程的配置：
+		kickstart
+
+		kickstart文件的组成：
+			命令段
+			程序包段：%packages,%end
+				@group
+				package
+				-package
+			脚本段：
+				%pre
+					安装前脚本：安装过程开始之前要执行的脚本；
+					注意：此时的Linux系统环境为微缩版环境，因此脚本应该比较简单；
+				%post
+					安装后脚本：安装过程完成之后要执行的脚本；
+					注意：此时执行环境为完整的已经安装完成的系统；
+
+		kickstart命令段：
+			必备命令
+			可选命令
+
+		配置kickstart的方式：
+			（1）手动编辑配置文件
+			（2）system-config-kickstart,GUI工具；
+				需要单独安装：
+					yum install system-config-kickstart
+
+		安装过程如何获取并使用kickstart文件：
+			（1）放置于安装程序能够获取到的位置：
+				(a) 放置于光盘镜像文件中
+				(b) 网络文件服务器：
+					要求：安装程序得支持网络功能，且能够访问到网络文件服务器；
+
+		安装过程的安装引导选项：
+
+			boot：
+				linux：默认安装模式
+				linux text：文本安装模式
+
+			与网络相关的引导选项：
+				ip=IPADDR
+				netmask=MASK
+				gateway=GW
+				dns=DNS_SERVER_IP
+				ifname=NAME：MAC_ADDR
+
+			指明获取 kickstart 文件的路径：
+				ks=
+					DVD drive ks=cdrom:/path/to/kickstart_file
+					HTTP Server ks=http://server_ip:port/path/to/kickstart_file
+					HTTPS Server ks=https://server_ip:port/path/to/kickstart_file
+					FTP Server ks=ftp://server_ip:port/path/to/kickstart_file
+					NFS Server ks=nfs:server_ip:/path/to/kickstart_file
+
+		创建一个引导光盘：仅帮助启动安装过程，不提供安装树；
+			(1) 准备工作目录，例如这里使用/tmp/cdrom;
+			(2) 挂载系统发行光盘，复制isolinux目录至/tmp/cdrom;
+			(3) 复制制作好的kickstat文件ks.cfg至/tmp/cdrom某位置；
+			(4) 如果需要，可以编辑/tmp/cdrom/isolinux/isolinux.cfg
+				在某label后的append指令后附加ks=信息，从而实现自动调用光盘上提供的ks文件；
+			(5) 创建iso镜像
+				# mkisofs -R -J -T -v --no-emul-boot --boot-load-size 4 --boot-info-table -V "CentOS 6.7 X86_64 boot Disk" -b isolinux/isolinux.bin -c isolinux/boot.cat -o /root/boot.iso cdrom/
+
+		PXE --> Cobbler
+
+	博客作业：kickstart及引导镜像制作；
+
+

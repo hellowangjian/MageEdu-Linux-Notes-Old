@@ -1,0 +1,83 @@
+马哥Linux2016全新学习第43天（MySQL复制及MHA及Galera Cluster，网站架构演化及分布式系统理论基础）
+
+
+回顾：
+	MySQL分布式系统：
+		CAP：
+			一致性、可用性、网络分区容错性；
+				AP，C妥协
+
+	MySQL复制：
+		master：二进制日志（STATEMENT,ROW）
+		slave：中继日志（IO Thread, SQL Thread）
+
+		r/w：master
+		r：slave
+
+		master/master
+
+	切分：
+		垂直切分：分库；
+		水平切分：分表；sharding
+			cobar，gizzard，...
+
+MySQL Replication：
+	
+	MMM：Multi Master MySQL
+	MHA：Master HA
+		对主节点进行监控，可实现自动故障转移至其它从节点；通过提升某一从节点为新的主节点；
+	Galera Cluster：wresp
+		通过wresp协议在全局实现复制；任何一节点都可读写；
+
+	MHA:
+		配置文件：
+			global配置，为各appliction提供默认配置；
+			application：
+				server
+
+	读写分离：
+		mysql-proxy --> Atlas (Qihoo)
+		Amoeba
+
+	复制的问题和解决方案：
+		（1）数据损坏或丢失；
+			Master：
+				MHA + semi repl
+
+			Slave：
+				重新复制：
+
+		（2）混合使用存储引擎；
+			MyISAM：不支持事务；
+			InnoDB：支持事务；
+
+		（3）不唯一的server id
+			重新复制
+
+		（4）复制延迟
+			需要额外的监控工具的辅助
+
+			一丛多主：
+			多线程复制：
+
+	数据库服务衡量指标：
+		qps：query per second
+		tps：transaction per second
+
+		压力测试工具：
+			sysbench
+
+	Galera cluster：
+		wresp复制：
+			percona-cluster
+			Mariadb-Cluster
+			
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,423 @@
+程序：指令+数据
+    程序：IO
+     
+    可用于输入的设备：文件
+            键盘设备、文件系统上的常规文件、网卡等；
+    可用于输出的设备：文件
+            显示器、文件系统上的常规文件、网卡等；
+
+    程序的数据流有三种：
+            输入的数据流：<-- 标准输入(stdin)，键盘；
+            输出的数据流：--> 标准输出(stdout)，显示器；
+            错误输出流：    --> 错误输出(stderr)，显示器；
+
+    fd：file descriptor，文件描述符
+            标准输入：0
+            标准输出：1
+            错误输出：2
+
+IO重定向
+
+    输出重定向：>
+                特性：覆盖输出
+    输出重定向：>>
+                特性：追加输出
+
+    # set -C
+            禁止覆盖输出重定向至已存在的文件；仅对当前shell进程有效；
+            此时可使用强制覆盖输出：>|
+    #set +C
+            关闭上述特性
+
+    错误输出流重定向：2>，2>>
+            e.g：catt /etc/issue 2> /tmp/issue.err
+
+    合并正常输出流和错误输出流
+                    （1）、&>，&>>
+                               e.g：cat /etc/fstab &> /tmp/fstab.out
+                                        cat /etc/fstabb &> /tmp/fstab.out
+                    （2）、COMMAND > /PATH/TO/SOMEFILE 2>&1
+                                 COMMAND >> /PATH/TO/SOMEFILE 2>&1
+
+                    特殊设备：/dev/null
+                            任何数据送给/dev/null，它都会悄悄的丢弃，不泛起一点涟漪。
+
+    输入重定向：<
+               
+    tr命令：
+            tr  [OPTION]... SET1 [SET2]
+                把输入的数据当中的字符，凡是在SET1定义范围出现的，通通对位转换为SET2出现的字符
+                            tr abc ABC
+                用法1：
+                           tr  SET1 SET2 < /PATH/FORM/SOMEFILE
+                                     tr [a-z] [A-Z] < /etc/issue
+                用法2：
+                            tr  -d  SET1  < /PATH/FORM/SOMEFILE
+                                     tr -d [A-Z] < /etc/issue
+                                  -d, --delete
+                                      delete characters in SET1, do not translate
+
+                注意：不修改原文件                  
+
+    Here Docments：<<
+                用法：
+                        cat << EOF
+                        cat > /PATH/TO/SOMEFILE << EOF
+
+    管道：链接程序，实现将前一个命令的输出直接定向后一个程序当作输入数据流
+                COMMAND1 | COMMAND2 | COMAND3 | ...
+                
+                tee命令：
+                            -read from standard input and write to standard output and files
+                        COMMAND | tee /PATH/TO/SOMEFILE
+                            e.g: cat /etc/issue | tee /tmp/issue.tee 
+
+    练习1：把/etc/passwd 文件的前6行的信息转换为大写字符后输出；
+                 head -n 6 /etc/passwd | tr 'a-z' 'A-Z'
+
+命令总结：tr， tee
+            
+    用户、组和权限管理
+                Multi-tasks，Multi-Users
+                每个使用者：
+                        用户标识、密码；
+                                认证：Authentication
+                                授权：Authorization
+                                审计：Audit
+
+                        组：用户组，用户容器
+
+                用户类别：
+                        管理员
+                        普通用户
+                                   系统用户
+                                    登录用户
+                        用户标识：UserID， UID
+                                16bits二进制数字：0-65535
+                                        管理员：0
+                                        普通用户：1-65535
+                                                系统用户：1-499（CentOS6），1-999（CentOS7）
+                                                登录用户：500-60000（CentOS6），1000-60000（CentOS7）
+
+                                名称解析：名称转换
+                                        Username <--> UID
+                                            根据名称解析库进行：/etc/passwd
+                组类别1：
+                        管理员组
+                        普通用户组
+                                系统组
+                                登录组
+
+                        组标识：GroupID，GID
+                                        管理员组：0
+                                        普通用户组：1-65535
+                                                系统用户组：1-499（CentOS6），1-999（CentOS7）
+                                                登录用户组：500-60000（CentOS6），1000-60000（CentOS7）
+
+                                名称解析：名称转换
+                                        groupname <--> GID
+                                            根据名称解析库进行：/etc/group
+                组类别2：
+                        用户的基本组
+                        用户的附加组
+
+                组类别3：
+                        私有组：组名同用户名，且只包含一个用户；
+                        公共组：组内包含了多个用户；
+
+        认证信息：
+                通过比对对事先存储的，与登录时提供的信息是否一致；
+                passord：
+                        /etc/shadow
+                        /etc/gshadow
+                密码的使用策略：
+                    1、使用随机密码；
+                    2、最短长度不要低于8位；
+                    3、应该使用大写字母、小写字母、数字和标点符号四类字符中至少三类；
+                    4、定期更换；
+            
+                加密算法：
+                            对称加密：加密和解密使用同一个密码；
+                            非对称加密：加密和解密使用的一对儿秘钥；
+                                    秘钥对儿：
+                                            公钥：public key
+                                            私钥：private key
+
+                            单向加密：只能加密。不能解密；提取数据特征码；
+                                    定长输出：
+                                    雪崩效应：初始条件的细微改变，引起结果的巨大变化
+亚马逊河流域的一只蝴蝶，煽动了一下翅膀，可以引起翌日达克萨斯州的一场飓风
+
+                                    算法：
+                                        md5：message digest， 128bits
+                                        sha：secure hash algorithm，160bits
+                                        sha1
+                                        sha224
+                                        sha256
+                                        sha512
+                                                e.g：echo 'magedu' | sha512sum
+                                    在计算之时加salt，添加的随机数；
+                                    
+                                    mageedu12345：加密字串
+                                    mageedu12345：生成加密字串
+
+    /etc/passwd：
+                name:password:UID:GID:GECOS:directory:shell
+
+                name：用户名
+                password：可以是加密的密码，也可是占位符x；
+                UID:
+                GID：用户所属的主组的ID号；
+                GECOS：注释信息
+                directory：用户的家目录；
+                shell：用户的默认shell，登录时默认shell程序；
+
+    /etc/shadow：用户密码
+                用户名：加密的密码：最近一次修改密码的时间：最短使用期限：最长使用期限：警告期限：非活动期段：禁用期限：保留字段
+
+    /etc/group：组的信息库
+                group_name:password:GID:user_list
+                        user_list：该组的用户成员：以此组为附加组的用户列表；
+
+    相关命令：useradd，userdel，usermod，passwd，groupadd，groupdel，groupmod，gpasswd，chage，chsh，id，su
+                   
+        Linux用户和组管理：
+                        安全上下文：
+                                进程以其发起者的身份运行；
+                                        进程对文件的访问权限，取决于发起此进程的用户的权限；
+                        系统用户： 为了能够让那后台进程或服务类进程以非管理员的身份运行，通常需要为此创建多个普通用户，这类用户从不用登录系统；
+
+                        groupadd：创建一个新组
+                                    groupadd [option] group_name
+                                                        -g GID：指定GID；默认是上一个组的GID+1；
+                                                        -r：创建系统组；
+
+                        groupmod：修改组属性
+                                    groupmod [option] group_name
+                                                        -g GID：修改GID
+                                                        -n new_name：修改组名
+
+                        groupdel：删除组
+                                    groupdel [option] group_name
+
+                        useradd：创建用户
+                                useradd [选项] 登录名
+                                    -u，--uid UID：指定UID;
+                                        useradd -u 3000 optnstack
+                                    -g，--gid GRPOUP：指定基本组id，此组得事先存在；
+                                        useradd -g cloud cloudstack
+                                    -G，-G, --groups GROUP1[,GROUP2,...[,GROUPN]]]：指明用户所属的附加组，多个组之间用逗号分隔
+                                        useradd -G mygrp archlinux
+                                    -c，-c, --comment COMMENT
+                                        useradd -c "MogileFS DFS" mogilefs
+                                    -d, --home HOME_DIR：以指定的路径为用户的家目录；通过复制/etc/skel此目录并重命名实现；指定的家目录路径如果事先存在，则不会为用户复制复制环境配置文件；
+                                        useradd -d /tmp/moosefs moosefs
+                                        [root@CentOS7test ~]# mkdir /tmp/mytest
+                                        [root@CentOS7test ~]# useradd -d /tmp/mytest mytest
+                                        useradd: warning: the home directory already exists.
+                                        Not copying any file from skel directory into it.
+                                    -s, --shell SHELL：指定用户的默认shell，可用的所有shell列表存储在/etc/shell文件；
+
+                                    注意：创建用户时的诸多默认设定配置文件为/etc/login.defs
+
+                                    -r, --system：穿件系统用户
+                                    -D：显示创建用户的默认配置；
+                                    -D 选项：修改默认选项的值；
+                                        修改的结果保存于/ect/default/useradd文件中；
+
+                        usermod命令：修改用户属性
+                                 usermod [options] LOGIN
+                                        -u, --uid UID：修改用户的ID为此处指定的新UID；
+                                        -g, --gid GROUP：修改用户所属的基本组；
+                                        -G, --groups GROUP1[,GROUP2,...[,GROUPN]]]：修改用户所属的附加组；原来的附加组会被覆盖；
+                                        -a, --append：与-G一同使用，用于为用户追加新的附加组；
+                                        -c, --comment COMMENT：修改注释信息；
+                                        -d，--home HOME_DIR：修改用户的家目录，用户的原有文件不会被转移至新位置；
+                                        -m, --move-home：只能与-d选项一同使用，用于将原来的家目录移动为新的家目录；
+                                        -l, --login NEW_LOGIN：修改用户登录名；
+                                        -s, --shell SHELL：修改用户的默认shell；
+    
+                                        -L, --lock：锁定用户密码；即在用户原来的密码字符串之前添加一个"!"；
+                                        -u, --uid UID：解锁用户的密码；
+
+                        userdel命令：删除用户
+                                    userdel [options] LOGIN
+                                        -r：删除用户时一并删除其家目录；
+                        
+                        练习：
+                                1、创建用户gentoo，UID为4001，基本组为gentoo，附加组为distro（GID为5000）和peguin（GID为5001）；
+                                                        #：groupadd -g 5000 distro
+                                                        #：groupadd -g 5001 peguin
+                                                        #：useradd -u 4001 -G distro,peguin
+                                2、创建用户defora，其注释信息为“Fedora Core”,默认shell为/bin/tcsh；
+                                                        #：useradd -c Fedoera Core -s /bin/tcsh defora
+                                3、修改gentoo用户的家目录为/var/tmp/gentoo；要求其原有文件仍能被用户访问；
+                                                        #：usermod -d -m /var/tmp/gentoo gentoo
+                                4、为gentoo新增附加组netadmin；
+                                                        #：usermod -G -a netadmin gentoo
+
+                        passwd命令：修改用户密码
+                                    passwd  [-k]  [-l]  [-u  [-f]]  [-d] [-e] [-n mindays] [-x maxdays] [-w warndays] [-i inactivedays] [-S] [--stdin] [username]
+
+                                    （1）passwd：修改用户自己的密码；
+                                    （2）passwd USERNAME：修改指定用户的用户密码，仅root有此权限；
+                                            -l：锁定用户；
+                                            -u：解锁用户；
+                                            -d：清除用户密码；
+                                            -e DATE：过期期限，日期；
+                                            -i DAYS：非活动期限；
+                                            -n DAYS：密码最短使用期限；
+                                            -x DAYS：密码的最长使用期限；
+                                            -w DAYS：警告期限；
+                                            --stdin：
+                                                    echo "PASSWORD" | passwd -stdin gentoo
+    
+                        gpasswd命令：指明组密码，也能向组中添加用户
+                                    组密码文件：/etc/gshadow
+                                gpasswd [option] group
+                                            -a USERNAME：向组中添加用户
+                                            -d USERNAME：从组中移除用户
+
+                        newgrp命令：临时切换指定的组为基本组
+                                    newgrp [-] [group]
+                                            -：会模拟用户从新登录以实现重新初始化其工作环境；
+                                            
+                       chage命令：更改用户密码过期日期
+                                chage [options] LOGIN
+                                            -d
+                                            -E
+                                            -W
+                                            -m
+                                            -M
+
+                        id命令：显示用户真实和有效ID
+                                    id [OPTION]... [USER]
+                                            -u：只显示有效的UID；
+                                            -g：只显示用户的基本组ID；
+                                            -G：仅显示用户所属的所有组的ID；
+                                            -n：显示名字而非ID；
+
+                        su命令：switch user   
+                                登录式切换：会通过读取用户的配置文件来重新初始化
+                                            su - USERNAME
+                                            su -l USERNAME
+                                非登录式切换：不会读取目标用户的配置文件进行初始化
+                                            su USERNAME
+
+                               注意：管理员可无密码切换至其它任何用户；
+                                            -c ‘COMMAND'：仅以指定用户的身份运行此处指定的命令；
+                                                    e.g：#su - docker  -c 'whoami"
+
+                        finger命令：显示用户信息
+                        chfn命令：修改用户信息
+                        chsh命令：修改当前用户的shell，管理员可以修改其它用户的shell：chsh -s /bin/tcsh docker
+                        pwck：
+                        grpck：
+                                       
+        权限管理：
+                进程安全上下文：
+                            进程对文件的访问权限应用模型；
+                                        进程的属主与文件的属主是否相同：如果相同，则应用属主权限；
+                                        否则，则检查进程的属主是否属于文件的属组：如果是，则应用属组权限；
+                                        否则，就只能应用other的权限；
+
+                权限：
+                        r：readable，读
+                        w：writable，写
+                        x：excutable，执行
+                        文件：
+                                r：可获取文件的数据；
+                                w：修改文件的数据；
+                                x：可将此文件运行为进程；
+                        目录：
+                                r：可使用ls命令获取其下的所有文件列表；
+                                w：可修改此目录下的文件列表，即创建或删除文件；
+                                x：可cd至此目录中，且可使用ls -l 来获取所有文件的详细属性信息；
+                        mode：rwxrwxrwx
+                        ownership：user，group
+                权限组合机制：
+                        ---   000 0
+                        --x   001 1
+                        -w-  010 2
+                        -wx  011 3
+                        r--   100  4
+                        r-x   101  5
+                        rw-  110  6
+                        rwx  111  7
+                
+                权限管理命令：
+                        chmod命令：
+                               chmod [OPTION]... MODE[,MODE]... FILE...
+                               chmod [OPTION]... OCTAL-MODE FILE...
+                               chmod [OPTION]... --reference=RFILE FILE...
+
+                                三类用户：
+                                        u：属主
+                                        g：属组
+                                        o：其它
+                                        a：所有
+                                
+                                （1）chmod [OPTION]... MODE[,MODE]... FILE...
+                                        MODE表示法：
+                                                赋权表示法：直接操作一类用户的所有权限位；
+                                                            u=
+                                                            g=
+                                                            o=
+                                                            a=
+                                                            
+
+                                                授权表示法：直接操作一类用户的一个权限位r，w，x；
+                                                            u+，-
+                                                            g+，-
+                                                            o+，-
+                                                            a+，-
+                                                            
+                                                            
+
+                                （2）chmod [OPTION]... OCTAL-MODE FILE...           
+
+                                                            
+
+                                （3）chmod [OPTION]... --reference=RFILE FILE...
+                                                            
+
+                                选项：
+                                        -R，--recursive：递归修改
+
+                从属关系管理命令：chown，chgrp
+
+                        chown命令：
+                                    chown [OPTION]... [OWNER][:[GROUP]] FILE...
+                                    chown [OPTION]... --reference=RFILE FILE...
+                                    选项：
+                                            -R：递归修改
+
+                        chgrp命令：
+                                    chgrp [OPTION]... GROUP FILE...
+                                    chgrp [OPTION]... --reference=RFILE FILE...
+
+                思考：用户对目录有写权限，但对目录下的文件没有写权限时，能否修改此文件内容？能否删除此文件？
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                            
+        

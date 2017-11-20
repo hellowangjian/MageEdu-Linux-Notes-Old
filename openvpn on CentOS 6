@@ -1,0 +1,252 @@
+openvpn on CentOS 6
+
+openvpn已经被epel源收录，所以要先配置好epel yum源；
+
+简单理解：
+	1、openvpn是一个应用程序，它传输的数据是经过ssl协议加密的，所以非常的安全，不会被窃听；
+	2、ssl协议在linux上的实现是openssl，openvpn依赖openssl，所以要安装openssl-devel包；
+	3、openvpn需要通过双向确认对方的数字证书的方式来验证对方的身份，所以要用到用到CA服务，CA可以使用openssl来创建；
+	4、epel源中提供了一个简单的CA管理工具：easy-rsa，可以快速的生成私钥、CA及证书；
+	5、openvpn需要创建一个虚拟接口(tun/tap)来完成数据的传输；CentOS 6 Linux内核默认已经编译了此模块，可以使用如下方式检查和加载：
+		# lsmod | grep 'tun'			# 确认是否加载 
+		tun                    27226  0 
+		# modprobe tun    				# 加载tun内核模块
+		# ls /dev/net/tun 				# 确认是否有设备文件
+		/dev/net/tun
+	OpenVPN使用OpenSS库加密数据与控制信息：它使用了OpenSSL的加密以及验证功能，意味着，它能够使用任何OpenSSL支持的算法。它提供了可选的数据包HMAC功能以提高连接到的安全性。此外，OpenSSL的硬件加速也能提高它的性能。
+	1、openvpn驱动部分实现了网卡处理和字符设备。网卡处理网络数据，字符设备完成与应用层的数据交互。
+	2、使用openvpn必须修改路由表
+
+	工作过程 发送数据：
+		1、应用程序发送网络数据；
+		2、网络数据根据修改后的路由表把数据路由到虚拟网卡；
+		3、虚拟网卡把数据防盗数据队列中；
+		4、字符设备从数据队列中取数据，然后送给openvpn应用层；
+		5、openvpn应用层把数据转发给物理网卡；
+		6、物理网卡发送数据；
+
+	工作过程 接收数据：
+		1、物理网卡接受到数据，并传送到ipenvpn应用空间；
+		2、openvpn应用守护程序通过字符设备，把数据传给虚拟网卡；
+		3、数据通过虚拟网卡重新进入网络堆栈；
+		4、网络堆栈把数据传给上层真实的应用程序。
+
+简单实现：
+
+拓扑：
+	openvpn:
+		eth0: 140.206.33.170/29
+		eth1: 192.168.100.254/24
+	client:
+		eth0: 180.156.239.36/32
+
+					+-----------+		+-------+		+-----------+
+	+-------+		|	eth0	|<----->|		|<----->|	eth0	|
+	|		|		+-----------+		|  公网	|		+-----------+
+	|  私网 	|<----->|	eth1	|		|		|		|	client 	|
+	|		|		+-----------+		+-------+		+-----------+
+	+-------+		|	openvpn	|						
+					+-----------+						
+版本：
+	openvpn.x86_64   2.4.3-1.el6    @epel
+openvpn安装：
+1、安装
+	# yum install openvpn 
+
+2、准备服务器配置文件：
+	# cp /usr/share/doc/openvpn-2.4.3/sample/sample-config-files/server.conf /etc/openvpn/
+	# vim /etc/openvpn/server.conf
+	  ;local 140.206.33.170     # 申明本机使用的IP地址，也可以不说明
+	  port 1194   # 端口
+	  proto tcp   # 协议,默认使用udp，如果使用HTTP Proxy，必须使用tcp协议            
+	  dev tun     # 申明使用的设备可选tap和tun，tap是二层设备，支持链路层协议；tun是ip层的点对点协议，限制稍微多一些
+	  ca keys/ca.crt       # 全路径为/etc/openvpn/keys/ca.crt，用于验证客户是证书是否合法
+	  cert keys/server.crt # 全路径为/etc/openvpn/keys/server.crt，Server使用的证书文件
+	  key keys/server.key  # 全路径为/etc/openvpn/keys/server.key，Server使用的证书对应的key，注意文件的权限，防止被盗
+	  dh keys/dh1024.pem   # 全路径为/etc/openvpn/keys/dh1024.pem
+	  server 192.168.200.0 255.255.255.0  # 地址池，配置VPN使用的网段，OpenVPN会自动提供基于该网段的DHCP服务，保证唯一，不要和实际的局域网冲突即可
+	  ifconfig-pool-persist ipp.txt  # 用于记录某个Client获得的IP地址，类似于dhcpd.lease文件，防止openvpn重新启动后“忘记”Client曾经使用过的IP地址
+	  ;client-config-dir /etc/openvpn/ccd # 定义每个客户端的个性化配置文件
+	  # 推送路由信息到客户端，以允许客户端能够连接到服务器背后的其他私有子网
+	  # (简而言之，就是设置允许客户端访问VPN服务器自身所在的其他局域网)
+	  push "route 10.2.8.0 255.255.255.0"     # 可以设置多个服务端所在的其他局域网地址范围
+	  push "route 192.168.100.0 255.255.255.0"
+	  ;push "dhcp-option DNS 8.8.8.8"     # 用OpenVPN的DHCP功能为客户端提供指定的DNS、WINS等
+	  ;route 10.9.0.0 255.255.255.252  # VPN启动后，在VPN Server上增加的路由，VPN停止后自动删除
+	  client-to-client  # 可以让客户端之间相互访问直接通过openvpn程序转发，不用发送到tun或者tap设备后重新转发，优化Client to Client的访问效率;
+	  duplicate-cn      # 如果客户端都使用相同的证书和密钥连接VPN，一定要打开这个选项，否则每个证书只允许一个人连接VPN
+	  keepalive 10 120  # 每10秒通过VPN的Control通道ping对方，如果连续120秒无法ping通，认为连接丢失，并重新启动VPN，重新连接
+	  tls-auth keys/ta.key 0 # 全路径为/etc/openvpn/keys/ta.key，注意server端后面的数字肯定使用0，client使用1 
+	  comp-lzo    # 对数据进行压缩，注意Server和Client一致;
+	  user nobody #定义运行openvpn的用户
+	  group nobody
+	  persist-key  # 通过keepalive检测超时后，重新启动VPN，不重新读取keys，保留第一次使用的keys
+	  persist-tun  # 通过keepalive检测超时后，重新启动VPN，一直保持tun或者tap设备是linkup的,否则网络连接会先linkdown然后linkup
+	  status /var/log/openvpn-status.log   # 定期把openvpn的一些状态信息写到文件中，以便自己写程序计费或者进行其他操作
+	  log /var/log/vpn/openvpn.log         # 记录日志，每次重新启动openvpn后删除原有的log信息
+	  log-append /var/log/vpn/openvpn.log  # 和log一致，每次重新启动openvpn后保留原有的log信息，新信息追加到文件最后 
+	  verb 3    # 相当于debug level,改成verb 5可以多查看一些调试信息
+	  ;mute 20  # 重复信息的沉默度。相同类别的信息只有前20条会输出到日志文件中
+
+3、将easy-rsa生成的CA证书、openvpn服务器成证书和私钥、dh密钥及tls认证密钥放置在/etc/openvpn/keys目录下：
+	# mkdir /etc/openvpn/keys
+	# cp /etc/openvpn/easy-rsa/2.0/keys/{ca.crt,server.{crt,key},dh1024.pem,ta.key} /etc/openvpn/keys/
+
+4、修改开启转发功能
+	# echo 1 > /proc/sys/net/ipv4/ip_forward
+
+5、修改防火墙
+	-A INPUT -p tcp -m tcp --dport 1194 -j ACCEPT 
+	-A INPUT -s 192.168.200.0/24 -p tcp -m state --state NEW -m tcp -j ACCEPT 
+	-A INPUT -s 192.168.200.0/24 -j ACCEPT 
+
+6、启动服务
+	# service openvpn start
+	# ss -tnl
+	LISTEN     0      1      140.206.33.170:1194        *:* 
+	# chkconfig --add openvpn
+	# chkconfig openvpn on
+
+easy-rsa安装：
+1、安装easy-rsa
+	# yum install easy-rsa
+
+2、将/usr/share/easy-rsa目录和子文件复制至/etc/openvpn/目录下：
+	# cp -r /usr/share/easy-rsa /etc/openvpn
+
+3、进入/etc/openvpn/easy-rsa/2.0/目录下生成相关证书及密钥：
+	# cd /etc/openvpn/easy-rsa/2.0/
+
+	相关命令介绍：
+	# ll
+	total 116
+	-rwxr-xr-x. 1 root root   119 Jul  8 08:12 build-ca # 生成CA跟证书
+	-rwxr-xr-x. 1 root root   352 Jul  8 08:12 build-dh # 生成dh密钥文件,dh密钥将用于双方的密钥交换
+	-rwxr-xr-x. 1 root root   188 Jul  8 08:12 build-inter
+	-rwxr-xr-x. 1 root root   163 Jul  8 08:12 build-key # 生成客户端密钥及证书（无密码）
+	-rwxr-xr-x. 1 root root   157 Jul  8 08:12 build-key-pass # 生成带密码的客户端密钥及证书
+	-rwxr-xr-x. 1 root root   249 Jul  8 08:12 build-key-pkcs12
+	-rwxr-xr-x. 1 root root   268 Jul  8 08:12 build-key-server # 生成openvpn服务器端的密钥及证书
+	-rwxr-xr-x. 1 root root   213 Jul  8 08:12 build-req
+	-rwxr-xr-x. 1 root root   158 Jul  8 08:12 build-req-pass
+	-rwxr-xr-x. 1 root root   449 Jul  8 08:12 clean-all  # 删除keys目录下的所有内容
+	-rwxr-xr-x. 1 root root  1471 Jul  8 08:12 inherit-inter
+	drwx------. 2 root root  4096 Jul  8 08:35 keys  # 存放证书及密钥文件
+	-rwxr-xr-x. 1 root root   302 Jul  8 08:12 list-crl
+	-rw-r--r--. 1 root root  7791 Jul  8 08:12 openssl-0.9.6.cnf
+	-rw-r--r--. 1 root root  8348 Jul  8 08:12 openssl-0.9.8.cnf
+	-rw-r--r--. 1 root root  8245 Jul  8 08:12 openssl-1.0.0.cnf
+	-rwxr-xr-x. 1 root root 12966 Jul  8 08:12 pkitool
+	-rwxr-xr-x. 1 root root   928 Jul  8 08:12 revoke-full
+	-rwxr-xr-x. 1 root root   178 Jul  8 08:12 sign-req
+	-rw-r--r--. 1 root root  2048 Jul  8 08:20 vars # 生产CA及证书请求是用到的变量文件；
+	-rwxr-xr-x. 1 root root   740 Jul  8 08:12 whichopensslcnf
+
+	修改证书变量:
+	# cd /etc/openvpn/easy-rsa/2.0
+	# cat vars  # 自定义修改如下内容
+	  export KEY_COUNTRY="CN"        # 国家
+	  export KEY_PROVINCE="SH"       # 省
+	  export KEY_CITY="SH"           # 市
+	  export KEY_ORG="ZZT"           # 公司
+	  export KEY_OU="IT"             # 部门
+	  export KEY_EMAIL="me@zzt.com"  # 邮箱
+
+	初始化环境变量:
+	# source vars
+	# ./clean-all
+
+	生成CA证书：
+	# ./build-ca   # 交互式模式，需要填入相关的信息，默认的信息为var文件中定义的变量，保持默认，一路回车；
+
+	生成服务器密钥及证书：
+	# ./build-key-server server  # 生成密钥及成熟，文件名为“server”
+
+	生成客户端密钥及证书：
+		建议每一个需要访问openvpn的客户端都要生成一个单独的密钥及证书，方便管理；
+	# ./build-key Hunter  # 为Hunter用户生成证书及密钥
+
+	生成dh密钥：
+	# ./build-dh  # 直接回车即可，需要点时间，不要打断它；
+
+	生成ta.key文件：
+	# openvpn --genkey --secret keys/ta.key  # 生成ta.key文件（防DDos攻击、UDP淹没等恶意攻击）
+
+	最终在keys目录下生成如下文件：
+	# ll keys/
+	total 88
+	-rw-r--r--. 1 root root 5393 Jul  8 08:26 01.pem
+	-rw-r--r--. 1 root root 5276 Jul  8 08:28 02.pem
+	-rw-r--r--. 1 root root 1675 Jul  8 08:22 ca.crt  # CA根证书
+	-rw-------. 1 root root 1704 Jul  8 08:22 ca.key  # CA的私钥
+	-rw-r--r--. 1 root root 5276 Jul  8 08:28 Hunter.crt # 客户端证书
+	-rw-r--r--. 1 root root 1062 Jul  8 08:28 Hunter.csr # 客户端证书请求文件
+	-rw-------. 1 root root 1704 Jul  8 08:28 Hunter.key # 客户端私钥
+	-rw-r--r--. 1 root root  424 Jul  8 08:33 dh2048.pem # dh密钥文件
+	-rw-r--r--. 1 root root  240 Jul  8 08:28 index.txt # 证书颁发索引文件
+	-rw-r--r--. 1 root root   21 Jul  8 08:28 index.txt.attr
+	-rw-r--r--. 1 root root   21 Jul  8 08:26 index.txt.attr.old
+	-rw-r--r--. 1 root root  120 Jul  8 08:26 index.txt.old
+	-rw-r--r--. 1 root root    3 Jul  8 08:28 serial   # 证书颁发序号文件
+	-rw-r--r--. 1 root root    3 Jul  8 08:26 serial.old
+	-rw-r--r--. 1 root root 5393 Jul  8 08:26 server.crt # openvpn服务器证书
+	-rw-r--r--. 1 root root 1062 Jul  8 08:25 server.csr # openvpn服务器证书请求文件
+	-rw-------. 1 root root 1708 Jul  8 08:25 server.key # openvpn服务器私钥
+	-rw-------. 1 root root  636 Jul  8 08:35 ta.key  # tls-auth(ssl)认证密钥openvpn服务器和每个client都要有
+
+	Filename	Needed By	Purpose	Secret
+	ca.crt	server + all clients	Root CA certificate	NO
+	ca.key	key signing machine only	Root CA key	YES
+	dh{n}.pem	server only	Diffie Hellman parameters	NO
+	server.crt	server only	Server Certificate	NO
+	server.key	server only	Server Key	YES
+	client1.crt	client1 only	Client1 Certificate	NO
+	client1.key	client1 only	Client1 Key	YES
+	client2.crt	client2 only	Client2 Certificate	NO
+	client2.key	client2 only	Client2 Key	YES
+	client3.crt	client3 only	Client3 Certificate	NO
+	client3.key	client3 only	Client3 Key	YES
+
+安装client：
+1、安装：
+	# yum install openvpn
+
+2、准备配置文件：
+	# cp  /usr/share/doc/openvpn-2.4.3/sample/sample-config-files/client.conf /etc/openvpn/
+	# vim /etc/openvpn/client.conf
+	client
+	dev tun
+	proto tcp
+	remote 140.206.33.170 1194  # OpenVPN服务器的外网IP和端口
+	resolv-retry infinite
+	nobind
+	persist-key
+	persist-tun
+	ca ca.crt
+	cert Hunter.crt  # client1的证书
+	key Hunter.key   # client1的密钥
+	ns-cert-type server 
+	tls-auth ta.key 1  # 客户端是1，服务器是0
+	comp-lzo
+	verb 3
+
+3、准备客户端证书、私钥、CA证书、tls认证密钥
+	# scp root@140.206.33.170:/etc/openvpn/easy-rsa/2.0/keys/{ca.crt,Hunter.crt,Hunter.key,ta.key} /etc/openvpn/
+
+4、启动客户端
+	# service openvpn start
+	# ifconfig
+	tun0  Link encap:UNSPEC  HWaddr 00-00-00-00-00-00-00-00-00-00-00-00-00-00-00-00  
+          inet addr:192.168.200.6  P-t-P:192.168.200.5  Mask:255.255.255.255
+          UP POINTOPOINT RUNNING NOARP MULTICAST  MTU:1500  Metric:1
+          RX packets:11706 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:11723 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:100 
+          RX bytes:983304 (960.2 KiB)  TX bytes:984732 (961.6 KiB)
+
+    # chkconfig openvpn on
+    # chkconfig --list openvpn
+
+    官方HOW-TO：https://community.openvpn.net/openvpn/wiki/HOWTO   
+
+    windows客户端下载：https://openvpn.net/index.php/download/community-downloads.html

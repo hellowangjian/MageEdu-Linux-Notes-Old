@@ -1,0 +1,696 @@
+马哥Linux学习第十二天（Linux进程管理及常用工具，bash编程之文件测试）
+
+回顾：bash编程条件测试
+	if语句的结构：
+		单分支：
+			if CONDITION-is-TRUE; then
+				分支
+			fi
+
+		双分支：
+			if CONDITION-is-TRUE; then
+				分支1
+			else
+				分支2
+			fi
+
+		多分支：
+			if CONDITION-is-TRUE; then
+				分支1
+			elif CONDITION-is-TRUE; then
+				分支2
+			...
+			...
+			else
+				分支n
+			fi
+
+	测试形式：
+		（1）命令的执行状态结果，即命令成功与否；
+			if COMMAND &> /dev/null; then
+		（2）条件表达式
+			命令形式：
+				(a) test EXPRESSION
+				 	if test EXPRESSION; then
+				(b) [ EXPRESSION ]
+					if [ EXPRESSION ]; then
+			关键字形式：
+				(c) [[ EXPRESSION ]]
+					if [[ EXPRESSION ]]; then
+
+	测试方式：
+		整数测试：
+			-ge, -gt, -le, -lt, -ne, -eq
+		字符串测试：
+			双目：>, <, ==, !=, =~
+			单目：-z, -n
+
+		文件测试：
+
+Linux进程查看与管理
+	
+	OS的基本功能：文件系统、网络功能、进程管理、内存管理、驱动程序、安全功能
+
+	程序=指令+数据
+
+	CPU：
+		特权指令
+		普通指令
+
+	程序执行环境：
+		内核模式：运行内核级指令
+		用户模式：运行普通指令
+
+		应用程序：
+			运行普通指令：直接运行于CPU
+			运行特权指令：通过system  call
+
+	内存：8bit，1byte
+		32bits, 2^32, 0-2^32-1, 2^10*2^10*2^10*2^2 bytes = ^10*2^10*2^2 kilo bytes = 10*2^2 MB = 4(2^2) GB
+
+	ROM+RAM
+		ROM：Read Only Memory
+		RAM：random access memory
+
+	地址空间：
+		物理地址空间
+		线性地址空间
+
+	IPC：Inter Process Communication
+		同一主机：
+			signal
+			semaphore
+			shm（shared memory）
+		不同主机：
+			rpc：remote procedure call
+			socket
+
+	进程调度：
+		多任务：多进程同时运行
+			抢占式多任务
+
+		进程分类：
+			CPU bound：CPU密集型
+			I/O bound：IO密集型
+
+		进程优先级：
+			140:0-139
+				1-99：实时优先级，数字越大优先级越高；
+				100-139：数字越小，优先级越高；
+						静态优先级
+						动态优先级
+
+		算法时间复杂度：Big O
+			O(1)
+			O(logn)
+			O(n)
+			O(n^2)
+			O(2^n)
+
+	进程创建：
+		请求发出者：进程
+			进程：fork(), clone()
+
+			COW：Copy On Writing
+				写时复制
+
+	进程的状态：
+		运行态：running
+		睡眠态：sleeping
+			可中断睡眠：interruptible
+			不可中断睡眠：uninterruptible
+				被IO阻塞的进程
+		就绪态：runnable
+		停止态：stopped，暂停于内存中，但不会被调度，除非手动启动之；
+		僵死态：zombie
+
+	进程管理：
+		task struct：用于保存每个进程元数据信息
+			例如：pid, ppid, memory, thread, files
+
+		task list：用一种称作“链表”的数据结构来保存每个进程的task struct；
+
+		进程切换：context switch
+			保存现场：
+			恢复现场：
+
+	OS：提供虚拟的计算机，进而能够将有限资源借助于“保护”机制分配多个同时运行的程序，即“进程”使用，从而实现了所谓的多任务；
+
+	进程：
+		线程：tread
+			共享进程的资源，如打开文件等；
+			更轻量的、可被单独调度的运行单元；
+
+		LWP：Light Weight Process
+
+	Linux进程查看及管理工具：top，pstree，pidof，pgrep，pkill，htop，glances，pmap，vmstat，dstat，iostat，sar，kill，job，bg，fg
+
+		Linux系统上除init以外的所有子进程，都是由其父进程fork()自身而来，遵循COW机制；进程展现为“进程树”；
+
+		pstree命令：
+			进程树查看；
+			-p：显示各进程的PID；
+
+		ps：process state
+
+			显示的是ps命令执行时，系统上当前进程状态信息的快照，所以，为静态结果；
+
+			Linux运行中的内核的相关信息是通过/proc伪文件系统输出的；各进程都有一个以其PID命名的子目录，每个子目录中有许多文件存储了进程的相关状态信息；
+
+			支持众多选项：
+				BSD风格
+				SysV风格
+
+			根据进程启动时是否是通过终端上的用户接口交互式启动的，进程可分为两类：
+				与终端相关的进程：a
+					# ps a
+				与终端无关的进程：x
+					# ps x
+
+				以用户为中心组织进程状态信息显示：u
+
+			常用选项组合1：aux
+				USER        PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+
+					VSZ：Virtual memory Size；虚拟内存集；
+						线性地址空间占用的空间大小；
+					RSS：常驻内存集；指不可以被交换至swap空间的数据占据空间大小；
+					STAT：进程状态；
+						R：running，运行状态；
+						S：interruptible sleeping,可中断睡眠；
+						D：uniterruptible sleeping,不可中断睡眠；
+						T：stopped
+						Z：zombie
+
+						s：session leader
+						+：前台进程，占据着某终端；
+						l：多线程进程；
+						<：高优先级进程；
+						N：低优先级进程；
+
+					START：进程启动时间；
+					TIME：占据CPU累积时长
+					COMMAND：启动当前进程或线程的命令行程序，[]表示为内核进程；
+
+			常用选项组合2：-ef
+				-e：显示所有进程；
+				-f：显示丰富格式信息；
+
+			常用选项组合3：-eFH
+				-F：显示额外信息
+				-H：以层级形式显示进程间关系；
+
+			自定义需要显示的信息：axo
+				o field1,field2,...：自定义要显示的字段列表，以逗号分割；
+				ps axo pid,command,psr,pri,ni,rtprio
+					psr：当前进程运行的cpu编号；
+					pri：当前进程的优先级；
+					ni：当前进程的nice值；
+						-20,19
+					rtprio：real time priority，实时优先级；
+
+					例如：
+		        		~]# ps axo pid,command
+
+		pgrep：
+			过滤显示指定进程信息；
+			语法格式：pgrep [OPTIONS] "PATTERN"
+				-U UID：仅显示以指定用户身份运行的进程；
+					~]# pgrep -U postfix
+					1507
+					15488
+				-G GID：
+				-l：显示PID和进程名；
+					# pgrep -l "tty"
+
+					~]# pgrep -U postfix -l
+						1507 qmgr
+						15488 pickup
+					-a：显示完整格式的进程名
+						~]# pgrep -U postfix -l -a
+						1507 qmgr -l -t unix -u
+						15488 pickup -l -t unix -u
+					-P pid：显示此进程的子进程；
+						~]# pgrep -P 1176
+						8643
+
+		pidof：
+			pidof PROGRAM
+				PROGRAM：给定命令行程序；
+				# pidof /bin/bash
+				12873 1494
+
+		top命令：
+			有许多交互式的子命令：
+				排序：
+					P：以占据CPU百分比排序；
+					M：以占据内存百分比排序；
+					T：累积占用CPU时间排序；
+				首部信息：
+					uptime信息：键入l关闭
+					tasks 及cpu信息：键入t关闭
+						Cpu(s):  0.0%us,  0.0%sy,  0.0%ni,100.0%id,  0.0%wa,  0.0%hi,  0.0%si,  0.0%st
+							us: user space
+							sy: system (kernel space)
+							ni: nice
+							id: idle
+							wa: wait io 
+							hi: hardware interrupt
+							si: software interrupt
+							st: stolen,被虚拟机“偷走”的时间百分比；
+					1：平均或单独显示cpu的负载状态；
+						Cpu0  :  0.0%us,  0.3%sy,  0.0%ni, 99.7%id,  0.0%wa,  0.0%hi,  0.0%si,  0.0%st
+						Cpu1  :  0.0%us,  0.0%sy,  0.0%ni,100.0%id,  0.0%wa,  0.0%hi,  0.0%si,  0.0%st
+						Cpu2  :  0.0%us,  0.0%sy,  0.0%ni,100.0%id,  0.0%wa,  0.0%hi,  0.0%si,  0.0%st
+						Cpu3  :  0.0%us,  0.0%sy,  0.0%ni,100.0%id,  0.0%wa,  0.0%hi,  0.0%si,  0.0%st
+						Cpu4  :  0.0%us,  0.0%sy,  0.0%ni,100.0%id,  0.0%wa,  0.0%hi,  0.0%si,  0.0%st
+						Cpu5  :  0.0%us,  0.0%sy,  0.0%ni,100.0%id,  0.0%wa,  0.0%hi,  0.0%si,  0.0%st
+						Cpu6  :  0.0%us,  0.0%sy,  0.0%ni,100.0%id,  0.0%wa,  0.0%hi,  0.0%si,  0.0%st
+						Cpu7  :  0.0%us,  0.0%sy,  0.0%ni,100.0%id,  0.0%wa,  0.0%hi,  0.0%si,  0.0%st
+						Cpu8  :  0.0%us,  0.0%sy,  0.0%ni,100.0%id,  0.0%wa,  0.0%hi,  0.0%si,  0.0%st
+						Cpu9  :  0.0%us,  0.0%sy,  0.0%ni,100.0%id,  0.0%wa,  0.0%hi,  0.0%si,  0.0%st
+						Cpu10 :  0.0%us,  0.0%sy,  0.0%ni,100.0%id,  0.0%wa,  0.0%hi,  0.0%si,  0.0%st
+						Cpu11 :  0.0%us,  0.0%sy,  0.0%ni,100.0%id,  0.0%wa,  0.0%hi,  0.0%si,  0.0%st
+						Cpu12 :  0.0%us,  0.0%sy,  0.0%ni,100.0%id,  0.0%wa,  0.0%hi,  0.0%si,  0.0%st
+						Cpu13 :  0.0%us,  0.0%sy,  0.0%ni,100.0%id,  0.0%wa,  0.0%hi,  0.0%si,  0.0%st
+						Cpu14 :  0.0%us,  0.0%sy,  0.0%ni,100.0%id,  0.0%wa,  0.0%hi,  0.0%si,  0.0%st
+						Cpu15 :  0.0%us,  0.0%sy,  0.0%ni,100.0%id,  0.0%wa,  0.0%hi,  0.0%si,  0.0%st
+					内存信息：键入m
+				退出命令：q
+				修改刷新时间间隔：s
+				终止指定的进程：k
+				选项：
+					-d #：指定刷新时间间隔，默认3秒钟
+					-b：batch,以批次方式显示；
+						# top -b
+					-n #：显示多少批次；
+						# top -b -n 2
+
+			队列长度的合理区间：cpu颗数*0.7
+
+		uptime命令：显示当前系统时间、运行时长、登录用户数及平均负载；
+
+	命令总结：pstree, ps, pgrep, top, uptime, pidof
+
+回顾：
+	进程管理：
+		task struct：每个进程的元数据信息，例如进程的pid, ppid, thread, files
+		task list：任务列表，链表
+
+		进程的线性地址空间：
+			Text Segment
+			Data Segment
+			BSS Segment
+			Heap
+			Stack
+
+		进程状态：
+			就绪态，运行态，睡眠态（可中断，不可中断），停止态，僵死态
+
+		进程优先级：
+			实时优先级
+			静态优先级：
+				100-139
+			动态优先级
+
+	进程查看基本工具：pstree, ps, top, pidof, pgrep, uptime
+		ps: axu, -ef, -eFH, axo
+		top: P,M,T,L,t,m,s,q,k
+
+Linux进程查看与管理（2）
+
+	htop：
+		交互式命令：
+			u：过滤仅显示选定的用户的进程；
+			s：跟踪选定的进程所发起的系统调用；
+			l：显示选定的进程所打开的文件；
+			t：显示进程的层次结构；
+			a：设定进程的cpu亲缘性；将选定的进程绑定在指定的cpu上运行
+		选项：
+			-d #：延迟时长
+			-u USERNAME：仅显示指定用户的进程；
+			-s COLUMN：根据指定的字段进行排序；
+
+	vmstat命令：
+		- Report virtual memory statistics
+		# vmstat 1 3
+		procs -----------memory---------- ---swap-- -----io---- --system-- -----cpu-----
+		 r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id wa st
+		 0  0      0 17519060 173464 2328472    0    0     0     0    0    0  0  0 100  0  0	
+		 0  0      0 17519060 173464 2328472    0    0     0     0  367  298  0  0 100  0  0	
+		 0  0      0 17519056 173464 2328472    0    0     0     0  608  338  0  0 100  0  0	
+
+		proces：
+			r：等待运行的进程的个数；CPU上等待运行的任务的队列长度；
+			b：处于不可中断睡眠态的进程个数；被阻塞的任务队列的长度；
+
+		memory：
+			swpd：交换分区使用总量；
+			free：空闲的物理内存总量；
+			buffer：用于buffer的内存总量；
+			cache：用于cache的内存总量；
+
+		swap：
+			si：数据进入swap中的数据速率（kb/s）
+			so：数据离开swap的速率(kb/s)
+
+		io：
+			bi：从块设备读入数据到系统的速率(kb/s)
+			bo：保存数据至块设备的速率(kb/s)
+
+		system： 
+			in：interrupts，中断速率；
+			cs：context switch，上下文切换的速率；
+
+		cpu：
+			us：user space
+			sy：system
+			id：idle
+			wa：wait IO
+			st：stolen
+
+		选项：
+			-s：显示内存的状态统计数据；
+
+		/proc/#接口：
+
+	pmap命令：查看指定进程的内存映射关系；
+		- report memory map of a process
+		pmap [options] pid [...]
+			# pmap 1
+			-x；显示扩展信息
+
+		cat /proc/#/maps
+
+	glances命令：epel源安装
+		- A cross-platform curses-based monitoring tool
+
+		glances [-bdehmnrsvyz1] [-B bind] [-c server] [-C conffile] [-p port] [-P password] [--password] [-t refresh] [-f file] [-o output]
+
+		常用选项：
+			-b：以byte/s为单位显示网卡设备数据速率；
+			-d：关闭磁盘I/O模块；
+			-f：/PATH/TO/SOMEFILE：设置输出文件的位置及格式；
+			-o：{HTML|CSV}：输出格式；
+			-m：关闭mount功能模块；
+			-n：关闭network模块；
+			-r：关闭进程列表功能模块；
+			-t #：指定延迟时长，默认为3秒；
+			-1：单独显示每颗CPU相关负载数据信息；
+
+		glances支持远程模式：
+			即可以以C/S模式工作：
+				Server：以监听模式启动glances；
+				Client：以远程模式启动glances，远程连入指定服务器，并显示Server上的相关性能数据；
+
+			服务模式：
+				glances -s -B IPADDR
+					-B：用于指明监听的本地地址；
+					默认使用61209/tcp端口；
+					~]# glances -s -B 192.168.10.66
+					Glances server is running on 192.168.10.66:61209
+
+			客户端模式：
+				glances -c IPADDR
+					-c：用于指明连入的Server地址；
+
+	dstat命令：整合了vmstat, iostat, netstat and ifstat四款工具的功能；
+		- versatile tool for generating system resource statistics
+
+		dstat [-afv] [options..] [delay [count]]
+			-c：显示CPU性能指标相关的统计数据；
+				# dstat -c
+			-d：显示disk相关的速率数据；
+			-g：显示page相关的速率数据；
+			-i：显示interrupt相关的速率数据；
+			-l：显示load average相关的统计数据；
+			-m：显示memory相关的统计数据；
+			-n：显示网络收发数据的速率；
+			-p：显示进程相关的统计数据；
+			-r：io请求的速率；
+			-s：显示swaped相关数据；
+			-y：显示系统相关的数据，包括中断和进程切换；
+
+			--top-cpu：显示最占用cpu的进程；
+			--top-bio：显示最消耗block io的进程；
+			--top-io：显示最占用io的进程；
+			--top-mem：显示最占用内存的进程；
+
+			--ipc：显示进程间通信相关的速率数据；
+			--raw：显示raw套接字的相关数据；
+			--tcp：显示tcp套接字的相关数据；
+			--udp：显示udp套接字的相关数据；
+			--unix：显示unix sockt接口相关的统计数据；
+			--socket：
+
+			-a：-cdngy
+
+		IPC：进程间通信，Interprosses communication；
+			常见形式：
+				message queue
+				semaphore
+				shared memory
+				signal
+
+			singnal：传递给进程的短小信息
+				Linux主机支持的进程间可用到的信号：
+					(1) kill -l
+						# kill -l
+					(2) man 7 signal
+
+	向进程发信号：
+		kill [-SIGNAL] PID
+			默认的信号为SIGTERM；
+
+		信号表示方式：
+			（1）完整名称，例如SIGINT
+			（2）简写名称，例如INT
+			（3）数字代称，例如2
+
+		常用信号：
+			SIGHUP：1，通知进程重读其配置文件以让新的配置生效，但不用重新启动进程；
+			SIGINT：2，打断正在运行中的进程，相当于键盘组合键Ctrl+c
+			SIGKILL：9，强行终止正在运行中的进程；
+			SIGTERM：15，安全终止正在运行中的进程；
+			SIGSTOP：19，暂停进程；
+			SIGCONT：18，继续运行指定进程
+
+	kill相似的一组进程：
+		killall [-SIGNAL] PROGRAM
+
+命令总结：htop,vmstat, pmap, glances, dstat, kill, killall
+
+
+作业管理：
+	前台作业：通过终端启动，并且在停止之前也会一直占据终端；
+	后台作业：作业启动之时与终端无关，或者是在前台启动，但启动后转为与终端无无关的模式运行；
+
+	如何让作业运行于后台？
+		1、对于已经启动并处于运行中的作业；
+			Ctrl+z
+
+			Note：作业被送往后台后，默认处于stopped状态；
+		2、对于尚未启动的作业：
+			COMMAND &
+
+		注意：此两类方式相关作业，仍然与终端相关；这意味着，终端终止，将会导致与此终端相关的所有作业被终止；
+
+		剥离进程与终端的关系：
+			# nohup COMMAND &
+
+	作业查看：
+		jobs命令
+			作业号、作业状态、启动命令行程序
+
+		作业控制命令：
+			fg [[%]JOB_NUM]：把指定的作业调回前台；
+			bg [[%]JOB_NUM]：把送往后台的作业在后台继续运行；
+			kill [%JOB_NUM]：终止指定的作业；
+
+	进程优先级调整：
+		静态优先级：
+			通过指定进程的nice值来调整其优先级；用户空间运行的进程一般都有其nice值；
+			nice值：-20,19
+			优先级：100，139
+
+		默认启动进程时，其nice值为0，其优先级为120；
+
+		（1）对于尚未启动的进程；
+			# nice -n Nice值 COMMAND
+				# nice -n 3 vim /tmp/a.txt
+
+		（2）对于已经启动并处于运行中的进程：
+			# renice -n N PID
+				# renice -n -2 6507
+
+		注意；普通用户仅能够调大nice，调低优先级；
+
+	尚未讲到的命令：sar,tsar,iostat,iftop,nethog,...
+
+命令总结：jobs,fg, bg, nice, renice
+
+博客作业：进程管理工具htop/glance/dstat的使用；
+
+
+	sar命令：
+		System Activity Reporter系统活动情况报告，是目前Linux上最为全面的系统性能分析工具之一，可以从多方面对系统的活动进行报告，包括：文件的读写情况、系统调用的使用情况、磁盘I/O\CPU效率、内存使用状况、进程活动及IPC有关的活动。
+
+		格式：
+			sar [ options ] [ <interval> [ <count> ] ]
+
+			interval：采样间隔。
+			count：采样次数
+
+			options：
+				-A：所有报告的总和
+				-b：显示I/O和传送速率的统计信息
+					 ~]# sar -b 1 3
+					Linux 2.6.32-573.3.1.el6.x86_64 (Testserver.F7-QSMC.com) 	09/11/2017 	_x86_64_	(16 CPU)
+
+					01:22:26 PM       tps      rtps      wtps   bread/s   bwrtn/s
+					01:22:27 PM     19.39      0.00     19.39      0.00    228.57
+					01:22:28 PM      8.08      0.00      8.08      0.00     64.65
+					01:22:29 PM      0.00      0.00      0.00      0.00      0.00
+					Average:         9.12      0.00      9.12      0.00     97.30
+
+					tps：每秒钟物理设备的I/O传输总量。
+					rtps：每秒钟从物理设备读入的数据总量。
+					wtps：每秒钟向物理设备写入数据总量。
+					bread/s：每秒钟从物理设备读入的数据量，单位为 块/s
+					bwrtn/s：每秒钟向物理设备写入的数据量，单位为 块/s
+
+				-B：输出内存页面的统计信息
+					 ~]# sar -B 1 3
+					Linux 2.6.32-573.3.1.el6.x86_64 (Testserver.F7-QSMC.com) 	09/11/2017 	_x86_64_	(16 CPU)
+
+					01:32:54 PM  pgpgin/s pgpgout/s   fault/s  majflt/s  pgfree/s pgscank/s pgscand/s pgsteal/s    %vmeff
+					01:32:55 PM      0.00      0.00     38.38      0.00     70.71      0.00      0.00      0.00      0.00
+					01:32:56 PM      0.00      0.00     41.41      0.00     70.71      0.00      0.00      0.00      0.00
+					01:32:57 PM      0.00     81.63     53.06      0.00     95.92      0.00      0.00      0.00      0.00
+					Average:         0.00     27.03     44.26      0.00     79.05      0.00      0.00      0.00      0.00
+
+					pgpgin/s：每秒钟从磁盘读入的系统页面的KB总数。
+					pgpgout/s：每秒钟向磁盘写出的系统页面的KB总数。
+					fault/s：系统每秒产生的页面失效（major+nimor）数量。
+					majflt/s系统每秒产生的页面（major）数量。
+
+				-d：输出每一个块设备的活动信息
+				-i interval：指定间隔时长，单位为秒
+				-p：显示友好设备名，以方便查看，也可以和-d和-n参数结合使用，比如-dp或np
+				-q：输出进程队列长度和平均负载状态统计信息
+					~]# sar -q 1 3
+					Linux 2.6.32-573.3.1.el6.x86_64 (Testserver.F7-QSMC.com) 	09/11/2017 	_x86_64_	(16 CPU)
+
+					02:42:55 PM   runq-sz  plist-sz   ldavg-1   ldavg-5  ldavg-15
+					02:42:56 PM         0       904      0.09      0.05      0.05
+					02:42:57 PM         0       904      0.09      0.05      0.05
+					02:42:58 PM         0       904      0.09      0.05      0.05
+					Average:            0       904      0.09      0.05      0.05
+
+					runq-sz：运行队列的长度（等待运行的进程数）
+					plist-sz：进程列表中进程（processes）和线程（threads）的数量。
+					ldavg-1：最后一份钟的系统平均负载（System load average）
+					ldabg-5：过去5分钟的系统平均负载。
+					ldabg-15：过去15分钟的系统平均负载。
+
+				-r：输出内存和交换空间的统计信息
+				-R：输出内存页面的统计信息
+				-u：输出cpu使用情况的统计信息
+					~]# sar -u
+					Linux 2.6.32-573.3.1.el6.x86_64 (Testserver.F7-QSMC.com) 	09/11/2017 	_x86_64_	(16 CPU)
+
+					12:00:01 AM     CPU     %user     %nice   %system   %iowait    %steal     %idle
+					12:10:01 AM     all      0.19      0.00      0.08      0.35      0.00     99.37
+					12:20:01 AM     all      0.13      0.00      0.08      0.38      0.00     99.41
+
+					CPU：all表示统计信息为所有cpu的平均值。
+					%user：显示在用户级别（application）运行使用cpu总时间的百分比。
+					%nice：显示在用户级别，用于nice操作，所占用cpu总时间的百分比。
+					%system：系统内核（kernel）运行所使用cpu总时间的百分比。
+					%iowait：显示用于等待I/O操作占用cpu总时间的百分比。
+					%steal：管理程序（hypervisor）为另一个虚拟进程提供服务而等待虚拟cpu的百分比。
+					%idle：显示cpu空闲时间占用cpu总时间的百分比。
+
+					1、若%iowait的值过高，表示硬盘存在I/O瓶颈。
+					2、若%idle的值高但系统响应慢时，有可能是cpu等待分配内存，此时应加大内存容量。
+					3、若%idle的值持续低于10，则系统的cpu处理能力相对较低，表明系统中最需要解决的资源是cpu。
+
+				-v：输出inode、文件和其他内核表的统计信息
+					12:20:01 PM dentunusd   file-nr  inode-nr    pty-nr
+					12:30:01 PM     66653     16352     43785         1
+					12:40:01 PM     66659     16320     43786         1
+					12:50:01 PM     66671     16320     43786         1
+					01:00:01 PM     66679     16384     43786         1
+					01:10:01 PM     66697     16576     43795         1
+
+					dentunusd：目录高速缓存中未被使用的条目数量。
+					file-nr：文件句柄（file handle）的使用数量。
+					inode-nr：索引节点句柄（inode handle）的使用数量。
+					pty-nr：使用的pty数量。
+
+				-V：输出版本号信息
+				-w：输出系统交换的活动信息
+				-W：输出系统交换的统计信息
+				-y：输出tty设备的活动信息
+				-n：{DEV|EDEV|NFS|NFSD|SOCK|ALL} 分析输出网络设备统计信息
+					DEV：报告网络设备的统计信息
+					EDEV：报告网络设备的错误统计信息
+					NFS：报告NFS客户端的活动统计信息
+					NFSD：报告NFS服务器的活动统计信息
+					SOCK：报告网络套接字(sockets)的使用统计信息
+					ALL：报告所有类型的网络活动统计信息
+
+					~]# sar -n DEV
+					02:05:44 PM     IFACE   rxpck/s   txpck/s    rxkB/s    txkB/s   rxcmp/s   txcmp/s  rxmcst/s
+					02:05:52 PM       em1     20.41     30.61      1.95      5.32      0.00      0.00      0.00
+					02:05:53 PM       em1     25.25     32.32      8.09      3.98      0.00      0.00      0.00
+					02:05:54 PM       em1      5.10     17.35      0.36      1.23      0.00      0.00      0.00
+					Average:          em1     16.95     26.78      3.48      3.52      0.00      0.00      0.00
+
+					IFACE：网络设备名。
+					rxpck/s：每秒接收的包总数。
+					txpck/s：每秒传输的包总数。
+					rxkB/s：每秒接收的字节（byte）总数。
+					txkB/s：每秒传输的字节（byte）总数。
+					rxcmp/s：每秒接收压缩包的总数。
+					txcmp/s：每秒传输压缩包的总数。
+					rxmcst/s：每秒接收的多播（multicast）包的总数。
+
+					~]# sar -n EDEV  | grep -E 'em1|IFACE'
+					12:00:01 AM     IFACE   rxerr/s   txerr/s    coll/s  rxdrop/s  txdrop/s  txcarr/s  rxfram/s  rxfifo/s  txfifo/s
+					12:10:01 AM       em1      0.00      0.00      0.00      0.00      0.00      0.00      0.00      0.00      0.00
+					12:20:01 AM       em1      0.00      0.00      0.00      0.00      0.00      0.00      0.00      0.00      0.00
+					12:30:01 AM       em1      0.00      0.00      0.00      0.00      0.00      0.00      0.00      0.00      0.00
+					12:40:01 AM       em1      0.00      0.00      0.00      0.00      0.00      0.00      0.00      0.00      0.00
+					12:50:01 AM       em1      0.00      0.00      0.00      0.00      0.00      0.00      0.00      0.00      0.00
+
+					IFACE：网络设备名。
+					rxerr/s：每秒接收的坏包数。
+					txerr/s：传输包时每秒发生错误的总数。
+					coll/s：传输包时每秒发生冲突(collision)的总数。
+					rxdrop/s：接收包时，由于缺乏缓存，每秒丢弃（drop）的数量。
+					txdrop/s：传输包时，由于缺乏缓存，每秒丢弃（drop）的数量。
+					txcarr/s：传输包时，每秒发生的传输错误（carrier-error）的数量。
+					rxfram/s：接收包时，每秒发生帧校验错误（frame alignment error）的数量。
+					rxfifo/s：接收包时，每秒发生队列（FIFO）--出错误的数量。
+					txfifo/s：传输包时，每秒发生队列（FIFO）--出错误的数量。
+
+				-x {pid|SELF|ALL} 输出指定进程的统计信息
+					pid：用pid指定特定的进程
+					SELF：表示sar自身
+					ALL：表示所有进程
+				-X {pid|SELF|ALL} 输出指定进程的子进程的统计信息
+				-I {irq|SUM|ALL|XALL} 输出指定中断的统计信息
+					irq：指定中断信号
+					SUM：指定输出每秒接收到的中断总数
+					ALL：指定输出前16个中断
+					XALL：指定输出全部的中断信息
+
+
+				-P{cpu|ALL}输出指定cpu的统计信息
+				-o filename：将输出信息保存到文件filename
+				-f filename：从文件filename读取数据信息。filename是使用-o选项时生成的文件。
+				-s hh:mm:ss：指定输出统计数据的起始时间
+				-e hh:mm:ss：指定输出统计数据的截止时间，默认为18:00:00
+
+

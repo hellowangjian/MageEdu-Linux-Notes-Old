@@ -1,0 +1,98 @@
+zabbix
+
+监控：
+	传感器：
+
+	数据采集 --> 数据存储 --> 数据展示
+	报警：采集到的数据超出阀值
+
+		时间序列数据
+
+	开源监控工具：
+
+	SNMP：Simple Network Management Protocol
+
+	SNMP的工作模式：
+		NMS向agent采集数据
+		agent向NMS报告数据
+		NMS请求agent修改配置
+
+	SNMP的组件：
+		MIB：management information base
+			OID
+		SMI：MIB表示符号
+		SNMP协议
+
+	SNMP协议的版本：
+		v1, v2, v3
+		v2c：NMS --> agent
+			mageedu.com
+		v3：认证、加密、解密
+
+	Linux：net-snmp程序包
+
+	NMS可发起操作：
+		Get，GetNext，Set，Trap
+
+		agent：Response
+
+		UDP：
+			NMS：161
+			agent：162
+
+	分布式监控
+
+	著名的开源监控工具：
+		zabbix, zennos, opennms, cacti, nagios(icinga), ganglia
+
+	监控功能的实现：
+		agent
+		ssh
+		SNMP
+		IPMI
+
+智慧平台管理接口（Intelligent Platform Management Interface）
+	原本是一种Intel架构的企业系统的周边设备所采用的一种工业标准。IPMI亦是一个开放的免费标准，使用者无需支付额外的费用即可使用此标准。
+
+	zabbix：有专用agent的监控工具
+		监控主机：
+			Linux, Windows, FreeBSD
+		网络设备：
+			SNMP, SSH(并非所有)
+
+	What to monitor?
+		Devices / Software
+			Server, Router, Switches, I/O systems etc.
+			Operating System, Networks, Applications, etc.
+		Incidents
+			DB down, Replication stopped, Server not reachable, etc.
+		Critical Events
+			Disk more than n% full or less than m Gbyte free,
+			Replication more than n seconds lagging, Data node down,
+		100% CPU utilization, etc.
+			--> Alert, immediate intervention, fire fighting
+		Trends(includes time!)
+			--> Graphs
+		How long does it take until ...
+			... my disk is full?
+			... my Index Memory is filled up?
+		When does it happen?
+			Peak? Backup?
+		How often does it happen? Does it happen periodically?
+			Once a day? Always at Sunday night?
+		How does it correlate to other informations?
+			I/O problems during our backup window?
+		Reading the patterns!
+			--> this can help us to find the root cause of problems...
+
+	How to monitor?
+		Basic solutions:
+			top, vmstat, iostat, mytop, innotop, SHOW GLOBAL STATUS, SHOW INNODB STATUS
+			CLI, no graphs, no log term information, but good for adhoc analysis!
+		Graphical solutions
+			Nagios(Opsview, Icinga), Cacti, Zabbix, ...
+			Typically NOT specialised in DB monitoring...
+
+	数据存储：
+		cacti：rrd(Round Robin Database) 环状数据库
+		zabbix：mysql，pgsql

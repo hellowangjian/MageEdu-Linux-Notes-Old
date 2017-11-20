@@ -1,0 +1,213 @@
+马哥Linux学习第三十五天（Nginx，tengine，反向代理及缓存，upstream）
+
+回顾：
+	rhcs,gfs2-utils, lvm2-cluster
+
+		rhcs:cman,rgmanager
+			cman+rgmanager(conga)
+			corosync(cman)+rgmanager(conga)
+			corosync+pacemaker
+
+			conga(luci/ricci)
+				rgmanager：
+					fence
+					failover domain
+					resource
+					group
+			工具：clustat,clusvcadm,cman_tool,ccs_tool
+
+		gfs2-utils:
+			shared storage
+				SAN
+				drbd
+
+			mkfs.gfs2
+				-p lock_dlm,lock_nolock
+				-t ClusterName:FSName
+				-j #
+
+		cLVM：在共享存储上创建LVM
+			lvmconf --enable-cluster
+
+			clvmd
+
+
+LB Cluster：
+	提升系统容量的方式：
+		scale up：
+		scale out：
+
+	session保持方法：
+		session绑定：sh
+		session复制：
+		session服务器：memcached，redis(key-value,kv store)
+
+
+	I/O：
+		同步/异步：
+		阻塞/非阻塞：
+
+		libevent：项目
+			epoll()
+
+	Nginx的配置：
+		main,event,http
+
+		http{
+			directive
+			server{
+				listen
+				server_name
+				location{
+					if{
+
+					}
+				}
+			}
+			server{
+
+			}
+
+		}
+
+	Module ngx_http_proxy_module：
+		server {
+			listen
+			server_name
+			location /{
+				proxy_pass http://192.168.3.7:80/;
+				proxy_set_header Host      $host;
+				proxy_set_header X-Real-IP $remote_addr;
+			}
+		}
+
+		格式：
+			location /uri {
+				proxy_pass http://back_server:port/newurl;
+			}
+
+			/uri --> /newuri
+
+			两个例外：
+				1、使用模式uri使用模式匹配时，会把匹配到的uri直接加在newuri后面向back_server请求；比如
+					location ~* \.(jpg|png|gif)$ {
+						proxy_pass http://172.16.100.6;
+					}
+
+					http://172.16.100.88/images/1.jpg --> http://172.16.100.6/images/1.jpg
+
+				2、如果在location配置了rewrite，会把重写后的uri发送给后端服务器作为请求；
+
+		proxy_connect_timeout：
+		proxy_hide_header：隐藏首部，proxy响应给客户端时响应的首部；
+
+	ngx_http_upstream_module
+
+
+回顾：nginx
+	ngx_http_proxy_module, ngx_httpd_upstream_module
+
+	ngx_http_proxy_module：实现反向代理及缓存功能
+		proxy_pass http://{SERVER_IP|UPSTREAM_NAME}/uri
+
+		proxy_cache_path path [levels=levels] keys_zone=name:size [inactive=time] [max_size=size];
+
+		proxy_cache zone_name;
+
+		proxy_cache_valid[conde]time;
+		proxy_cache_method;
+		proxy_cache_use_stale error timeout ...
+		proxy_cache_min_uses;
+		proxy_cache_bypass string ...;设置在何种情形下nginx将不从cache取数据的；
+			$cookie_nocache $arg_nocache $http_authorization
+		proxy_set_header field value;
+
+	ngx_http_upstream_module：
+		定义服务器组
+			proxy_pass, fastcgi_pass, uwsgi_pass,
+
+		upstream name {
+			server address [parameters];
+			ip_hash;
+		}
+
+nginx(2)
+
+	SNAT模式的大量Client
+
+		基于sticky实现session绑定:
+			cookie
+			route
+			learn()
+
+	least_conn：调度方法，最少连接；
+
+	health_check：
+		用于location中；
+
+		建议：关闭访问日志；
+
+	自定义响应首部：
+		add_header X-Via $server_addr;
+		add_header X-Cache $upstream_cache_status;
+
+	LNMP
+		fpm
+
+		编辑/etc/nginx/fastcgi_params，将其内容更改为如下内容：
+		fastcgi_param  GATEWAY_INTERFACE  CGI/1.1;
+		fastcgi_param  SERVER_SOFTWARE    nginx;
+		fastcgi_param  QUERY_STRING       $query_string;
+		fastcgi_param  REQUEST_METHOD     $request_method;
+		fastcgi_param  CONTENT_TYPE       $content_type;
+		fastcgi_param  CONTENT_LENGTH     $content_length;
+		fastcgi_param  SCRIPT_FILENAME    $document_root$fastcgi_script_name;
+		fastcgi_param  SCRIPT_NAME        $fastcgi_script_name;
+		fastcgi_param  REQUEST_URI        $request_uri;
+		fastcgi_param  DOCUMENT_URI       $document_uri;
+		fastcgi_param  DOCUMENT_ROOT      $document_root;
+		fastcgi_param  SERVER_PROTOCOL    $server_protocol;
+		fastcgi_param  REMOTE_ADDR        $remote_addr;
+		fastcgi_param  REMOTE_PORT        $remote_port;
+		fastcgi_param  SERVER_ADDR        $server_addr;
+		fastcgi_param  SERVER_PORT        $server_port;
+		fastcgi_param  SERVER_NAME        $server_name;
+
+	LNAMP
+
+	LNMP,fastcgi_cache
+
+	练习：
+		（1）root为同一路径；
+		（2）root为不同的路径；
+			location \.php$ {
+				root /web/app/wp;
+			}
+
+			location / {
+				root /web/htdocs;
+			}
+
+			如何解决问题？
+
+		（3）fpm server为另一主机；
+			location \.php$ {
+				fastcgi_pass fastcgi://172.16.100.9:9000;
+			}
+
+			location / {
+				root /web/htdocs;
+			}			
+
+	总结：
+		cache：
+			proxy_cache
+			fastcgi_cache
+
+	练习：
+		使用nginx反向代理（rr调度）用户请求至两个以上的后端LAMP（按标准路径部署的pma）；
+		（1）手动更新所有节点上的pma至新版本；
+		（2）写脚本实现如上过程；
+
+
+

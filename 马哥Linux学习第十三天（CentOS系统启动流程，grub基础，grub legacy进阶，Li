@@ -1,0 +1,572 @@
+马哥Linux学习第十三天（CentOS系统启动流程，grub基础，grub legacy进阶，Linux内核管理及内核编译入门）
+
+回顾：
+	进程查看或管理工具：htop, vmstat, glances, dstat
+	bash脚本编程：文件测试，组合条件测试
+		文件测试：
+			存在性：-e,-a,-f,-d,-h,-L,-b,-c,-S,-p
+			权限：-r,-w,-x, -U, -G, -u,-g,-k
+			时间戳：-N
+
+			双目操作：-nt, -ot, -ef
+
+		组合测试条件：（链接测试表达式）
+			与：-a
+				所有条件必须同时为“真”，结果才为“真”
+			或：-o
+				只要有一个条件为“真”，则结果为“真‘
+			非：!
+				结果取反
+
+CentOS系统的启动流程：
+	
+	内核的功能：进程管理，文件系统，驱动程序，网络子系统，安全功能，内存管理
+
+	内核设计流派：
+		单内核体系：
+			Linux，模块化设计机制
+				核心功能＋各种模块：
+					模块可动态装载和鞋子；
+		微内核体系：
+			sindows
+			Solaris
+			Minix
+			Hurd
+
+			设计思想：内核核心仅保留最基本功能，而把其它功能做成子系统，各子系统之间依靠通信完成基本功能；
+
+	CentOS系统启动流程：
+		POST：CPU，ROM
+			周边硬件检测
+			CMOS；BIOS
+
+		BIOS：boot sequence
+			按次序查找各引导设备，第一个有引导程序的设备即为启动系统用到的设备；
+				1st
+				2nd
+				3rd
+
+		MBR：Master Boot Record
+			512bytes：
+				446bytes：bootloader（程序，OS安装时生成）；
+				64bytes：分区表
+				2bytes：55AA
+
+		bootloader：加载选定的操作系统的内核至RAM中，并展开至固定的位置；多系统共存的场景中，还会提供一个选择菜单；
+
+			LILO：LInux LOader
+
+			GRUB：GRand Unified Bootloader
+				MBR：1st stage
+				/boot/grub：2nd stage
+
+				GRUB 0.X：GRUB Legacy
+					CentOS5， CentOS6
+					[root@www ~]# grub --version
+					grub (GNU GRUB 0.97)
+				GRUB 1.X：GRUB 2
+					CentOS 7
+
+		Kernel：
+			自身初始化：
+				探测可识别的所有硬件；
+				装载硬件设备的驱动程序(ramdisk)；
+					ramdisk：加载至内存中，此段内存空间被虚拟成了块设备；
+						主要用于提供硬盘驱动程序；系统安装时临时生成的；
+						ramdisk被内核识别为“根文件系统”，即rootfs，常被称作“临时根”；
+				以只读方式装载“真正根文件系统”；
+				启动用户空间的第一个应用程序：/sbin/init
+
+			init：
+				CentOS 5：SysV init
+					特点：启动用户空间的服务程序，通常通过脚本进行；有依赖关系的服务将被串行启动；
+					配置文件：/etc/inittab
+				CentOS 6：Upstart
+					特点：守护进程间的通信依赖于D-Bus进行，因此，可基本实现类似并行启动；
+					配置文件：/etc/inittab，/etc/init/*.conf
+				CentOS 7：Systemd
+					特点：服务只有在第一次被访问到时才会真正启动起来；
+					配置文件：/usr/lib/systemd/
+
+			/sbin/init
+
+				Linux系统运行级别：为系统维护的目的而设定，途径是设定启动或关闭服务实现；
+					0-6：7个级别
+						0：关闭所有服务；关机；
+						1：维护模式，单用户模式，sigle模式；此级别可允许root用户直接登录而无需认证；
+						2：维护模式，多用户模式，需要用户认证，会启动网络功能，但不支持使用NFS；
+						3：正常级别，完全多用户模式，文本界面；
+						4：预留级别
+						5：正常级别，完全多用户模式，图形界面；
+						6：关闭所有服务；重启
+
+					默认级别：3，5
+
+					查看运行级别：
+						[root@www ~]# runlevel
+						N 5
+						[root@www ~]# who -r
+			        	运行级别 5 2016-09-29 00:39
+
+					切换级别：
+						init [0-6]
+							init 0
+							init 6
+
+				配置文件：/etc/inittab(CentOS 5)配置文件格式
+					每一行定义一个由init执行的action，以及对应的程序；
+						action用于定义程序什么时候被运行；
+					格式：
+						id:runlevel:action:process
+
+					例如：设定默认运行级别
+						id:3:initdefault:
+
+					例如：定义完成系统初始化的脚本
+						si::sysinit:/etc/rc.d/rc.sysinit
+
+						初始化用户空间环境；此脚本会执行许多系统初始化任务；
+
+					例如：启动对应级别下设定为要启动的服务，关闭那些设定为要停止的服务；
+						l1:1:wait:/etc/rc.d/rc 1
+						l2:1:wait:/etc/rc.d/rc 3
+
+							意味着：通过/etc/rc.d/rc1.d/下所有链接文件来决定如何启动或关闭服务；
+								所有以S开头的，都被传递start参数以启动，所有以K开头的，都被传递stop参数以停止；
+
+					/etc/init.d/SVC_SCRIPTS,此些脚本遵循LSB服务脚本的定义规范，基本都能接受四个最基本的参数，{start|stop|status|restart}
+						start
+						stop
+						restart
+						status：查看服务运行状态；
+
+						脚本在指定级别为启动还是停止的控制方法
+							1、这些脚本开头：
+								存在一个注释的：
+									#chkconfig: S_LEVELS S_PRID K_PRID
+									#description:
+										[root@www ~]# head /etc/init.d/crond 
+										#!/bin/sh
+										#
+										# crond          Start/Stop the cron clock daemon.
+										#
+										# chkconfig: 2345 90 60
+										# description: cron is a standard UNIX program that runs user-specified \
+										#              programs at periodic scheduled times. vixie cron adds a \
+										#              number of features to the basic UNIX cron, including better \
+										#              security and more powerful configuration options.
+
+							2、第二种方法：
+								### BEGIN INIT INFO
+								# Provides: crond crontab
+								# Required-Start: $local_fs $syslog
+								# Required-Stop: $local_fs $syslog
+								# Default-Start:  2345
+								# Default-Stop: 90
+								# Short-Description: run cron daemon
+								# Description: cron is a standard UNIX program that runs user-specified 
+								#              programs at periodic scheduled times. vixie cron adds a 
+								#              number of features to the basic UNIX cron, including better 
+								#              security and more powerful configuration options.
+								### END INIT INFO
+
+
+						此些脚本可直接被调用：
+							/etc/init.d/SVC_SCRIPTS {start|stop|status|restart}
+						也可以使用service命令调用：
+							serveice VC_SCRIPTS {start|stop|status|restart}
+
+						此些服务也可以开机(或切换至指定运行级别时)时被自动启动或停止：
+							方法：
+								/etc/rc.d/rc脚本，以及每个级别对应的级别目录下的“符号链接”来进行（/etc/rc.d/rcN.d）；
+									S##SVC_SRIPTS
+									K##SVC_SRIPTS
+
+									##：两位数字，表示优先级别：
+										X --> Y
+											先启Y，再启X；
+											先停X，再停Y；
+
+											启动时：被依赖的服务数字较小；
+											停止时：被依赖的服务数字较大；
+
+								例如：服务mysvc，脚本为/etc/init.d/mysvc
+									对应于级别3，开机可自动被启动：/etc/rc.d/rc3.d/S77mysv
+
+									for svc in /etc/rc.d/rc3.d/S*;do
+										$svc start
+									done
+
+									for svc in /etc/rc.d/rc3.d/K*;do
+										$svc stop
+									done
+								注意：此些符号链接的创建通过chkconfig命令来实现
+									chkconfig [--level LEVELS] SVC_SRIPTS on|off
+										--level选项明确指定的级别为on或off，余下的级别保持原有不变；
+										默认为2345级别；
+
+									chkconfig --list [SVC_SRIPTS]:
+										查看对应级别下的服务状态：
+										[root@www ~]# chkconfig --list  crond
+										crond          	0:关闭	1:关闭	2:启用	3:启用	4:启用	5:启用	6:关闭
+
+									chkconfig --add|--del SVC_SRIPTS
+										--add：为某存放在/etc/init.d的服务在对应的/etc/rc.d/rc0-6.d目录添加符号链接；
+										--del：把指定SVC_SCRIPTS的在7个级别符号链接统统删除；	
+
+								注意：有一个特殊的链接，以/etc/rc.d/rc3.d为例：
+									S99local，指向/etc/rc.local脚本；
+
+									功能：那些不便定义为服务脚本，设定开机自动运行时，可直接把命令写在此脚本中以实现开机运行；
+
+						例如：启动虚拟终端
+							一般启动6个虚拟终端：
+								tty1:2345:respawn:/sbin/mingetty tty1
+								tty2:2345:respawn:/sbin/mingetty tty2
+								tty3:2345:respawn:/sbin/mingetty tty3
+
+							每个虚拟终端启动之后，会立即通过此终端附加一个应用程序－－－－login
+
+							如果默认级别为5，还会启动一个图形虚拟终端；会附加X应用程序；
+
+					/etc/rc.d/rc.sysinit脚本的功能：
+						（1）根据配置文件中的设定来设定主机名（读取/etc/sysconfig/network文件中的HOSTNAME进行）
+						（2）打印文本欢迎信息；
+						（3）激活SELinux和udev；
+						（4）挂载所有定义在/etc/fstab文件中的文件系统；
+						（5）激活swap设备；
+						（6）检测根文件系统，并实现以读写方式重新挂载；
+						（7）设置系时钟；
+						（8）根据/etc/sysctl.conf文件设定内核参数的值；
+						（9）激活LVM和RAID设备；
+						（10）加载额外的设备驱动程序；
+						（11）清理操作；
+
+	系统启动流程：POST --> BIOS(boot sequence) --> MBR(bootloader) --> kernel(radisk) --> /sbin/init
+				init:
+					设定默认运行级别 --> 使用/etc/rc.d/rc.sysinit脚本进行系统初始化 --> 分别关闭和启动对应级别的所有服务 --> 启动字符终端 --> 启动图形终端（如果默认级别为5）--> 显示用户登陆提示；
+
+		注意：
+			（1）CentOS 6的init程序为upstart，其配置文件为/etc/init/*.conf；此些配置文件遵循upstart语法格式进行编程；
+			（2）CentOS 6的服务控制事实上大多数并没有使用upstart脚本来控制，而依然使用的是SysV风格的脚本；
+
+	GRUB Legacy：
+		grub组成部分：
+			stage1：MBR
+			stage1_5：MBR随后的扇区中存放，用于与stage2所在分区的文件系统进行交互；
+			stage2：磁盘分区上(/boot/grub)
+
+		功能：
+			1、加载用户选择要启动的系统的内核；
+				允许用户向内核传递参数；
+			2、提供一个菜单，支持交互式应用；
+				grup有内建命令：调用接口有两个：
+					（1）菜单，支持编辑；e
+					（2）交互式，c
+				注意：菜单界面可被隐藏
+			3、为编辑菜单提供保护机制
+				编辑保护：
+					认证后方能进行编辑
+				启用内核保护：
+					认证后方能使用选定的内核
+
+		编辑界面：e，b
+			root：指明内核文件所在分区
+			kernel：指明内核文件路径，及传递给内核的参数
+			initrd：指明辅助内核完成系统启动的ramdisk文件；
+
+		如何识别分区：
+			(hd#,#)：
+				第一个#号：表示磁盘设备；
+				第二个#号：表示磁盘分区；
+					(hd0,0)
+
+					例如：(hd0,0)/grub/grub.conf
+						root (hd0,0)：指明根设备；
+						/grub/grub.conf
+
+					所有的分区都识别为hd格式；
+
+				系统启动后：/boot/grub/grub.conf
+					问题是：系统启动之前，grub访问此文件路径是什么?
+						如果boot与rootfs不在同一分区：
+							/grub/grub.conf
+						如果boot与rootfs在同一分区，boot没有被单独分区：
+							/boot/grub/grub.conf 
+
+		grub的命令行接口：c
+
+回顾：
+	CentOS系统启动流程：
+		POST --> BIOS(boot sequence) --> bootloader(MBR) -->kernel(ramdisk) --> /sbin/init
+			CentOS 5：sysv init,/etc/inittab
+			CentOS 6：upstart, /etc/init/.conf
+			CentOS 7：systemd，/usr/lib/systemd
+		设定默认运行级别-->基于/etc/rc.d/rc.sysinit完成系统初始化-->关闭和启动对应级别下的服务-->启动字符终端-->启动图形终端（如果为级别5）-->打印登录提示符
+
+	GRUB：
+		bootloader
+		GRUB Legacy，GRUB 2
+
+		MBR：stage1，MBR之后的扇区中的：stage1_5，磁盘分区上：stage2
+			识别硬盘设备：(hd#,#)，例如(hd0,0)
+
+CentOS启动流程（2）：
+
+	GRUB配置文件：/boot/grub/grub.conf
+		default：设定默认启动的内核或操作系统；
+		timeout：超时时长；单位是秒；
+		splashimage：grub菜单的背景图片；
+			图片：xpm格式，压缩为gzip，14bits颜色,640X480;
+			提示：利用gimp图片编辑器
+				~]# yum install gimp
+		hiddenmenu：隐藏选择菜单
+		title：定义一个操作系统或内核；
+			title Description
+				root：指明引导当前操作系统或内核文件所在的分区；
+				kernel：内核文件路径、根文件系统所在设备，以及传递给内核的参数；
+				initrd：指明用于辅助内核完成系统启动的ramdisk文件路径
+					CentOS 5：initrd－VERSION
+					CentOS 6：initramfs-VERSION.img
+						ramfs：可避免ramdisk模拟为块设备时，其数据会被内核再次在内存缓存；
+
+	GRUB的命令行接口：
+		# mv grub.conf grub.conf.bak 将grub.conf拿掉重启系统后进入grub命令行模式
+
+		help：获取帮助
+		find：文件查找，通常用于定位文件，方法 find (hd#,#)/
+			find (hd0,0)
+		root
+			grub> root (hd0,0)
+		kernel
+			grup> kernel /vmlinuz-2.6.32-358.el6.x86_64 ro root=/dev/vg0/root quit
+				quit：静默模式，不显示内核初始化信息
+		initrd
+			grub> initrd /initramfs-2.6.32-358.el6.x86_64.img
+
+		boot：使用boot命令进行引导
+
+
+	GRUB保护机制：
+		password [--md5]
+			放置位置：
+				第一个title之上：
+					保护编辑功能：
+				某title之内：
+					保护某内核；
+
+		生成密码的命令：
+				grub-md5-crypt
+
+	修复GRUB？
+		紧急救援模式进行修复；
+
+		安装GRUB：
+			完整安装：
+				# grub-install [--root-directory=/path/to/somedir] /dev/DEVICE
+					~]# grub-install --root-directory=/mnt /dev/sdb
+
+			修复stage1：
+				# grub
+				grub> root(hd#,#)
+				grub> setup(hd#)
+
+			提示：
+				kernel /vmlinuz ro root=/dev/sda2 selinux=0 init=/bin/bash
+
+				ldd /bin/bash
+				chroot /mnt/sysroot/ /bin/bash
+
+	GRUB 2：
+		特性：
+			1）图形接口；
+			2）模块化，支持动态装载和卸载；
+			3）支持脚本编程；
+			4）支持rescue模式；
+			5）灵活的命令行接口；
+			6）设备命名：
+				hd：硬盘，fd：软盘，设备从0开始编号，但分区从1开始编号，这不同于grub legacy；
+
+Linux内核：
+	单内核体系，模块化
+
+	内核的组成部分：
+		核心文件：/boot/vmlinuz-VIRSION
+		模块文件：/lib/modules/VERSION/
+			*.ko：模块间或许存在依赖关系；
+		ramdisk：非必需性的内容；
+
+	内核模块管理：
+		lsmod命令：列出已经装载的模块
+
+			另一种办法：cat /proc/modules
+
+		modinfo：查看指定模块的详细信息。
+			modinfo [OPTION] MOD_NAME
+				~]# modinfo e1000
+				-a：author
+				-n：filename
+				-l：license
+				-p：parampeters
+				-d：description
+
+			显示出的信息中：
+				depends：被此模块所有依赖的其它模块；
+
+		modprobe命令：
+			实现模块的装载和卸载
+
+			装载：modprobe MOD_NAME
+				注意：会自动解决依赖关系
+					~]# modprobe ext3
+
+			卸载：modprobe -r MOD_NAME
+				~]# modprobe -r ext3
+
+		手动实现模块文件装载和卸载
+			insmod命令：
+				insmod /path/to/module_file
+
+				注意：不会自动解决依赖关系；
+
+			rmmod命令：
+				rmmod MOD_NAME
+
+	与内核交互：
+		/proc伪文件系统接口
+			每个文件名均是内核参数，目录名为内核参数节点（子系统或子功能）信息；
+				net.ipv4.ip_forward = 1
+				/proc/sys/net/ipv4/ip_forward
+
+				只读：输出内核信息
+				读写：可修改的内核工作特性
+					/proc/sys目录下
+
+			伪文件系统：文件不能够直接使用编辑器编辑；修改方法：
+				（1）echo
+						echo "New_Value" > /proc/sys/path/to/somefile
+				（2）sysctl -w
+						sysctl -w path.to.somefile=New_Value
+
+				例如：/proc/sys/net/ipv4/ip_forward
+					[root@www ~]# cat /proc/sys/net/ipv4/ip_forward 
+					0
+					[root@www ~]# echo "1" > /proc/sys/net/ipv4/ip_forward
+					[root@www ~]# cat /proc/sys/net/ipv4/ip_forward
+					1
+
+					[root@www ~]# sysctl -w net.ipv4.ip_forward=0
+					net.ipv4.ip_forward = 0
+					[root@www ~]# cat /proc/sys/net/ipv4/ip_forward
+					0
+
+				注意：此两种种设定立即生效，但内核重启无效；
+
+				（3）内核参数配置文件/etc/sysctl.conf
+					path.to.paramter= New_Value
+
+					注意：此种设定不能立即生效；使其生效的方式：
+						sysctl -p
+
+			查看当前运行中的内核的所有参数及其值：
+				sysctl -a
+
+		/sys伪文件系统接口：
+			伪文件系统：sysfs；主要用于输出内核识别出的各硬件设备的相关属性信息；还能够让用户修改某些参数的值来改变硬件的工作特性；
+
+			用户空间的应用程序：udev通过读取/sys目录下保存的硬件的相关信息来为每个当前内核探测到的硬件设备创建设备文件；创建设备文件的文件权限、名称等属性是可定制的；
+				udev有规则文件：/etc/udev/rules.d/
+
+				例如：修改网卡设备的名字
+					/etc/udev/rules.d/70-persistent-net
+
+	ramdisk：内核启动辅助文件，非必需，是有anacona系统安装程序创建的
+
+		uname命令：
+			-r：--kernel-version，内核release号
+			-n：主机名；
+			-a：显示所有信息
+
+		ramdisk制作：
+			CentOS 5：mkinitrd
+
+			CentOS 6：dracut,mkinitrd
+				dracut [OPTION]... <image>  <kernel-version>
+					-m LIST：模块列表
+					-d LIST：驱动列表
+
+				例如：~]# dracut /boot/initramfs-$(uname -r).img $(uname -r)
+
+		手动修改：
+			展开initramfs文件：
+				# cp /boot/initramfs-2.6.32-358.el6.x86_64.img /tmp
+				# cd /tmp
+				# file initramfs-2.6.32-358.el6.x86_64.img 
+				# mv initramfs-2.6.32-358.el6.x86_64.img initramfs-2.6.32-358.el6.x86_64.img.gz
+				# gzip -d initramfs-2.6.32-358.el6.x86_64.img.gz
+				# mkdir ramdisk
+				# cd ramdisk
+				# cpio -id < ../initramfs-2.6.32-358.el6.x86_64.img
+			归档：
+				# find . | cpio -o -H newc --quite > /boot/myramdisk.img
+				# gzip /boot/myramdisk.img
+				# mv /boot/myramdisk.img.gz /boot/myramdisk.img
+
+		常用内核参数：/proc/sys
+			kernel.hostname：主机名
+			net.ipv4.ip_forward：本机的路由功能，开启或关闭在接口之间转发报文的功能；
+			cmp_echo_ignore_all：
+
+
+	内核编译基础入门：
+		必要性：
+			（1）替换有严重bug的老版本内核；
+			（2）测试新版本内核的功能，例如：能够驱动的新硬件；
+			（3）学习内核编译；
+			... ...
+
+		准备工作：
+			(1) 要充分获知目标硬件设备的信息；
+			(2) 充分获知目标系统平台的各相关信息，如：文件系统类型等；
+			(3) 打算启用的新功能；
+			(4) 准备好软件开发环境及内核源代码树；
+
+		获取硬件设备信息：
+			(1) CPU
+				# cat /proc/cpuinfo
+				# lscpu
+				# x86info -a
+
+			(2) PCI
+				# lspci [-v]
+				# lsusb [-v]
+				# lsblk
+
+			(3) hal-device
+				hal：hardware abstract layer
+
+		开发环境及源码：
+			(1) 安装开发包组：
+				Development Tools, Server Platform Development
+			(2) 获取内核源码：
+				www.kernel.org
+
+			(3) 内核功能的选择
+				选定配置：
+					＃ make menuconfig
+						[ ] 不启用此功能
+						[M] 编译成内核模块
+						[*] 编译进内核
+
+					注意：要保存退出；所有选定的配置会保存在.config隐藏文件中；
+				编译：
+					＃ make
+				安装内核模块：
+					# make modules_install
+					安装在/lib/modules/VERSION
+				安装内核：
+					# make install
+				重启系统，选择使用新内核
+
+
+

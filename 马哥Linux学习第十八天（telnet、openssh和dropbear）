@@ -1,0 +1,193 @@
+马哥Linux学习第十八天（telnet、openssh和dropbear）
+
+telnet：	
+	C/S 
+		Server：23/tcp
+
+	rcp,ftp,rlogin,rsh
+
+	Server：telnet-server
+		/etc/xinetd.d/telnet
+		/usr/sbin/in.telnetd
+	Client：telnet
+		/usr/bin/telnet
+
+	服务进程：
+		独立守护进程：
+		超级守护进程：xinetd,/etc/xinetd.d/*
+			瞬时守护进程：
+				telnet 
+
+			# chkconfig telnet on
+			# service xinetd start
+			# ss -tnlp | grep :23
+
+		注意：telnet不允许root用户直接登录；
+
+ssh：Secure SHell
+		C/S：22/tcp
+	协议版本：
+		v1：基于CRC－32做MAC，不安全；容易遭受中间人攻击；
+		v2：基于协议协议协商选择双方都支持的最安全的MAC机制；
+			基于DH做密钥交换，基于RSA或DSA实现身份认证；
+			客户端通过检查服务器端的主机密钥来判断是否能够继续通信；
+
+		两种方式的用户认证：
+			基于口令的认证：
+				PasswordAuthentication yes
+				PermitEmptyPasswords no
+			基于密钥的认证：
+				RSAAuthentication yes
+				PubkeyAuthentication yes
+				AuthorizedKeysFile     .ssh/authorized_keys
+
+	OpenSSH：是ssh协议的开源实现，支持v1和v2版的协议；
+		Clients：
+			scp, ssh, stfp, slogin
+			配置文件:/etc/ssh/ssh_config
+				StrictHostKeyChecking ask
+
+		Server：
+			sshd
+			配置文件：/etc/ssh/sshd_config
+				参数 值
+			服务脚本：/etc/rc.d/init.d/sshd
+
+		主机密钥：
+			v1：host_jkey
+			v2：rsa, dsa
+
+	客户端组件：ssh，scp，sftp
+		ssh：基于ssh协议远程链接ssh服务器的命令行客户端程序；
+			ssh [OPTION] [user]@server [COMMAND]
+
+				-l user：链接时要登录的用户，省略默认使用客户端当前使用的用户；
+					ssh user@serer
+					ssh -l user server
+				-p PORT：指明要链接的端口；
+				-X：启用X11Forwarding，即转发X界面的请求；
+				-x：禁用
+				-Y：仅对信任的主机启用X11Forwarding；
+
+				基于密钥的认证：
+					（1）在本地生成密钥对儿：
+						ssh-keygen [OPTIONS]
+							-t {rsa|dsa}
+							-f /path/to/output_keyfile
+							-b #：密钥长度
+							-P ''：指明加密密钥的密码
+
+					（2）把公钥部分复制到要登录远程主机的特定用户（可不同于本地用户）的家目录下，追加保存至.ssh目录中的authorized_keys文件中；	
+						ssh-copy-id -i /path/to/PUBKEY_FILE [user]@server
+
+				Windows上常用的ssh协议客户端：
+					xshell（xmanager）
+					secruecrt
+					putty
+					sshsecureshellclient
+
+			scp：远程复制工具
+				scp [OPTIONS] SRC... DST
+
+				PUSH：scp [OPTIONS] /path/from/somefile... user@sercer:/path/to/dest
+				PULL：scp [OPTIONS] user@serer:/path/from/somefile... /path/to/dest
+
+				常用选项：
+					-r：递归复制，复制目录及内部文件时使用；
+					-p：保存源文件数据信息中的属主、属组及权限；
+					-q：静默模式
+					-P PORT：指明远程服务器使用的端口；
+
+			sftp：链接OpenSSH服务器端开启的SubSystem(stp-server)
+				sftp [USER]@SERVER
+
+				sftp>help
+
+		服务器端程序：sshd
+			最佳实践：
+				1、不要使用默认端口；
+					Port 22022
+				2、不要使用v1版本协议；
+					Protocol 2
+
+				3、限制可登录的用户
+					man ssh_config
+						AllowUsers：允许登录的用户白名单，多个用户间使用空白分隔；
+						AllowGroup：允许登录的组白名单
+
+						DenyUsers
+						DenyGroups
+
+				4、设定空闲会话超时时长
+						ClientAliveInterval 300
+						ClientAliveCountMax 
+
+				5、利用防火墙设置ssh访问策略
+					限定ssh服务仅允许vpn服务器分配有限的地址段内的主机访问；
+
+				6、仅监听特定的IP地址；
+					ListenAddress 0.0.0.0
+
+				7、使用强密码策略；
+					# tr -dc A-Za-z0-9 < /dev/usrandom | head -c 30 | xrags
+
+				8、使用基于密钥的认证；
+
+				9、禁止使用空密码
+					#PermitEmptyPasswords no
+
+				10、禁止使用root直接登录
+					PermitRootLogin no
+
+				11、限制ssh的访问频度
+
+				12、做好日志，经常做日志分析
+					/var/log/secure
+
+	dropbear：另一款ssh协议的开源实现；
+		epel源提供yum安装:~]# yum list all *dropbear*
+
+		服务程序：dropbear ==> sshd
+		客户程序：dbclient ==> ssh
+		密钥生成程序：dropbearkey
+
+		编译安装：
+			# ./configure --prefix=/usr/local/dropbear --sysconfdir=/etc/dropbear --disable-pam
+			# make PROGRAMS="dropbear dblient dropbearkey dropbearconvert scp"
+			# make PROGRAMS="dropbear dblient dropbearkey dropbearconvert scp" install
+			        Dropbearkey是用来生成公钥的；
+                    Dropbearconvert是用来与openssh转换的；
+                    Dbclient可以用来连接远程的服务器；
+                        #./dbclient username@192.168.99.214
+                    Scp可以向远程的服务器写文件和取文件；
+                        #./scp /home/bin/a.log username@192.168.99.214:/home/working
+
+		环境变量配置文件：
+			# vim /etc/profile.d/dropbear.sh
+				export PATH=/usr/local/dropbear/bin:/usr/local/bropbear/sbin:$PATH
+			#. /etc/profile.d/dropberar.sh
+
+		此时dropberar命令即可运行了：
+			dropbear -h
+
+		dbclient命令也可运行：
+			dbclient -h
+
+		配置dropbear服务器端：
+			(1)生成密钥
+				# mkdir /etc/dropbear
+				# cd /etc/dropbear 
+				# dropbearkey -t dss -f dropbear_dss_host_key  //生成dss密钥文件
+				# dropbearkey -t rsa -s 2048 -f dropbear_rsa_host_key  //生成rsa密钥文件
+				# dropbear -F -E   //启动dropbear，注意端口
+				# ss -tnlp //查看端口监听
+
+			(2)使用ssh client端测试
+				# ssh -l root 172.16.100.11
+
+
+
+
+系统log定义配置文件：
+	/etc/rsyslog.conf
+

@@ -1,0 +1,38 @@
+Linux Security
+
+禁止scp和sftp命令：
+	系统:centos 5.x
+
+	1.先禁止scp
+
+	rpm -qa|grep openssh-*
+
+	yum remove openssh-clients -y
+
+	删除了openssh-clients后,再执行scp,就会报下面的错误:
+
+	-bash: scp: command not found
+
+	2.禁止sftp
+
+	vi /etc/ssh/sshd_config
+
+	Subsystem sftp /usr/libexec/openssh/sftp-server
+
+	把这行注释了,如下:
+
+	#Subsystem sftp /usr/libexec/openssh/sftp-server
+
+	退出保存后,重启sshd:
+
+	service sshd restart
+
+	以上就是Linux系统中禁止scp和sftp命令的方法了。有需要或者是有兴趣的用户,可以在自己的电脑上尝试操作一下。
+
+
+ssh配置文件设置：
+	protocol 2
+	PermitRootLogon no
+	Port 22 --> other port
+	ListenAddress
+	PermitEmptyPassword no

@@ -1,0 +1,87 @@
+阿铭Linux shell练习题
+
+1、请按照这样的日期格式（xxxx-xx-xx）每日生成一个文件，例如今天生成的文件为2017-07-05.log， 并且把磁盘的使用情况写到到这个文件中，（不用考虑cron，仅仅写脚本即可）
+	#!/bin/bash
+	logfile=$(date+%F).log
+	df -h > $logfile
+	[root@Testserver s
+
+
+2、有日志1.log，内容如下：
+	日志片段：
+
+	112.111.12.248 - [25/Sep/2013:16:08:31 +0800]formula-x.haotui.com "/seccode.php?update=0.5593110133088248" 200"http://formula-x.haotui.com/registerbbs.php" "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; SV1;)"
+	61.147.76.51 - [25/Sep/2013:16:08:31 +0800]xyzdiy.5d6d.com "/attachment.php?aid=4554&k=9ce51e2c376bc861603c7689d97c04a1&t=1334564048&fid=9&sid=zgohwYoLZq2qPW233ZIRsJiUeu22XqE8f49jY9mouRSoE71" 301"http://xyzdiy.5d6d.com/thread-1435-1-23.html" "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; SV1; .NET CLR 1.1.4322; .NET CLR 2.0.50727)"
+	要求： 统计出每个IP的访问量有多少？
+		# awk '{print $1}' /var/log/httpd/access_log | sort -n | uniq -c
+
+3、写一个脚本计算一下linux系统所有进程占用内存大小的和。（提示，使用ps或者top命令）
+	# ps aux | grep -v 'RSS TTY' | awk '{(sum=sum+$6)};END{print sum "k"}'
+
+	脚本如下：
+		#!/bin/bash
+		# stats mem
+		sum=0
+		for mem in `ps aux | awk '{print $6}' | grep -v 'RSS'`
+		do
+		    sum=$[$sum+$mem]
+		done
+		echo "The total memory id $sum k"
+
+4、设计一个脚本，监控远程的一台机器(假设ip为123.23.11.21)的存活状态，当发现宕机时发一封邮件给你自己。
+	提示：
+	1. 你可以使用ping命令   ping -c10 123.23.11.21
+	2. 发邮件脚本可以参考 https://coding.net/u/aminglinux/p/aminglinux-book/git/blob/master/D22Z/mail.py
+	3. 脚本可以搞成死循环，每隔30s检测一次
+		#!/bin/bash
+		# ping test!!!!
+		# date: 2017.07.22
+
+		ip=123.23.11.21
+		ma=root@localhost
+
+		while true; do
+		   /bin/ping -w 2 -c 1  $ip > /dev/null 2>&1
+		   if [ $? != "0" ]; then
+			echo "$ip is down, please check." | /bin/mail -s "$ip down" $ma
+		   fi
+		   sleep 30
+		done
+
+5、需求：
+	找到/123目录下所有后缀名为.txt的文件
+	批量修改.txt为.txt.bak
+	把所有.bak文件打包压缩为123.tar.gz
+	批量还原文件的名字，即把增加的.bak再删除
+	#!/bin/bash
+	##查找txt文件
+	find /123 -type f -name "*.txt" > /tmp/txt.list
+
+	##批量修改文件名
+	for f in `cat /tmp/txt.list`
+	do
+	    mv $f $f.bak
+	done
+
+	##创建一个目录，为了避免目录已经存在，所以要加一个复杂的后缀名
+	d=`date +%y%m%d%H%M%S`
+	mkdir /tmp/123_$d
+
+	##把.bak文件拷贝到/tmp/123_$d
+	for f in `cat /tmp/txt.list`
+	do
+	    cp $f.bak /tmp/123_$d
+	done
+
+	##打包压缩
+	cd /tmp/
+	tar czf 123.tar.gz 123_$d/
+
+	##还原
+	for f in `cat /tmp/txt.list`
+	do
+	    mv $f.bak $f
+	done
+
+
+

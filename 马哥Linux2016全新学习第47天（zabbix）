@@ -1,0 +1,517 @@
+马哥Linux2016全新学习第47天（zabbix）
+
+监控：
+	传感器：
+
+	数据采集 --> 数据存储 --> 数据展示
+	报警：采集到的数据超出阈值
+
+		时间序列数据
+
+	开源监控工具：
+
+	SNMP：Simple Network Management Protocol
+
+	SNMP的工作模式：
+		NMS向agent采集数据
+		agent向NMS报告数据
+		NMS请求agent修改配置
+
+	SNMP的组件：
+		MIB：management information base
+			OID
+		SMI：MIB表示符号
+		SNMP协议
+
+	SNMP协议的版本：
+		v1, v2, v3
+		v2c：NMS --> agent
+			mageedu.com
+		v3：认证、加密、解密
+
+	Linux：net-snmp程序包
+
+	NMS可发起操作：
+		Get，GetNext，Set，Trap
+
+		agent：Response
+
+		UDP：
+			NMS：162(trap)
+			agent：161
+
+	分布式监控
+
+	著名的开源监控工具：
+		zabbix, zennos, opennms, cacti, nagios(icinga), ganglia
+
+	监控功能的实现：
+		agent
+		ssh
+		SNMP
+		IPMI
+
+智慧平台管理接口（Intelligent Platform Management Interface）
+	原本是一种Intel架构的企业系统的周边设备所采用的一种工业标准。IPMI亦是一个开放的免费标准，使用者无需支付额外的费用即可使用此标准。
+
+	zabbix：有专用agent的监控工具
+		监控主机：
+			Linux, Windows, FreeBSD
+		网络设备：
+			SNMP, SSH(并非所有)
+
+	What to monitor?
+		Devices / Software
+			Server, Router, Switches, I/O systems etc.
+			Operating System, Networks, Applications, etc.
+		Incidents
+			DB down, Replication stopped, Server not reachable, etc.
+		Critical Events
+			Disk more than n% full or less than m Gbyte free,
+			Replication more than n seconds lagging, Data node down,
+		100% CPU utilization, etc.
+			--> Alert, immediate intervention, fire fighting
+		Trends(includes time!)
+			--> Graphs
+		How long does it take until ...
+			... my disk is full?
+			... my Index Memory is filled up?
+		When does it happen?
+			Peak? Backup?
+		How often does it happen? Does it happen periodically?
+			Once a day? Always at Sunday night?
+		How does it correlate to other informations?
+			I/O problems during our backup window?
+		Reading the patterns!
+			--> this can help us to find the root cause of problems...
+
+	How to monitor?
+		Basic solutions:
+			top, vmstat, iostat, mytop, innotop, SHOW GLOBAL STATUS, SHOW INNODB STATUS
+			CLI, no graphs, no log term information, but good for adhoc analysis!
+		Graphical solutions
+			Nagios(Opsview, Icinga), Cacti, Zabbix, ...
+			Typically NOT specialised in DB monitoring...
+
+	数据存储：
+		cacti：rrd(Round Robin Database) 环状数据库
+		zabbix：mysql，pgsql
+
+	zabbix架构中的组件：
+		zabbix-server：C语言
+		OS：zabbix-agent：C语言
+		zabbix-web：GUI，用于实现zabbix设定和展示；
+		zabbix-proxy：分布式监控环境中的专用组件；
+		zabbix-database：MySQL, PGSQL(postgreSQL)、Oracle、DB2、SQLite
+
+	zabbix产生的数据主要由四部分组成：
+		配置数据
+		历史数据：50Bytes
+		历史趋势数据：128Bytes
+		事件数据：130Bytes
+
+zabbix on CentOS 7
+	
+	zabbix：2.0， 2.2， 2.4
+
+	epel
+		zabbix20
+		zabbix22
+
+	Linux开源监控系统：
+		nagios
+		cacti
+		zabbix
+		ganglia
+
+	zabbix-2.4
+
+
+回顾：
+	zabbix组件：
+		zabbix-server
+		zabbix-database
+		zabbix-web
+		zabbix-agent
+		zabbix-proxy
+	zabbix逻辑组件：
+		主机组、主机
+		item（监控项）、application（应用）
+		graph（图形）
+		trigger（触发器）
+			event（事件）
+		action
+			notice
+			command
+		media
+		users(media)
+	监控系统：
+		数据采集、数据存储、报警、数据可视化
+	zabbix：
+		database --> zabbix-server (zabbix_server.conf--> 数据导入 --> zabbix-web(LAMP) --> http://zabbix-web-server/zabbix
+		zabbix-agent (zabbix_agentd.conf)
+
+	历史数据：采样生成的数据
+	历史趋势数据：每小时的最大值、最小值、平均值、统计；
+
+	As is：不做任何处理
+	Delta(speed per second)：(value - prev_value)/(time - prev_time)
+		10: 12000, 20: 13000
+	Delta(simple change)：(value - prev_value)
+
+	Trigger：
+		名称中可以使用宏：
+			{HOST.HOST}, {HOST.NAME}, {HOST.IP}, {HOST.CONN}, {HOST.DNS}
+
+	Action有两类：
+		send message
+		command
+
+	由zabbix监控某关注的指标：
+		host group --> host --> item (存储于MySQL) --> graph (zabbix-web) --> trigger(触发器) --> action(conditon + operation)
+		application：把功能相近的一组item归类在一起统一进行管理组件；
+
+	Zabbix完整的监控配置流程大体上由如下步骤组成：
+		Host group --> Hosts --> Applications --> Items --> Triggers --> Events --> Actions --> User groups --> User --> Medias 
+
+		graph, screen, macro
+
+		依赖关系：
+			Host --> Item --> Trigger --> Action --> Notice,Command
+
+		添加主机到zabbix server：
+			discovery，auto_registrion
+			low level discovery
+
+		模版：
+			template：
+				application，item，trigger，graph，Action
+
+	主机组：
+		机器用途、系统版本、应用程序、地理位置、业务单元
+
+	Item：
+		默认的Items有多种类型：
+			Zabbix-agent：
+				工作模式：passive，active
+
+			网卡流量相关：
+				net.if.in[if,<mode>]
+					if：接口，如eth0
+					mode：bytes, packets, errors, dropped
+				net.if.out[if,<mode>]
+				net.if.total[if,<mode>]
+
+			端口相关：
+				net.tcp.listen[port]
+				net.tcp.port[<ip>,port]
+				net.tcp.service[service,<ip>,<port>]
+				net.udp.listen[port]
+
+			进程相关：
+				kernel.maxfiles
+				kernel.maxproc
+
+			CPU相关：
+				system.cpu.intr
+				system.cpu.load[<cpu>,<mode>]
+				system.cpu.num[<type>]
+				system.cpu.switches
+				system.cpu.util[<cpu>,<type>,<mode>]
+
+			磁盘IO或文件系统相关：
+				vfs.dev.read[<device>,<type>,<mode>]
+				vfs.dev.write[<device>,<type>,<mode>]
+				vfs.fs.inode[fs,<mode>]
+
+		用户可自定义item：
+			关键：选取一个唯一的key；
+			命令：收集数据的命令或脚本；
+
+		Trigger：
+			状态：
+				OK；
+				PROBLEM：有事件发生；
+
+			zabbix server每次接收到的items的新数据时，就会对Item的当前采样值进行判断，即与trigger的表达式进行比较；
+
+			一个trigger只能属于一个Item，但一个Item可以有多个trigger；
+
+			Severity:
+				Not classified：未知级别，灰色；
+				Information：一般信息，亮绿；
+				Warning：警告信息，黄色；
+				Average：一般故障，橙色；
+				High：高级别故障，红色；
+				Disaster：致命故障，亮红色；
+
+		Action：
+			触发条件一般为事件：
+				Trigger event: OK --> PROBLEM
+				Discovery events：zabbix的network discovery工作时发现主机；
+				Auto registration events：主动模式的agent注册时产生的事件；
+				Internal events：Item变成不在被支持，或Trigger变成未知状态；
+
+			Operations的功能：
+				动作：
+					send message
+					Remote command
+
+				配置send message：
+					（1）定义好Media；
+					（2）定义好用户；
+					（3）配置要发送的信息；
+
+
+
+	回顾和总结：zabbix的基本应用
+
+		Host group  --> Host --> Application --> Item --> Trigger (OK-->PROBLEM, trigger event) --> Action (Condition + Operation(Send Meassage, Remote Command)) 
+
+		Send Message:
+			Media：
+				Email、SMS、Jabber、Script、EZ Texting
+
+				给出具体实现：
+
+			User groups --> User (Media) 
+
+			示例中：mode2.magedu.com --> Traffic --> Inbound traffic, Outbound traffic --> trigger (inboud)
+
+		Zabbix常用术语：
+			Item Key
+			Escalation
+			Template
+			Web Scenario
+
+		Zabbix服务器进程：
+			housekeeper，alter，discoverer，httppoller，Poller，pinger，db_config_syncer, timer, escalater
+
+		Item key：
+			命名要求：只能使用字母、数字、下划线、点号、连接符
+			接受参数：system.cpu.load[<cpu>,<mod>], net.if.inbound[if,<mode>]
+
+				注意：
+					每一个key背后都应该有一个命令或脚本来负责实现数据收集；此命令或脚本可调用传递给key的参数，调用方式为$1, $2, ...
+
+				官方文档：https://www.zabbix.com/documentation/2.4/manual/config/items/itemtypes/zabbix_agent
+
+			在zabbix中定义item时调用某key，还需额外定义数据采集频率、历史数据的保持时长等；
+
+		Trigger：
+			触发器表达式：{<server>:<key>.<function>(<parameter>)}<operator><constant>
+
+			{node2.magedu.com:net.if.in[eth0,bytes].last(#1)}>1200
+
+			<function>：评估采集到的数据是否在合理范围内时所使用的函数；其评估过程可以根据采集到的数据、当前时间或其他因素；
+				avg, count, change, date, dayofweek, dayofmonth, delta, diff, iregexp, regexp last, max, min, nodata, now, prev, str, strlen, sum
+
+				regexp：检查最后一次采样的数据是否能够被指定的模式所匹配：1表示匹配，0表示不匹配；
+				now：返回自Unix元年至此刻经历的秒数；
+				prev：倒数第二个采样值；
+				str：从最后一次的采样中查找此处指定的字串；
+				strlen：
+				sum：指定采样次数之和；
+
+			<operator>：
+				>,<,=,#(不等于)
+				/,*,-,+
+				&,|
+
+			触发器间有依赖关系：
+
+		Action：
+			message
+			condition
+				event：
+					trigger
+					discovery：
+						Service Up, Service Down, Host up, Host Down, Service Discovered, Service Lost, Host Discovered, Host Lost
+					auto_registration
+			operation
+				send message
+					Media Type
+						Email, SMS, Jabber, Script, EZ Texting
+					User
+				remote command
+					（1）给zabbix定义sudo规则：
+						zabbix ALL=(ALL) ALL
+					（2）不支持active模式的agent；
+					（3）不支持代理模式；
+					（4）命令长度不得超过255个字符；
+					（5）可以使用宏；
+					（3）zabbix-server仅执行命令，而不关心命令是否执行成功；
+
+					前提：zabbic-agent要配置为支持执行远程命令；
+						EnableRemoteCommands=1
+
+					注意：
+						（1）如果用到以其它用户身份执行命令的话，那么命令本身要以sudo方式运行：
+							sudo /etc/rc.d/iinit.d/httpd restart
+
+						（2）在各agent上的sudoers文件中，要注释如下行：
+							# visudo
+							#Defaults    requiretty
+
+				Script：Alert Script
+					放置于特定目录中；AlertScriptsPath=/usr/lib/zabbix/alertscripts
+						zabbix_server.conf配置文件中的参数；
+
+					脚本中可使用$1,$2,$3来调用action中的邮件的收件人，Default Subject, Default Message；
+
+					注意：新放入此目录中的脚本，只有重启zabbix-server方能被使用；（不一定）
+
+		可视化：
+			graph, screen, slide shows, map
+
+		宏：
+			两类：
+				内建：{MACRO_NAME}
+				自定义：{$MACRO_NAME}
+
+			可以在三个级别使用：
+				Global, Template, Host
+
+				优先级：Host --> Template --> Global
+					在某级别找到后就将直接使用；
+
+		模版：一系列配置的集合，此些配置可通过“连接”的方式应用于指定的主机；
+			application, item, trigger, graph, screen, discovery, web
+
+		维护时间：
+			Configuration --> Maintance
+
+		User Parameters：
+			zabbix内置了许多item key；
+			实现用户自定义item key，实现特有数据指标监控；
+
+			语法：
+				UserParameter=<key>,<command>
+
+
+zabbix（4）
+	
+	zabbix提供网络发现功能：network discovery
+		HTTP,ICMP,SSH,LDAP,TCP,SNMP,Telnet,Zabbix_agent扫描指定网络内的主机；
+
+		一旦主机被发现，如何对其进行操作，将由action来决定；
+
+		LLD：Low level Discovery
+
+		此二者的功能：
+			自动添加或移除主机、将主机链接至模版或删除链接、添加监控项、将主机添加至分组、定义触发器、执行远程脚本；
+
+		网络发现有两个步骤：
+			discovery --> action
+
+			发现中的事件：
+				Service Discovered, Service Lost, Service Up, Service Down
+				Host Discovered, Host Lost, Host Up, Host Down
+
+			actions：
+				Sending notifications
+				Adding/removing hosts
+				Enabling/disabling hosts
+				Adding hosts to a group
+				Removing hosts from a group
+				Linking hosts to/unlinking from a template
+				Executing remote scripts	
+
+		auto_registation：
+			Active Agent Auto-Registration
+
+			HostMetadata
+
+			支持使用agent(active)类型的item key；
+
+			配置过程：
+				1、定义agent端：
+					ServerActive=
+					Server=
+					Hostname=
+					ListenIP=设置为本机特定IP；
+					ListenPort=
+					HostMetadata=
+
+					HostMetadataItem=item key，一般使用system.uname
+
+				2、配置action，要求其事件来源为auto-registation
+
+		LLD：Low Level Discovery
+			自动发现特定变量的名称；
+				#IFNAME，#FSNAME，
+			添加针对变量的Items；
+
+			返回值为JSON
+
+		zabbix的监控方式：
+			zabbix-web所能够显示的且可指定为监控接口类型的监控方式；
+				agent
+					passive
+					active
+				SNMP：Simple Network Management Protocol
+					MIB,SMI,SNMP（v1,v2c,v3）
+				IPMI：
+					智慧平台管理接口（Intelligent Platform Management Interface）原本是一种Intel架构的企业系统的周边设备所采用的一种工业标准。IPMI亦是一个开放的免费标准，使用者无需支付额外的费用即可使用此标准。
+				JMX：Java Management Extensions，用于通过Java自己的接口对java程序进行监控；
+					zabbix-java-gateway用于获取监控数据；
+
+
+			SNMP监控方式：
+				操作：Get, GetNext, Set, Response, Trap
+				MIB：是被管理对象的集合，而且还额外定义了被管理对象的名称、访问权限、数据类型等属性；
+				MIB视图：MIB的子集
+				授权：将某MIB视图与某Community绑定来实现；
+				OID：Object ID, .1.3.6.1.2.1 (根.iso.org.dod,internet,mgmt,mib-2)
+					1：system
+					2：interface
+					4：ip
+					5：icmp
+					6：tcp
+					7：udp
+
+			JMX监控方式：
+				（1）被监控端安装zabbix-java-geteway；
+					配置文件文件：/etc/zabbix/zabbix_java_gateway.conf
+						Listen_IP=
+						Listen_PORT=10052
+
+					zabbix server的配置文件/etc/zabbix/zabbix_server.conf
+						JavaGateWay=
+						JavaGateWayPort=10052
+
+				（3）Java应用程序开启JMX接口：
+					java -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.port=10053 -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false
+
+				监控Tomcat
+					export CATALINA_OPTS="$CATALINA_OPTS --Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.port=10053 -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false"
+
+	zabbix database需要用到的空间：
+		60000/60 = 1000条
+
+		历史数据=天数*每秒钟处理的数据量*24*3600*50Bytes
+			90*1000*86400*50Bytes
+
+		趋势数据：
+			每一个趋势数据有128Bytes，
+				大小=天数*监控项数*24*128Bytes
+					365*60000*24*128Bytes
+
+		事件数据：
+			每个占据130Bytes
+				大小：天数*86400*130Bytes
+
+				假设每秒钟产生一个事件；
+
+
+
+
+
+
+
+		
+
+
+
+
+

@@ -1,0 +1,398 @@
+马哥Linux学习第三十八天（java技术体系基础、tomcat）
+
+Tomcat:
+	
+	编程语言：
+		系统级：C, C++, go, erlang
+		应用级：C#, Java, Python, Perl, Ruby, php
+			虚拟机：jvm, pvm
+			动态网站：asp .net, jsp
+
+	动态网站：
+		客户端动态
+		服务器动态：
+			CGI
+
+		webapp server：
+			jsp：tomcat, jboss, jetty
+			php：php-fpm
+
+		Java编程语言：
+			SUN，James Gosling, Green Project, Oak, Java, SunWorld 
+			1995：Java 1.0，Write Once, Run Anywhere.
+			1996：JDK（Java Development Kit），包含一个JVM（Sun Classic VM）
+				JDK 1.0：JVM, Applet, AWT
+			1997：JDK 1.1
+				JAR文档格式、JDBC、JavaBeans
+			1998：JDK 1.2
+				Sun把Java技术分拆为三个方向：Java 2
+					J2SE：Standard Edition
+					J2EE：Enterprise Edition
+					J2ME：Mobile Edition
+				代表性技术：EJB,Java Plug-in,Swing,
+					JIT编译器：Just In Time，即时编译器
+
+			2000：JDK 1.3
+				1999：HostSpot虚拟机
+			2002：JDK 1.4
+
+			2006年，Sun开源了Java技术；遵循GPL规范；并建立了OpenJDK组织管理此些代码；
+
+			虚拟机：JRockit, HostSpot;
+
+		编程语言的类别：指令+数据
+			面向过程：以指令为中心，围绕指令组织数据；
+			面向对象：以数据为中心，围绕数据组织指令；
+
+		Java体系结构：
+			Java编程语言；
+			Java Class文件格式；
+			Java API;
+			Java VM;
+
+		JVM的核心组成部分：
+			Class Loader
+			执行引擎
+
+		JVM编程语言的特性：
+			面向对象、多线程、结构化错误处理
+			垃圾收集、动态连接、动态扩展
+
+		三个技术流派：
+			J2SE ==> Java 2 SE
+			J2EE ==> Java 2 EE
+			J2ME ==> Java 2 ME
+
+		JVM运行时区域：运行为多个线程
+			方法区：线程共享；用于存储被虚拟机加载的类信息、常量、静态变量等；永久代；
+			堆：Java堆是jvm所管理的内存中最大的一部分；也是GC管理的主要区域；主流的算法都基于分代收集方式进行；新生代和老年代；线程共享；
+			Java栈：线程私有，存放线程自己的局部变量等信息；
+			PC寄存器（Program Counter Register），线程独占的内存空间；
+			本地方法栈：
+
+		JAVA 2 EE：
+			JAVA 2 SE
+			Servlet, JSP, EJB, JMS, JMX, JavaMail
+
+			Servlet Container：
+				println("<h1>")
+
+				html标签要硬编码在应用程序中；
+
+			JSP：
+				<html>
+				<body>
+					<h1>...</h1>
+				<%
+				%>
+
+				</body>
+				</html>
+
+			Web Container:
+				JDK, Servlet, JSP
+
+				商业实现：
+					WebSphere(IBM)
+					Weblogic(BEA --> Oracle)
+					Oc4j
+					Glassfish
+					Geronimo
+					JOnAS
+					JBoss
+
+				开源实现：
+					Tomcat
+					jetty
+					resin
+
+		Tomcat的核心组件：
+			catalina：servlet container
+			Coyote：http connection
+			Jasper：JSP Engine
+
+			Tomcat的开发语言：JAVA
+
+		Tomcat Instance：运行中的tomcat进程（java进程）
+			Server：即一个tomcat实例；
+			Service：用于将connector关联至engine组件；一个service只能包含一个engine组件和一个或多个connector组件；
+			Engine：Tomcat的核心组件，用于运行jsp或servlet代码；
+			Connector：接收并解析用户请求，将请求映射为Engine中运行的代码；之后，将运行结果构建成响应报文；
+				http, ajp
+			Host：类似httpd中的虚拟主机；
+			Context：类似于httpd中的alias；
+
+			注意：每个组件都由“类”来实现，有些组件的实现还不止一种；
+				顶级类组件：server
+				服务类组件：service
+				容器类组件：即，可以部署webapp的组件，engine，host，context
+				连接器组件：connector
+				被嵌套类组件：valve，logger，realm
+
+				<server>
+					<service>
+						<connector />
+						<connector />
+						...
+						<engine>
+							<host>
+								<context />
+								....
+							</host>
+							...
+						</engine>
+					</service>
+				</server>
+
+			Tomcat的运行模式：
+				standalone：通过内置的web server（http connector）来接收客户端请求；
+				proxy：由专门的web server服务客户端的http请求；
+					in-process：部署于同一主机；
+					network：部署于不同主机；
+
+		安装Tomcat：
+			官方站点：http://tomcat.apache.org
+
+			部署前提：
+				jdk：
+					Oracle JDK
+					OpenJDK
+
+			安装jdk：
+				src]# rpm -ivh jdk-7u80-linux-x64.rpm 
+
+			设置环境变量：
+				# vim /etc/profile.d/java.sh
+				export JAVA_HOME=/usr/java/latest   #latest一般指向最新的jdk版本。
+				export PATH=$JAVA_HOME/bin:$PATH	#配置PATH环境变量
+				# . /etc/profile.d/java.sh
+
+			查看版本信息：
+				# java -version
+				java version "1.7.0_80"
+				Java(TM) SE Runtime Environment (build 1.7.0_80-b15)
+				Java HotSpot(TM) 64-Bit Server VM (build 24.80-b11, mixed mode)
+
+			安装tomcat：
+				# tar xvf apache-tomcat-8.0.44.tar.gz -C /usr/local/
+				# cd /usr/local/
+				# ln -sv apache-tomcat-8.0.44 tomcat
+				# cd tomcat
+				tomcat]# ll
+				total 112
+				drwxr-xr-x. 2 root root  4096 Jun 15 22:55 bin  #脚本及启动时用到的类
+				drwxr-xr-x. 2 root root  4096 May 11 01:23 conf  #配置文件
+				drwxr-xr-x. 2 root root  4096 Jun 15 22:55 lib   #类库
+				-rw-r--r--. 1 root root 57011 May 11 01:23 LICENSE   
+				drwxr-xr-x. 2 root root  4096 May 11 01:21 logs		#日志文件
+				-rw-r--r--. 1 root root  1444 May 11 01:23 NOTICE
+				-rw-r--r--. 1 root root  6741 May 11 01:23 RELEASE-NOTES
+				-rw-r--r--. 1 root root 16195 May 11 01:23 RUNNING.txt
+				drwxr-xr-x. 2 root root  4096 Jun 15 22:55 temp		#临时目录
+				drwxr-xr-x. 7 root root  4096 May 11 01:23 webapps  #应用程序部署目录
+				drwxr-xr-x. 2 root root  4096 May 11 01:21 work  #工作目录
+
+			设置catlina环境变量指明tomcat的安装路径：
+				# vim /etc/profile.d/tomcat.sh
+				export CATALINA_HOME=/usr/local/tomcat
+				export PATH=$CATALINA_HOME/bin:$PATH
+				# . /etc/profile.d/tomcat.sh
+
+				# version.sh
+				Using CATALINA_BASE:   /usr/local/tomcat
+				Using CATALINA_HOME:   /usr/local/tomcat
+				Using CATALINA_TMPDIR: /usr/local/tomcat/temp
+				Using JRE_HOME:        /usr/java/latest
+				Using CLASSPATH:       /usr/local/tomcat/bin/bootstrap.jar:/usr/local/tomcat/bin/tomcat-juli.jar
+				Server version: Apache Tomcat/8.0.44
+				Server built:   May 10 2017 17:21:09 UTC
+				Server number:  8.0.44.0
+				OS Name:        Linux
+				OS Version:     2.6.32-573.el6.x86_64
+				Architecture:   amd64
+				JVM Version:    1.7.0_80-b15
+				JVM Vendor:     Oracle Corporation
+
+			启动tomcat：
+				# catalina.sh start
+				Using CATALINA_BASE:   /usr/local/tomcat
+				Using CATALINA_HOME:   /usr/local/tomcat
+				Using CATALINA_TMPDIR: /usr/local/tomcat/temp
+				Using JRE_HOME:        /usr/java/latest
+				Using CLASSPATH:       /usr/local/tomcat/bin/bootstrap.jar:/usr/local/tomcat/bin/tomcat-juli.jar
+				Tomcat started.
+
+		tomcat配置文件:
+			server.xml：主配置文件
+			context.xml：每个webapp都可以有专用的配置文件，这些配置文件通常位于webapp应用程序目录下的WEB-INF目录中，用于定义会话管理器、JDBC等；conf/context.xml是为各webapp提供默认配置；
+			web.xml：每个webapp部署之后才能被访问；此文件则用于为所有的webapp提供默认的部署相关配置；
+			tomcat-users.xml：用户认证的账号和密码配置文件；
+			catalina.policy：当使用-security选项启动tomcat实例时会读取此配置文件来实现其安全运行策略；
+			catalina.properties：Java属性的定义文件，用于设定类加载器路径等，以及一些JVM性能相关的调优参数；
+			logging.properties：日志相关的配置信息；
+
+回顾：Java, tomcat
+	
+	servlet：java 2 ee 一个特殊的类；
+	jsp：java 2 ee 一个特殊的类；
+
+	jsp --> jasper --> servlet --> compile --> jvm 
+
+	tomcat：java 2 ee的一个不完整实现；
+		属于ASF，由JWS(SUN) + ASF(Jserv)而来；
+
+	tomcat：jdk + tomcat
+
+	tomcat：
+		server, service, connector, engine, host, context
+
+Tomcat(2)
+	
+	web application：webapp
+
+	自带有两个webapp：
+		Manager
+		host-manager
+
+	webapp的组织结构：
+		/usr/local/tomcat/webapps/
+		有特定组织形式、层次型目录机构：主要包含了servlet代码文件、JSP页面文件、类文件、部署描述文件等信息；
+
+		/webapps/host1/app1/
+			/：webapp的根目录
+			WEB-INF：当前webapp的私有资源目录，通常存放当前webapp自用的web.xml和context.xml；
+			classes：此webapp的私有类；
+			lib：此webapp的私有类，被打包为jar格式的类；
+			META-INF：私有资源目录；
+			index.jsp：webapp主页；
+
+	webapp归档格式：
+		.war: web应用程序；
+		.jar: EJB的类；
+		.rar：资源适配器；
+		.ear：企业级应用程序；
+
+	手动添加测试应用程序：
+		1、创建特定目录结构：
+			mkdir -p /usr/local/tomcat/webapps/testapp/{WEB-INF,classes,lib,META-INF}
+		2、创建/usr/local/tomcat/webapps/testapp/index.jsp
+			<%@ page language="java" %>
+			<%@ page import="java.util.*" %>
+			<html>
+			  <head>
+			    <title>JSP test page.</title>
+			  </head>
+			  <body>
+			    <% out.println("Hello,world!"); %>
+			  </body>
+			</html>
+
+		注意：如果自定义host及webapp路径：
+			在host指定的路径下创建ROOT来存放默认的站点主应用程序；docBase是虚拟目录的路径，它默认的是$tomcat/webapps/ROOT目录
+
+	"部署(deployment)" webapp的相关操作；
+		deploy：部署，将webapp的源文件放置于目标目录、配置tomcat服务器能够基于context文件的定义的路径来访问此webapp，并将其特有类通过class loader装载至tomcat实现；
+		redeploy：重新部署；
+		undeploy：反部署，停止webapp，并从tomcat实例拆除其部分文件和部署名；
+		stop：停止；
+		stat：启动处于停止状态的webapp；
+
+	部署的方式；
+		冷部署：在tomcat启动之前进行的部署
+		热部署：在不停止tomcat的前提下进行的部署；
+			使用部署工具进行：manager, ant脚本, tcd(domcat client deployer)；
+
+	反向代理方式使用tomcat：
+		lnmt,lamt
+
+		lnmt：client --> nginx --> reverse proxy --> tomcat(http connector)
+
+			location ~* \.(jsp|do)$ {
+				proxy_pass http://tomact_host:port;
+			}
+
+		lamt：client --> httpd --> reverse proxy --> tomcat
+			http connector：
+			ajp connect：
+
+			httpd：mod_proxy
+				mod_proxy_http
+				mod_proxy_ajp
+
+			http connector配置示例：
+				NameVirtualHost *:80
+
+				<VirtualHost *:80>
+				    ServerName www.a.com
+				    ProxyVia On
+				    ProxyRequests Off
+				    ProxyPreserveHost On
+				    <Proxy *>
+				        Order deny,allow
+				        Allow from all
+				    </Proxy>
+				    ProxyPass /status !
+				    ProxyPass / http://172.16.100.6:8080/
+				    ProxyPassReverse / http://172.16.100.6:8080/
+				    <Location />
+				        Order deny,allow
+				        Allow from all
+				    </Location>
+				</VirtualHost>		
+
+			ajp connect配置示例
+				NameVirtualHost *:80
+
+				<VirtualHost *:80>
+				    ServerName www.a.com
+				    ProxyVia On
+				    ProxyRequests Off
+				    ProxyPreserveHost On
+				    <Proxy *>
+				        Order deny,allow
+				        Allow from all
+				    </Proxy>
+				    ProxyPass /status !
+				    ProxyPass / ajp://172.16.100.6:8009/
+				    ProxyPassReverse / ajp://172.16.100.6:8009/
+				    <Location />
+				        Order deny,allow
+				        Allow from all
+				    </Location>
+				</VirtualHost>
+
+		lamt: 负载均衡 
+			mod_proxy：
+				mod_proxy_balancer
+			mod_jk: 第三方模块
+
+
+
+
+
+
+<%@ page language="java" %>
+<%@ page import="java.util.*" %>
+<html>
+<head>
+    <title>TomcatA.magedu.com</title>
+</head>
+<body>
+    <h1><font color="red">TomcatA.magedu.com</font></h1>
+    <table align="centre" border="1">
+        <tr>
+            <td>Session ID</td>
+<% session.setAttribute("magedu.com","magedu.com");%>
+            <td><%=session.getId() %></td>
+        </tr>
+        <tr>
+            <td>Created on</td>
+            <td><%= session.getCreationTime() %></td>
+        </tr>
+    </table>
+</body>
+</html>
+
+
+
+

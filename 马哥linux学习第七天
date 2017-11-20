@@ -1,0 +1,441 @@
+Linux系统管理
+	文件系统初步
+	磁盘管理
+	RAID
+	LVM
+	程序包安装
+	网络管理
+	sed命令
+	进程管理
+	内核管理
+	系统启动流程
+	定制、编译内核
+	系统安装：kickstart,dhcp,pxe
+	shell编程
+	gawk
+
+Linux磁盘及文件系统管理
+
+	CPU, Memory(RAM),I/O
+
+	I/O：Input and Output Devices
+
+		磁盘：辅助存储设备
+		网卡：
+
+	文件接口：open()，read()，write()，close()
+
+	设备类别：
+		块(block)：随机访问，数据交换单位为“块”
+		字符(character)：线性，数据交换单位为字符
+
+	设备文件：FHS(LSB)
+		/dev/：设备
+			设备文件，关联至设备的驱动程序
+
+				设备号：
+					major：主设备号，区别设备类别，用于标明所需驱动程序
+					minor：次设备号，用于标明驱动程序下不同的个体
+
+				mknod命令：设备文件创建
+					mknod [OPTION]... NAME TYPE [MAJOR MINOR]
+						-m, --mode=MODE
+
+						示例：
+							mknod testdev c 100 1
+
+			设备文件的文件名：ICANN
+
+	磁盘设备文件：
+		IDE接口(ATA)：并行，133MB/s
+			两个IDE控制器：每个控制器可通过线缆接入两块磁盘，一主一从；
+			/dev/hd[a-z][#]
+				/dev/hda, /dev/hdb,
+				/dev/hdc, /dev/hdd,
+
+				每一个磁盘分区都是一个独立的文件系统
+		SCSI接口：并行，Small Computer System Interface
+			UlteraSCSI 320, 320MB/s
+		SATA接口：串行，Serial ATA，
+			6Gbps
+		USB接口：串行，2.0 480Mbps，3.0 5Gbps
+		SAS接口：串行，6Gbps<=
+
+			设备文件：/dev/sd[a-z][#]
+				[a-z]：标记设备
+				[#]：磁盘分区
+
+		track：磁道
+		sector：扇区
+		sylinder：柱面
+			寻道时间：平均寻道时间
+
+		MBR：0磁道0扇区，主引导扇区(master boot record)
+			三部分：
+				446bytes：bootloader，程序
+				64bytes：分区表
+					16bytes：标记一个分区
+						4个主分区：3主，1扩展-->n逻辑分区
+				2bytes：55AA，当前MBR信息是否有效的标记；
+
+		GPT：?
+
+		分区标示方式：
+			主分区或扩展分区：1-4
+			逻辑分区：5＋
+
+	fdisk命令：
+		1、查看已经识别的磁盘设备：
+			fdisk -l /dev/[hs]d[a-z]
+
+		2、管理分区
+			#fdisk DEVICE
+
+				fdisk提供了一个交互式接口来管理分区，它有许多子命令，分别用于不同的管理功能；所有的操作均在内存中完成，没有直接同步到磁盘；
+				常用命令：
+					p：显示现有分区表；
+					n：创建新分区
+					d：删除现有分区
+					t：修改分区ID
+					l：查看支持那些分区ID
+					w：保存退出
+					q：不保存退出
+					m：显示帮助信息
+
+				示例：/dev/sdb
+					3主＋1扩展(3个逻辑)
+					2主＋1扩展(4个逻辑)
+					...
+
+			查看内核是否已经识别新建分区：
+				#cat /proc/partitions 
+
+			通知内核强制重读分区表：
+				Centos 5：partprobe /dev/DEVICES
+				Centos 6：partx，kpartx
+					partx -a /dev/DEVICE
+					kpartx -af /dev/DEVICE
+
+					注意：成功读取分区，可能需要命令重复执行2次或以上；
+
+			此外的工具：sfdisk，parted
+
+		根在内核中，其需要被关联至根文件系统，即rootfs
+			[root@vBird ~]# cat /boot/grub/grub.conf 
+
+	创建文件系统：
+
+		文件系统：
+			元数据：每一个索引项称为一个inode，(index node)
+				inode table
+
+				/var/log/messages
+					根的inode -->根目录对应的磁盘块 -->var对应的inode编号-->查inode table，找到编号对应的inode -->var目录的磁盘快-->logs的inode编号-->查inode table，找到logs目录的inode-->logs目录的磁盘快-->找到messages文件名对应的inode编号-->查inode table，找到messages的inode编号对应的inode-->message的磁盘块
+
+					dentry(目录项)
+
+				链接文件：访问同一个文件数据不同路径
+					硬链接：两个文件路径指向了同一个inode；
+						创建方法：
+							(1)cp -l SRC DEST
+							(2)ln SRC DEST
+
+							特性：
+								(1)目录不支持硬链接；
+								(2)硬链接不能跨文件系统；
+								(3)硬链接文件与原文件是指向同一个inode，创建硬链接文件会增加inode的引用计数；
+					符号链接：链接文件是一个完全独立的新文件，但其指向了原文件的文件路径；
+						特性：
+							(1)符号链接与原文件是两个各自独立的文件；
+							(2)目录可以创建符号链接
+							(3)可以跨文件系统；
+							(4)删除链接不影响原文件，但删除原文件，符号链接指向的文件路径将不复存在，因此，此时链接文件将变成失效的链接；
+
+							其大小并非真正原文件大小，而是指向的原文件的文件路径字符串所包含的字节数；
+
+						创建方法：
+							ln -s SRC DEST
+
+				bitmap索引：
+
+				block group：
+					bitmap，inode，block
+					查看：
+						[root@vBird ~]# dumpe2fs /dev/sdb1
+
+			VFS：Virtual File System
+				Linux文件系统：ext2,ext3,ext4,reiserfs,xfs,btrfs
+				光驱：ISO9660
+				网络文件系统：nfs，cifs
+				集群文件系统：gfs2，ocfs2
+				分布式文件系统：ceph
+				windows文件系统：ntfs，vfat
+				伪文件系统：tmpfs，hugepagefs，proc，sysfs
+				Unix的文件系统：FFS,UFS,JFS
+				交换文件系统：swap
+
+			文件系统管理工具：
+				创建文件系统
+					mkfs.ext2, mkfs.ext3, mkfs.xfs ...
+				检测文件系统
+					fsck.ext2, fsck.ext3, fsck.ext4, mkfs.xfs ...
+				查看其属性
+					dumpe2fs,ture2fs
+
+			创建文件系统：
+				mkfs.FSTYPE /dev/DEVICE
+				blkid /dev/DEVICE
+
+				mkfs -t FSTYPE /dev/DEVICE
+
+				ext系列：
+					mke2fs
+
+	回顾：
+		磁盘分区
+		MBR:Master Boot Record, 512bytes
+			446：bootloader
+			64:
+			2
+
+		文件系统：程序
+			元数据区、数据区
+
+	Linux文件系统管理：
+
+		VFS：
+			日志文件系统：加速文件检测并修复的过程
+				ext3, ext4, xfs
+			非日志型文件系统：ext2
+
+			非一致性：
+
+		ext系列文件系统：mke2fs
+		mke2fs [OPTION]... /dev/DEVICE
+			-t {ext2|ext3|ext4}：指明要创建的文件系统类型
+				mkfs -t ext4 = mkfs.ext4 = mke2fs -t ext4
+			-b {1024|2048|4096}：其上限由page frame决定
+			-L LABEL：指定要使用的卷标,会格式化磁盘
+			-j：相当于使用-t ext3
+				mkfs -t ext3 = mkfs.ext3 = mke2fs -t ext3 = mke2fs -j
+			-i #：指明inode与字节的比率；即 每多少字节给创建一个inode；
+			-N #：直接指明给此文件系统创建多少个inode
+			-m #：指定预留空间的百分比；默认为5；
+
+			-O [^]FEATURE
+
+		UUID：全局唯一标示符
+
+		e2label：不会格式化磁盘
+			查看：e2label /dev/DEVICE
+			设定卷标：e2label /dev/DEVICE LABEL
+
+		tune2fs：查看或修改ext系列文件系统的某些属性
+			查看超级块中的数据信息：
+				tune2fs -l /dev/DEVICE
+
+			修改文件系统属性：
+				-j：ext2 --> ext3
+				-L LABLE：修改卷标
+				－m #：调整预留空间的百分比；
+				-O [^] FEATURE：开启或关闭某种特性
+
+				-o [^]mount_options：开启或关闭某种默认挂载选项
+					-o acl
+					-o ^acl
+
+			dumpe2fs命令：显示ext系列文件系统属性信息
+				dumpe2fs [-h] /dev/DEVICE
+
+	文件系统检测：
+
+		因进程意外终止或系统崩溃等原因导致写入操作非正常终止时，可能会导致文件损坏；此时，应该修复文件系统；
+
+			注意：应该离线进行
+
+		fsck：
+			-t FSTYPE
+			 fsck -t FSTYPE = fsck.FSTYPE
+			-a：自动修复所有错误
+			-r：交互式修复错误
+
+		ext系列文件系统的专用工具：
+			e2fsck
+				-y：对所有问题自动回复为yes；
+				-f：即使文件系统处于clean状态，也要强制进行检测；
+
+	Windows无法识别Linux上专用的文件系统，因此，有存储设备需要两种系统之间交叉使用时，应该使用windows支持的文件系统；
+		mkfs -t vfat /dev/DEVICE
+
+	swap文件系统：
+		Linux上交换空间必须使用独立的磁盘分区;
+			fdisk /dev/DEVICE
+				t命令调整其ID为82；
+
+			创建交换分区文件系统：mkswap命令
+				mkswap [-L LABLE] /dev/DEVICE
+
+	注意：在Linux系统上，所有的文件系统必须通过根文件系统的某个分支来访问；
+
+	根文件系统：根关联到的分区
+			有一定的要求：FHS
+
+		其余所有的其它文件系统如果想要被访问，都只能够通过“关联”至根文件系统上的某个目录来实现；
+
+			这种操作即所谓的“挂载”，也即mount；相反动作，即卸载，命令为umount
+
+			挂载点：mount_point,即用于作为另一个文件系统访问入口的目录；
+				1、事先存在
+				2、应该使用别的进程未使用的目录；
+				3、挂载点下原有的文件将被隐藏；
+				4、卸载前许确认没有其它进程访问。
+
+		mount命令：
+			直接使用(mount)将显示当前系统已经挂载的所有文件系统的相关信息；
+			mount DEVICE MOUNT_POINT
+
+			mount [OPTION]... [-t FSTYPE] [-o OPTION] DEVICE MOUNT_POINT
+
+				命令选项：
+					-r：只读挂载
+					-w：read and write，读写挂载
+					-t FSTYPE：被挂载的设备上的文件系统类型，可省略，此时mount会自动使用blkid命令来判断其系统类型；
+					-L LABLE：以卷标的方式指定要挂载的设备，因此，此时DEVICE可省略；
+					-U UUID：以UUID的方式指定要挂载的设备，因此，此时DEVICE可省略；
+					-a：自动挂载所有的支持自动挂载的设备(/etc/fstab文件中定义的支持自动挂载的设备)；
+					-n：默认情况下，设备挂载与否的改变结果会被保存于/etc/mtab中一份；-n选项用于变动时不更新此文件；
+
+					示例：
+						[root@vBird ~]# mount -U cdf4a724-5949-49c6-861f-4c8ea12f92af /data/mydata/
+
+				-o OPTION,挂载选项；
+					async：异步写入
+					sync：同步写入，即，使用同步I/O;
+					atime/noatime：文件或目录在被访问时是否更新其访问时间戳；
+					diratime/nodiratime：目录在被访问时是否更新其访问时间戳；
+					auto/noauto：设备是否支持mount命令使用-a选项时自动挂载；
+					dev/nodev：此设备上是否创建设备文件；
+					exec/noexec：是否允许执行此文件系统上的程序文件；
+					suid/nosuid：是否支持此设备上的文件上使用suid权限；
+					remount：重新挂载；
+					acl：支持使用facl；
+						mount -o acl 
+						tune2fs -o acl /dev/DEVICE：打开acl为默认挂载选项；
+					ro：只读
+					rw：读写
+					user/nouser：是否允许普通用户挂载此文件系统;
+
+					所有挂载选项均未指明时其默认为：
+					    defaults
+              				Use default options: rw, suid, dev, exec, auto,  nouser,  async, and relatime.
+
+              	另外一个使用技巧：
+              		将某目录绑定至指定目录下，作为临时访问入口；
+              			mount --bind 源目录 目标目录
+
+              	查看所有已经挂载设备的方法：
+              		# mount
+              		# cat /etc/mtab
+              		# cat /proc/mounts
+
+		umount命令：
+			umount DEVICE
+			umount MOUNT_POINT
+
+			注意：正在被某进程访问的设备是不可以被卸载的；查看被什么进程所占用；
+				# lsof MOUNT_POINT
+				# fuser -v MOUNT_POINT
+
+				# fuser -km MOUNT_POINT：终止正在访问挂载点的进程；
+
+		df命令：
+			df [OPTION]... [FILE]...
+				-l：仅显示本地文件系统的相关信息；
+				-h：--human-readable,单位换算；
+				-i：显示inode使用情况而非磁盘块的；
+				示例：
+					[root@vBird ~]# df -ilh
+
+		du命令：
+			用于评估文件大小
+				-s：统计整个目录及内部所有文件总统大小；
+				-h：--human-readable
+				示例：
+					[root@vBird ~]# du /tmp/
+					[root@vBird ~]# du -sh /tmp/
+					[root@vBird ~]# du -sh /*
+
+	交换分区：
+		创建交换分区文件系统：mkswap
+
+		free命令：查看内存使用状况
+			-m
+			-g
+
+		启用交换分区：
+			swapon [OPTION] [DEVICE]
+				-a：启用/etc/fstab文件中定义的所有交换分区	
+		禁用交换分区：
+			swapoff [OPTION] [DEVICE]
+
+	练习：
+		1、创建一个10G的分区，并格式化为ext4文件系统；
+			(1)要取其block大小为2048，预留空间百分比为2，卷标为MYDATA,默认挂载属性包含acl；
+				[root@vBird ~]# mke2fs -t ext4 -b 2048 -L MYDATA -m 2  /dev/sdb1
+				[root@vBird ~]# tune2fs -o acl /dev/sdb1
+			(2)挂载至/data/mydata目录，要求挂载时禁止程序自动运行，且不更新文件的访问时间戳；
+				[root@vBird ~]# mount -o noexec,noatime /dev/sdb1 /data/mydata
+
+		2、创建一个大小为1G的swap分区，并创建好文件系统，并启用之；
+			[root@vBird ~]# mkswap -L SWAP2 /dev/sdb2
+			[root@vBird ~]# swapon /dev/sdb2
+
+	文件系统相关的配置文件：/etc/fstab
+
+		定义开机可自动挂载的文件系统，每行一个：
+			6个字段：
+				 (1)挂载的设备：
+				 	设备文件
+				 	LABEL
+				 	UUID
+				 	伪文件系统：如sysfs，proc，tmpfs等
+				 (2)挂载点
+				 	swap的挂载点仍为swap
+				 (3)文件系统类型
+				 (4)挂载选项
+				 	defaults表示使用默认挂载选项；
+				 	多个挂载选项间使用逗号分隔：如defaults,acl,noatime
+				 (5)转储频率
+				 	0：从不备份
+				 	1：每天备份
+				 	2：每隔一天备份
+				 (6)自检次序
+				 	0：不自检
+				 	1：首先自己，通常只有根文件系统可首先自检
+				 	2：次级自检
+				 	...
+
+	练习：写一个脚本
+		1、获取并列出当前系统上的所有磁盘设备；
+		2、显示每个磁盘设备上每个分区相关的空间使用信息；
+
+
+
+
+
+				
+
+	
+
+
+				
+
+
+
+
+
+
+
+
+
+

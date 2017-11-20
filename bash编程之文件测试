@@ -1,0 +1,268 @@
+bash编程之文件测试、组合条件测试1
+
+回顾：for循环，条件测试，if语句
+
+	for循环：
+		for VAR in [LIST]；do
+			循环体
+		done
+
+		for ((初始化循环控制变量;循环条件;修正表达式));do
+			循环体
+		done
+
+	条件测试：
+		测试方法：
+			test EXPRESSION 
+			[ EXPREESSION ]
+			[[ EXPRESSION ]]
+			COMMAND
+				退出状态码
+
+		bash中常用测试：
+			整数测试：-ge, -lt, -ne, -eq, -ge, -le
+			字符串测试：==, =, !=, >, >=, <, <=, -z, -n
+
+			测试条件取反：! CONDITION
+
+		if语句：
+			单分支：
+				if CONDITION-TRUE;then
+					分支
+				fi
+			双分支：
+				if CONDITION-TRUE;then
+					分支1
+				else
+					分支2
+				fi
+			多分支：
+				if CONDITION1-TRUE;then
+					分支1
+				elif CONFITION2-TRUE;then
+					分支2
+				elif ONFITION3-TRUE;then
+					分支3
+				...
+				...
+				else 
+					分支n
+				fi
+
+		COMMAND用作条件：
+			(1) 使用命令执行结果：
+				（a）使用命令引用
+				（b）使用比较操作符
+
+					例如：[ `id -u $username` -lt 500 ]
+						userid=`id u $username`
+						[ $userid -lt 500 ]
+
+			(2) 使用命令的退出状态码：
+				（a）先运行命令
+				（2）引用退出状态码
+
+				引用方式两种：
+					（a）if COMMAND;then
+						注意：COMMAND不能被命令引用；COMMAND的执行结果通常没有意义，所以其结果通常(&>)被定向至/dev/null;
+							[root@www ~]# if ls /etc &> /dev/null;then echo "hello";fi
+					（b）先执行命令，后判断退出状态码是否为0
+						COMMAND
+						retval=$?
+						if [ $retval -eq 0 ];then
+
+条件测试：
+	字符串测试：=~
+		"$A" =~ PATTERN 
+			如果变量A中保存的字符串能被PATTER所匹配，即为真，否则为假；
+
+	文件测试：$file
+		-e $file：是否存在；存在则为真；
+		-a $file：同上；弃用；不建议使用
+		-f $file：文件是否存在，且为普通文件
+		-d $file：是否存在且为目录；
+		-h $file：是否存在且为符号链接文件;
+		-L $file：同上
+		-b $file：是否存在且为块设备文件；
+		-c $file：是否存在且为字符设备文件；
+		-S $file：是否存在且为套接字文件；
+		-p $file：是否存在且为管道文件；
+
+		-r $file：当前用户对此文件是否拥有读权限；
+		-w $file：当前用户对此文件是否拥有写权限；
+		-x $file：当前用户对此文件是否拥有执行权限；
+
+		-u $file：文件是否拥有suid权限；
+		-g $file：文件是否拥有sgid权限；
+		-k $file：文件是否拥有sticky权限；
+
+		-O $file：当前用户是否为文件的属主；
+		-G $file：当前用户是否属于文件的属组；
+
+		-N $file：文件自从上一次被读取之后，是否被修改过；
+
+		$f1 -nt $f2：文件f1是否比文件f2新；
+		$f1 -ot $f2：文件f1是否比文件f2旧；
+		$f1 -ef $f2：文件f1和f2是否为同一个文件的硬链接；
+
+	练习：写一个脚本，传递一个文件路径参数的给脚本
+		（1）存在，则显示有此文件；
+		（2）否则，则显示无此文件：
+		]# cat judgefile.sh 
+		#!/bin/bash
+		#
+
+		if [ -e $1 ];then
+			echo "File '$1' is exist!"
+		else
+			echo "File '$1' is not exist!"
+		fi
+
+	练习：写一个脚本，传递一个文件路径参数的给脚本
+		（1）如果脚本无参数，则显示必须给至少一个参数，退出脚本，退出码为5；
+		（2）路径指向的文件如果不存在，则直接退出脚本，退出码为6；
+		（3）判断文件类型；
+			(a) 如果是普通文件，则显示为“common file”；
+			(b) 如果是目录，则显示为“directory”；
+			(c) 如果是符号链接，则显示为“sysbolic link file”；
+			(d) 如果是块设备，则显示为“block device file”；
+			(e) 如果是字符设备，则显示为“character device file”
+			(f) 否则，则显示为“unkown”
+
+			#!/bin/bash
+			#
+
+			if [ $# -lt 1 ];then
+				echo "Plz enter least one paramenter!"
+				exit 5
+			elif [ ! -e $1 ];then
+				echo "File' $1' is not exist!"
+				exit 6
+			elif [ -f $1 ];then
+				echo "File '$1' is common file."
+			elif [ -d $1 ];then
+				echo "File '$1' is directory."
+			elif [ -h $1 ];then
+				echo "File '$1' is sysbolic link file."
+			elif [ -b $1 ];then
+				echo "File '$1' is block device file."
+			elif [ -c $1 ];then
+				echo "File '$1' is character device file."
+			else
+				echo "File '$1' unkown."
+			fi
+
+	练习：写一个脚本，其使用格式如下所示（其中所有的script.sh均为用户给定的脚本名称，其要跟随脚本名称变化）：
+		script.sh {start|stop|rstart|status}
+		（1）调用时至少传递一个参数；否则，则显示帮助信息，并退出脚本；
+		（2）如果参数为“start”，则创建空文件/var/lock/subsys/script.sh，并显示"strating script.sh successfully.";
+		（3）如果参数为“stop”，则删除空文件/var/lock/subsys/script.sh，并显示"stoping script.sh successfully.";
+		（4）如果参数为“rstart”，则删除空文件/var/lock/subsys/script.sh，并显示"stoping script.sh successfully.";而后重新创建之，并显示"strating script.sh successfully.";
+		（5）如果参数为“status”，则
+			（a）如果文件/var/lock/subsys/script.sh文件存在，则显示“running”
+			（b）否则，则显示为“stopping”
+		（6）其它任意参数，均显示帮助信息后退出；帮助信息格式为命令使用格式；
+
+			#!/bin/bash
+			#
+			# chkconfi:2345 95 5
+			#description: test serice seript
+			#
+
+			prog=`basename $0`
+			lockfile="/var/lock/subsys/$prog"
+
+			if [ $# -lt 1 ];then
+				echo "Please enter least one parameter!"
+			elif [ $# -gt 1 ];then
+				echo "Usage：$prog {start|stop|rstart|status}"
+				exit 1
+			elif [ "$1" == 'start' ];then
+				if [ -e $lockfile ];then
+					echo "$prog is already running"
+					exit 1
+				else
+					touch  $lockfile
+					echo "starting $prog successfully!"
+				fi
+			elif [ "$1" == 'stop' ];then
+				if [ -e $lockfile ];then
+					rm -f $lockfile
+					echo "stoping $prog successfully!"
+				else
+					echo "$prog is not running"
+					exit 1
+				fi
+			elif [ "$1" == 'restart' ];then
+				if [ -e $lockfile ];then
+					rm -f $lockfile
+					echo "stoping $prog successfully."
+					touch $lockfile
+					echo "starting $prog successfully."
+				elif [ ! -e $lockfile ];then
+					echo "$prog is no running"
+					touch $lockfile
+					echo "starting $prog successfully."
+				fi
+			elif [ "$1" == 'status' ];then
+				if [ -e $lockfile ];then
+					echo "$prog is running"
+				else
+					echo "$prog is stoped"
+				fi
+			else 	
+				echo "Usage：$prog {start|stop|rstart|status}"
+				exit 1
+			fi
+
+组合条件测试：
+	在条件之间添加逻辑操作符：
+		或：-o，[ EXP1 -o EXP2 ]
+		与：-a，[ EXP1 -a EXP2 ]
+		非：!，[ ！EXPRESSION ]
+
+	示例：写一个脚本，取得当前主机的主机名，判断
+		（1）如果主机名为空或为localhost，或为“(none)”，则将其命名为mail.magedu.com;
+		（2）否则，显示现有的主机名即可；
+			#!/bin/bash
+			#
+			hname=$(hostname)
+
+			if [ -z "$hname" -o "$hname" == 'localhost' -o "$hname" == '(none)' ];then
+				hostname mail.magedu.com
+			else
+				echo "The hostname is: $hname."
+			fi
+
+	练习：写一个脚本，接受一个用户名为参数；
+		（1）如果用户的id号为0，则显示其为管理员；
+		（2）如果用户的id号大于0且小于500，则显示其为系统用户；
+		（3）否则，则显示其为普通用户；
+			#!/bin/bash
+			#
+			if [ $# -eq 1 ];then
+				if id $1 &> /dev/null;then
+					userid=$(id -u $1) 
+				else 
+					echo "$1 is not such!"
+					exit 1
+				fi
+			else
+				echo "Please enter right parameter!"
+				exit 2
+			fi
+
+			if [ $userid -eq 0 ];then
+				echo "$1 is admin, id: $userid"
+			elif [ $userid -gt 0 -a $userid -lt 500 ];then
+				echo "$1 is system user, id: $userid !"
+			else
+				echo "$1 is common user, id: $userid !"
+			fi
+
+
+
+
+
+
+

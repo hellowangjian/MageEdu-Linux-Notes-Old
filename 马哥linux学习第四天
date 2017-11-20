@@ -1,0 +1,389 @@
+  passwd命令：
+  		passwd：改自己的密码
+  		passwd USERNAME：改指定用户的密码
+  			-l：锁定帐号
+  			-u：解锁账号
+  			--stdin：
+  				# echo "PASSWORD" | passwd --stdin USERNAME
+
+  usermod命令：
+  		-c：修改用户的注释信息
+  		-d：/PATH/TO/SOMEDIR：修改用户的家目录；
+  		     -m： 修改家目录后一同把用户的原有文件复制至新位置；
+  		-g GID：修改用户的基本组；
+  		-G GID1，GID2，...：修改用户的附加组；
+  			-a：与-G一同使用，表示将用户添加至新指定的附加组，且保留原来的附加组；
+  		-l NEW_NAME：修改用户的登录名；
+  		-s /PATH/TO/NEW_SHELL：修改用户的默认shell；
+
+  		-L：锁定用户；
+  		-U：解锁用户；
+
+  chsh命令：
+  	chsh[OPTION]...[USERNAME]
+  		-l：列表当前系统上可用shell；
+  		-s /PATH/TO/SHELL：修改为指定SHELL
+
+  chfn命令：修改注释信息
+  		finger USERNAME：查看用户注释信息
+
+  chage：修改用户账号密码的过期日期
+  	chage -l USERNAME：查看用户的过期日期
+
+  groupmod命令：
+  		-g GID：修改GID
+  		-n NEW_NAME：修改组名称；
+
+  groupdel命令：
+  		删除组
+
+  gpasswd命令：给组添加密码
+  		/etc/gshadow
+  			当用户切换其基本组为此组时，如果其本就以此组为附加组，则直接切换；否则，则需要提供组密码
+
+  newgrp：切换用户的基本组；
+  	newgrp GROUP_NAME 
+
+  su：switch user
+  	su [OPTION]... [-] [USER [ARG]...]
+  		[USER]省略时，表示为root；
+
+  		su  USERNAME：非登录切换，意味着仍然使用原用户的环境设定；
+  		su - USERNAME：登录式切换，意味着将使用目标用户的环境设定，原用户失效；
+  			su -l USERNAME：登录式切换；
+  		su -l USERNAME -c 'COMMAND'：以目标用户身份执行一次命令后退出；不作真正的切换；
+
+  		注意：返回原用户，使用exit命令；root用户su至任何用户都不需要密码；
+
+
+  加密/解密：
+  	明文、密文
+
+  		常用的加密方法：
+  			对称加密；
+  			公钥加密：公钥生产于私钥之中；
+  			单向加密：仅能由明文产生密文；反之不成；严格意义上来讲，它实现的是提取数据特征码；
+  				同一个数据，使用同一个算法，多次计算得到的结果一定相同；所以常用于验证数据完整性；
+  				定长输出：无论原数据大小是什么，加密后结果输入大小相同；
+  				雪崩效应：初始条件的微小改变，将导致结果巨大变化；
+
+  					md5：message digest
+  						128bits
+  					sha1：secure hash algorithm
+  						160bits
+  					sha256：
+  						256bits
+  					sha512：
+  						512bits
+
+  		shadow文件中的密码：
+  			$加密算法$8位随机字符$加密后的密码
+
+  			加密算法：
+  				centos6：sha512
+  				centos5：md5
+  				centos7：sha512
+
+  练习：
+  		1、创建用户slackware，其ID号为2002，基本组为distro，附加组peguin；
+  			＃groupadd distro
+  			＃groupadd peguin
+  			＃useradd -u 2002 -g distro -G peguin slackware
+
+  		2、修改slackware的默认shell为/bin/tcsh;
+  			＃usermod -s /bin/tcsh slackware
+
+  			＃chsh - /bin/tcsh slackware
+
+  		3、为其新增附加组admins；
+  			＃groupadd admins
+  			＃usermod -a -G admins slackware
+
+  		4、为其添加密码，且要求密码最短使用期限为3天，最长为180天，警告为3天；
+  			＃passwd -n 3 -x 180 -w 3 slackware
+
+  		5、添加用户openstack，其ID号为3003，基本组为clouds，附加组为peguin和nova；
+  			＃groupadd clouds
+  			＃groupadd peguin
+  			＃groupadd nova
+  			＃useradd openstack -u 3003 -g clouds -a -G peguin 
+  			＃usermod -a -G nova
+
+  		6、添加系统用户mysql，要求其shell为/sbin/nologin
+  			#useradd -r -s /sbin/nologin mysql
+
+  		7、使用echo命令，非交互式为slackware添加密码；
+  			#echo "PASSWORD" | passwd --stdin slackware
+
+  命令总结：useradd,userdel,usermod,passwd,chsh,chfn,chage,id,su,groupadd,groupdel,groupmod,newgrp,passwd,md5sum
+
+
+回顾：
+	用户账号：用户，组
+		/etc/
+			passwd
+			shadow
+			group
+			gshadow
+
+	一次用户创建经历的过程：
+		1、在/etc／passwd文件中添加一行信息
+			account:x:uid:gid:comment:home:shell
+		2、在/etc/group文件中添加一行信息
+			group:x:gid:user_list(以其为附加组的用户列表)
+		3、创建家目录/home/USERNAME
+			复制/etc/skel目录中的隐藏文件至用户的家目录中
+			并修改其属主、属组及权限
+		4、在/etc/shadow创建用户密码及相关属性信息
+			参照/etc/login.defs文件中的信息创建用户密码信息
+
+	用户名称解析；
+		login：root
+
+		名称解析库来实现，这些库文件位于/lib64, /usr/lib64目录,通常以libnss
+			nss：network service switch
+
+	安全上下文：每个进程均以某用户的身份运行
+		进程访问资源的权限取决于发起此进程的那个用户的权限
+
+权限：
+	ls -l
+
+	rwxr-xr-x
+		三类账号：
+			属主：owner，u
+			属组：group，g
+			其它：other，o
+			所有用户：all，a
+
+			对应于当前资源，每类账号都通过三位权限限定，按如下次序固定排列
+				r 4
+				w 2
+				x 1
+				- 0
+
+		rwx: r-x, r--, -w-, --x
+			--- 000 0
+			--x 001 1
+			-w- 010 2
+			-wx 011 3
+			r-- 100 4
+			r-x 101 5
+			rw- 110 6
+			rwx 111 7
+
+		644:rw-r--r--
+		4--:r--------
+
+	练习：
+		1、640，600，660，775，755，750，700
+			rw-r-----, rw-------, rw-rw----, rwxrwxr-x, rwxr-xr-x, rwxr-x---, rwx------
+
+		2、rwxr-xr--, r-xr-xr--, rw-r-----, rwxrwxrwx
+			754, 554, 640, 777
+
+	权限(perm)：mode，ownership
+
+	修改mode：
+		chmod命令：
+
+			操作三类用户权限：使用八进制数字
+				chmod [-R] OCTAL-MODE FILE...
+						-R：递归修改；不常用
+
+			操作指定类别用户的权限：
+				u=，g=，o=
+				gu=，a=
+
+			操作某类用户的某位或某些位权限：+|-
+				u+, g+, o+
+				u-, g-, o-
+				a+
+
+			引用性修改：
+				--reference ＝/PATH/TO/SOMEFILE
+		练习：复制/etc/skel目录为/home/tuserl,要求此目录及其内部文件的属组和其他用户均没有任何访问权限；
+				cp -r /etc/skel /home/tuser1
+				chmod -R go= /home/tuser1
+
+
+	修改ownership：
+		chown
+			chown [-R] [--reference=] USER FILE...
+		chgrp
+			chogrp [-R] [--reference=] GROP FILE...
+
+		chown的用法技巧：
+			chown [-R] [--reference=] [USER][:GROUP] FILE...
+				USER  只改属主
+				USER:GROUP 同时改属主和属组
+				:GROUP  只改属组
+			chown [-R] [--reference=] [USER][:GROUP] FILE...
+
+	练习：
+		1、编辑/etc/group文件，添加组hadoop；
+		2、手动编辑/etc/passwd文件新增一行，添加用户hadoop，其基本组ID为hadoop组的ID号；其家目录为/home/hadoop;
+			测试：su切换至此用户
+		3、复制/etc/skel目录为/home/hadoop,要求修改hadoop目录的属组合其它用户没有任何访问权限；
+			测试：su切换至此用户
+		4、修改/home/hadoop目录及其内部所有文件的属主为hadoop，属组为hadoop；
+			测试：su切换至此用户
+
+
+	umask：权限遮罩码
+		文件：666-umask
+			注意：如果减得的结果中存在执行权限，则让对应用户类别的八进制
+		目录：777-umask
+
+		设定umask：
+			umask ［MODE］
+
+			注意：此设置仅对当前shell进程有效；
+
+	命令总结：chmod， chgrp，chown， umask
+
+bash环境：
+		
+	编译器：
+	解释器：
+		解释：
+			词法分析，token
+			语法分析
+			语义分析
+
+		条件判断：选择分支
+		循环：
+
+	过程式编程语言：
+		顺序执行
+		选择执行
+		循环执行
+
+	解释器：提供了编程环境
+
+	脚本：使用bash提供控制机制，将期望执行的命令罗列于文本文件中；
+		bash没有库，整个程序几乎都要依赖于系统命令来完成；
+
+	编译型：
+		源程序（文本文件）-->预处理-->编译-->汇编-->链接
+
+		静态语言
+
+	解释型
+		源程序（文本文件）-->解释器去读取并执行
+
+		动态语言
+
+	bash的重要特性：变量
+
+		bash变量类别：
+			本地变量：只对当前shell进程有效的变量；对其他shell进程无效，包括当前shell进程的子进程；
+				init--> bash --> ls
+				定义：VAR_NAME=VALUE
+				变量赋值：向变量的存储空间保存数据
+				引用变量：${VAR_NAME}
+					""：弱引用，里面的变量会被替换
+					''：强引用，里面的所有字符都是字面量，直接输出；
+
+			环境变量：对当前shell进程及其子shell有效，对其它的shell进程无效；
+				定义：export VAR_NAME=VALUE
+				导出：export VAR_NAME
+				用户可自定义环境变量
+				bash有许多内置的环境变量
+
+				撤销变量：unset VAR_NAME
+				只读变量：readonly VAR_NAME
+
+			局部变量
+				对shell脚本中某代码片段有效；通常用于函数本地；
+				local VAR_NAME＝VALUE
+			位置变量
+				$1, $2,...,${10}
+			特殊变量
+				$?
+
+	查看当前shell进程中的所有变量：set
+	查看当前shell进程中的所有环境变量：export， printenv， env
+
+	变量命名：
+		1、不能使用程序中的关键字（保留字）；
+			if， case， for
+		2、只能使用数字、字母和下划线，且不能以数字开头；
+		3、要见名知义
+			userName
+
+	变量类型：
+		1、存储机制
+		2、存储空间
+		3、参与的运算方式
+
+		数值型：
+			精确数值：整数
+			近似数值：浮点型
+				单精度浮点
+				双精度浮点
+
+			字符型：
+				char：单个字符
+				string：字串
+			布尔型：
+				true，false
+			日期时间：
+
+		类型转换：
+			显示转换
+			隐式转换
+
+
+		bash是弱类型的语言；一切皆字符
+
+	bash的配置文件：
+		profile类：为交互式登录的用户提供配置
+			全局：
+				/etc/profile
+				/etc/profile.d/*.sh
+			用户：
+				~/.bash_profile
+
+			功用：
+				1、设定环境变量
+				2、运行命令或脚本
+
+		bashrc类：为非交互式的用户提供配置
+			全局：
+				/etc/bashrc
+			用户：
+				~/.bashrc
+
+			功用：
+				1、设定本地变量
+				2、定义命令别名
+
+		登录类型：
+			交互式：
+				直接通过终端输入账号和密码登录；
+				使用su -l USERNAME 或 su - USERNAME
+
+			非交互式：
+				su USERNAME
+				图形界面下打开的终端
+				执行脚本
+
+		通过编辑配置文件修改的配置生效？
+			1、退出并重新登录；
+			2、让bash重读此配置文件；
+				. FILE
+				source FILE
+
+		交互登录的用户：
+			/etc/profile --> /etc/profile.d/*.sh --> ~/.bash_profile --> ~/.bashrc --> /etc/bashrc
+
+		非交互式登录的用户：
+			~/.bashrc --> /etc/bashrc --> /etc/profile.d/*.sh
+
+
+
+
+
+
+

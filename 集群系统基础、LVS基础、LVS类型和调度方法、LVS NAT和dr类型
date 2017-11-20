@@ -1,0 +1,824 @@
+集群系统基础、LVS基础、LVS类型和调度方法、LVS NAT和dr类型
+
+Linux Cluster：
+	LB
+	HA
+
+Web Arch
+
+虚拟化和云计算
+
+自动化运维工具：ansible，puppet，zabbix
+
+大数据处理平台：hadoop 2， storm， spark， zookeeper
+
+PasS, ELK
+
+
+Cluster
+
+	系统扩展的方式：
+		scale up：向上扩展
+		scale out：向外扩展
+
+	集群类型：
+		LB：负载均衡集群，Load Balancing
+		HA：高可用集群，High Availability
+		HP：高性能集群，High performancing
+			www.top500.org
+
+		Availabililty=90%, 95%, 99%, 99.5%, 99.9%, 99.99%, 99.999%
+
+	系统：
+		可扩展性
+		可用性
+		容量
+		性能
+
+	系统运维：可用 --> 标准化 --> 自动化
+
+	构建高可扩展性系统的重要原则：在系统内部尽量避免串行化和交互;
+
+	GSLB：Global Service Load Balancing
+
+		SLB：Service Load Balancing
+
+	总结：
+		分层
+		分割
+		分布式
+			分布式应用
+			分布式静态资源
+			分布式数据和存储
+			分布式计算
+
+	LB集群的实现：
+		硬件：
+			F5 BIG-IP
+			Citrix NetScaler
+			A10	A10
+			Array
+			Redware
+		软件：
+			lvs
+			haproxy
+			nginx
+			httpd()
+			varnish
+			ats (apache traffic server)
+			perlbal
+
+			基于工作的协议层次划分：
+				传输层：
+					lvs, haproxy(mode tcp)
+				应用层：
+					haproxy, nginx, ats, perlbal
+
+	lvs：
+
+		章文嵩：正明
+		lvs：Linux Virtual Server
+
+		l4：四层交换，四层路由；
+			根据请求报文的目标IP和PORT将其转发至后端主机集群中的某一台主机（根据挑选算法）；
+
+			netfilter：
+				PREROUTING --> INPUT
+				PREROUTING --> FORWARD --> POSTROUTING
+				OUTPUT --> POSTROUTING
+
+		lvs：
+			ipvsadm/ipvs
+
+			ipvsadm：用户空间的命令行工具，用于管理集群服务；
+			ipvs：工作在内核中netfilter INPUT钩子上；
+
+			查看Linux内核是否编译支持lvs
+				grep -i -A 10 'IPVS' /boot/config-2.6.32-696.1.1.el6.x86_64
+
+			支持TCP，UDP，AH，EST，AH_EST，SCTP等诸多协议；
+
+		lvs arch：
+			调度器：director，dispatcher，balancer
+			RS：Real Server
+
+			Client IP：CIP
+			Director Virutal IP： VIP
+			Director IP：DIP
+			Real Server IP：RIP
+
+		lvs type：
+			lvs-nat
+			lvs-dr(direct routing)
+			lvs-tun(ip tunneling)
+			lvs-fullnat()
+
+			lvs-nat：
+				多目标的DNAT(iptables)：它通过修改请求报文的目标IP地址（同时可能会修改目标端口）至挑选出某RS的RIP地址实现转发；
+
+				（1）RS和DIP应该使用私网地址，且RS的网关要指向DIP；
+				（2）请求和响应报文都要经由director转发；极高负载的场景中，director可能会成为系统瓶颈；
+				（3）支持端口映射；
+				（4）RS可以使用任意OS；
+				（5）RS的RIP和Directory的DIP必须要在同一IP网段中；
+
+			lvs-dr：direct routing
+				它通过修改请求报文的目标MAC地址进行转发；
+					Director：VIP，DIP
+					RSs：RIP，VIP
+
+
+				（1）保证前端路由器将目标IP为VIP的请求报文发送给director；
+					解决方案：
+						静态绑定
+						arptables
+						修改RS主机内核的参数
+				（2）RS的RIP可以使用私有地址；但也可以使用公网地址；
+				（3）RS跟Director必须在同一物理网络中；
+				（4）请求报文经由Director调度，但响应报文一定不能经由Director；
+				（5）不支持端口映射；
+				（6）RS可以大多数OS；
+				（7）RS的网关不能指向DIP；
+
+回顾：
+	Linux Cluster：
+		LB, HA, HP
+			LB：
+				软件：lvs, haproxy， nginx， ats
+				硬件：F5， Netscaler， A10
+
+	LVS：
+		ipvsadm/ipvs
+
+		Director/RealServer
+			Client --> Director --> RealServer#(scheduler)
+
+		LVS-TYPE
+			lvs-nat：MASQUERADE
+			lvs-dr：GATEWAY
+			lvs-tun：IPIP
+			lvs-fullnat
+
+		lvs-nat：请求和响应报文都经由director
+		lvs-dr：仅请求报文经由director，响应报文是由RS直接响应给Client
+
+ipvs(2)
+
+	lvs-type：
+		lvs-nat：RIP与DIP必须在同一网段；
+		lvs-dr：Director与RS必须在同一物理网络；
+		lvs-tun：
+			不修改请求报文的ip首部，而是通过在原有的ip首部（CIP <--> VIP）之外，再封装一个ip首部(dip <-->rip)；
+
+				（1）RIP,DIP,VIP全得是公网地址；
+				（2）RS的网关不能指向DIP;
+				（3）请求报文必须经由Director调度，但响应报文必须不能经由director；
+				（4）不支持端口映射；
+				（5）RS的OS必须支持隧道功能；
+
+		lvs-fullnat：
+			directory通过同时修改请求报文的目标地址和源地址进行转发：
+				（1）VIP是公网地址；RIP和DIP是私网地址，二者无须在同一网络中；
+				（2）RS接收到的请求报文的源地址为DIP，因此要响应给DIP；
+				（3）请求报文和响应报文都必须经由director；
+				（4）支持端口映射机制；
+				（5）RS可以使用任意OS；
+
+	http：stateless
+		session保持：
+			session绑定：
+				source ip hash
+				cookie：lvs不支持
+			session集群：	
+			session服务器：
+
+	lvs scheduler：
+		静态方法：仅根据算法本身进行调度；
+			RR：round robin，轮调
+			WRR：weighted rr，加权轮调
+			SH：source hash，实现session保持的机制；
+			DH：destination hash，将对同一个目标的请求始终发往同一个RS；
+		动态算法：根据算法及各RS的当前负载状态进行调度；
+				Overhead=
+			LC：Least Connecton；最少连接数
+				Overhead=Active*256+Inactive
+			WLC：Weighted LC：权重最少连接数
+				Overhead=(Active*256+Inactive)/weight
+			SED：Shortest Expection Delay：最短期望延迟
+				Overhead=((Active+1)*256)/weight
+			NQ：Never Queue：永不排队算法
+				SED算法的改进
+			LBLC：Locality-Based Least Connections：基于局部性的最少链接，即为动态的DH算法；
+				正向代理情形下的cache server调度
+			LBLCR：Locality-Based Least Connections with Replication：带复制的基于局部性最少链接
+
+	lvs的集群服务：
+		tcp, udp, ah, esp, ah_esp, sctp
+
+		（1）一个ipvs主机可以同时定义多个cluster service;
+			tcp, udp
+		（2）一个cluster service上至少应该有一个real server；
+
+			定义时：指明lvs-type,以及lvs scheduler；
+
+	ipvsadm的用法：
+		管理集群服务
+			添加和修改：
+				ipvsadm -A|E -t|u|f service-address [-s scheduler]
+
+					# ipvsadm -A -t 192.168.1.100:80
+
+					-A：添加
+					-E：修改
+
+					-t：承载的应用层协议为基于TCP协议提供服务的协议；其service-address的格式为"VIP:PORT"，如"172.16.200.6:80"；
+					-u：承载的应用层协议为基于UDP协议提供服务的协议；其service-address的格式为"VIP:PORT"，如"172.16.200.6:53"；
+					-f：承载的应用层协议为基于TCP或UDP协议提供服务的协议；但此类报文会经由iptables/netfilter打标记，即为防火墙标记，其service-address的格式为"FWMP"，如"10"；
+
+					service-address:
+						tcp：-t ip:port
+						udp：-u ip:port
+						fwm：-f mark
+
+					-s scheduler
+						指明调度方法，默认为wlc
+
+			删除：
+				ipvsadm -D -t|u|f service-address
+
+					# ipvsadm -D -t 192.168.1.100:80
+
+
+		管理集群服务中的RS
+			添加和修改：
+				ipvsadm -a|e -t|u|f service-address -r server-address [-g|i|m] [-w weight]
+
+					＃ ipvsadm -a -t 172.16.100.6:80 -r 192.168.10.7 -m -w 2
+					＃ ipvsadm -a -t 172.16.100.6:80 -r 192.168.10.8 -m -w 5
+
+					-r server-address：指明RS，server-address格式一般为“IP[:PORT]”；注意，只支持端口映射的lvs类型中才应该显示定义此处端口，例如：-r 192.168.10.7:80
+
+					lvs-type：指明lvs类型，默认为dr类型；
+						-g：gateway,意为dr类型；
+						-i：ipip,意为tun类型；
+						-m：masquerade,意为nat类型；
+
+					[-w weight]：当前RS的权重
+						注意：仅对于支持加权调度的scheduler，权重才有意义；
+
+			删除
+				ipvsadm -d -t|u|f service-address -r server-address
+
+				 	＃ ipvsadm -d -t 172.16.100.6:80 -r 192.168.10.7
+
+			清理所有集群服务的定义：
+				ipvsadm -C
+
+			查看集群服务及RS的定义：
+				ipvsadm -L|l [options]
+					-c：列出当前所有状态连接；
+						# ipvsadm -Ln -c
+					--stats；列出统计数据
+						# ipvsadm -Ln --stats
+					--rate：列出速率
+						# ipvsadm -Ln --rate
+					-n,--numeric：数字格式显示IP及端口；
+					--exact：精确值；
+
+			保存集群服务及RS的定义：
+				ipvsadm -S > /etc/sysconfig/ipvsadm
+				ipvsadm-save > /etc/sysconfig/ipvsadm
+				service ipvsadm save ：默认保存至/etc/sysconfig/ipvsadm
+
+			恢复：
+				ipvsadm -R < /etc/sysconfig/ipvsadm
+				ipvsadm-restore < /etc/sysconfig/ipvsadm
+				service ipvsadm restart
+
+			置零计数器
+				ipvsadm -Z [-t|u|f service-address]
+
+	案例：lvs-nat类型的web服务器集群
+
+		tcpdump -i eth0 -nn [src|dst] host IP and tcp port 80
+
+	博客作业：lvs-nat模型实现http和https两种负载均衡集群；
+		ssl：
+			RS：都要提供同一个私钥和同一个证书；
+
+
+	lvs-dr：
+		（1）各RS要直接响应Client，因此，各RS均要配置VIP；但仅能够Director上的VIP能够于本地路由直接通信；
+		（2）Director不会拆除或修改请求报文的IP首部，而是通过封闭的帧首部（源MAC为Director的MAC，目标MAC为挑选出的RS的MAC）完成调度；
+
+		两个内核参数：
+			2.4.26, 2.6.4 kernel引入两个内核参数：
+			arp_ignore：不响应；定义arp忽略arp请求报文级别；
+			arp_announce：不主动通告；定义arp通知级别；
+
+				/proc/sys/net/ipv4/conf/INTERFACE
+
+
+		director:
+			(1)VIP配置在物理接口的别名上
+				ifconfig INTERFACE:ALIAS $VIP broadcast $VIP netmask 255.255.255.255 up
+					# ifconfig eno16777736:0 192.168.1.100/32 broadcast 192.168.1.100 up 
+			(2)配置路由信息
+				route add -host $vip dev INTERFACE:ALIAS
+					# route add -host 192.168.1.100 dev eno16777736:0  //此命令有待商榷，试验证明不需要此命令也可
+
+
+		RS：
+			(1)先修改内核参数
+				# echo "1" > /proc/sys/net/ipv4/conf/all/arp_ignore
+				# echo "1" > /proc/sys/net/ipv4/conf/eth0/arp_ignore 
+				# echo "2" > /proc/sys/net/ipv4/conf/all/arp_announce
+				# echo "2" > /proc/sys/net/ipv4/conf/eth0/arp_announce
+			(2)VIP配置在lo的别名上
+				# ifconfig lo:0 192.168.1.100/32 broadcast 192.168.1.100 up
+			(3)配置路由信息
+				# route add -host 192.168.1.100 dev lo:0   //此命令有待商榷，试验证明不需要此命令也可
+
+			使用脚本实现dr类型RS配置：
+				~]# cat setarp.sh 
+				#!/bin/bash
+				#
+				#Discription: Set kernel arp ignore and announce;
+				#Date: 2017/06/02
+
+				vip=192.168.1.100
+
+				case $1 in
+				        start)
+				                echo "1" > /proc/sys/net/ipv4/conf/all/arp_ignore
+				                echo "1" > /proc/sys/net/ipv4/conf/eth0/arp_ignore
+				                echo "2" > /proc/sys/net/ipv4/conf/all/arp_announce
+				                echo "2" > /proc/sys/net/ipv4/conf/eth0/arp_announce
+
+				                ifconfig lo:0 $vip netmask 255.255.255.255.broadcast $vip up
+
+				                echo "Set Done."
+				                ;;
+				        stop)
+				                ifconfig lo:0 down
+
+				                echo "0" > /proc/sys/net/ipv4/conf/all/arp_ignore
+				                echo "0" > /proc/sys/net/ipv4/conf/eth0/arp_ignore
+				                echo "0" > /proc/sys/net/ipv4/conf/all/arp_announce
+				                echo "0" > /proc/sys/net/ipv4/conf/eth0/arp_announce
+
+				                echo "Set Default Done."
+				                ;;
+				        *)
+				                echo "Usage $0 {start|stop}"
+				                exit 1
+				esac
+
+
+			示例脚本：	
+				DR类型director脚本示例：
+					#!/bin/bash
+					#
+					vip=172.16.100.7
+					rip=('172.16.100.8' '172.16.100.9')
+					weight=('1' '2')
+					port=80
+					scheduler=rr
+					ipvstype='-g'
+
+					case $1 in
+					start)
+					iptables -F -t filter
+					ipvsadm -C
+					
+					ifconfig eth0:0 $vip broadcast $vip netmask 255.255.255.255 up
+					route add -host $vip dev eth0:0
+					echo 1 > /proc/sys/net/ipv4/ip_forward
+
+					ipvsadm -A -t $vip:$port -s $scheduler
+					[ $? -eq 0 ] && echo "ipvs service $vip:$port added."  || exit 2
+					for i in `seq 0 $[${#rip[@]}-1]`; do
+						ipvsadm -a -t $vip:$port -r ${rip[$i]} $ipvstype -w ${weight[$i]}
+						[ $? -eq 0 ] && echo "RS ${rip[$i]} added."
+					done
+					touch /var/lock/subsys/ipvs
+					;;
+					stop)
+					echo 0 > /proc/sys/net/ipv4/ip_forward
+					ipvsadm -C
+					ifconfig eth0:0 down
+					rm -f /var/lock/subsys/ipvs
+					echo "ipvs stopped."
+					;;
+					status)
+					if [ -f /var/lock/subsys/ipvs ]; then
+						echo "ipvs is running."
+						ipvsadm -L -n
+					else
+						echo "ipvs is stopped."
+					fi
+					;;
+					*)
+					echo "Usage: `basename $0` {start|stop|status}"
+					exit 3
+					;;
+					esac
+
+
+				DR类型RS脚本示例：
+					#!/bin/bash
+					#
+					vip=172.16.100.7
+					interface="lo:0"
+
+					case $1 in
+					start)
+					echo 1 > /proc/sys/net/ipv4/conf/all/arp_ignore
+					echo 1 > /proc/sys/net/ipv4/conf/lo/arp_ignore
+					echo 2 > /proc/sys/net/ipv4/conf/all/arp_announce
+					echo 2 > /proc/sys/net/ipv4/conf/lo/arp_announce
+
+					ifconfig $interface $vip broadcast $vip netmask 255.255.255.255 up
+					route add -host $vip dev $interface
+					;;
+					stop)
+					echo 0 > /proc/sys/net/ipv4/conf/all/arp_ignore
+					echo 0 > /proc/sys/net/ipv4/conf/lo/arp_ignore
+					echo 0 > /proc/sys/net/ipv4/conf/all/arp_announce
+					echo 0 > /proc/sys/net/ipv4/conf/lo/arp_announce
+
+					ifconfig $interface down
+					;;
+					status)
+					if ifconfig lo:0 |grep $vip &> /dev/null; then
+						echo "ipvs is running."
+					else
+						echo "ipvs is stopped."
+					fi
+					;;
+					*)
+					echo "Usage: `basename $0` {start|stop|status}"
+					exit 1
+					esac
+
+
+	作业：
+		dr模型实现http和https两种负载均衡集群；
+		ssl：
+			RS：都要提供同一个私钥和同一个证书；
+		dr模型实现mysql负载均衡集群；
+
+		拓展：规划拓扑实现VIP与RIP不在同一网络中的集群；
+
+	博客作业：lvs的类型、lvs调度方法、lvs-nat和lvs-dr模型演示；
+
+
+回顾：
+	lvs：l4 switch, l4 router
+		vip,port,{tcp|udp}
+
+	lvs-type：
+		lvs-nat, masquerade：通过修改请求报文的目标IP地址进行调度；类似多目标的DNAT；
+		lvs-dr, gateway：通过重新封装请求报文的帧首部（目标为RS的RIP对应的MAC地址）进行调度；
+			（1）在前端路由器上静态指定；
+			（2）arptables;
+			（3）通过修改内核参数来限制arp通告和响应级别；
+		lvs-tun, ipip：通过为请求报文的原有IP首部之外再次封装IP首部完成调度；
+		lvs-fullnat (keepalived)：通过修改请求报文的源IP以及目标IP地址进行调度；
+
+
+		lvs scheduler:
+			static：RR, WRR, SH, DH
+			dynamic：LC, WLC, SED, NQ, LBLC, LBLCR
+				overhead：active connections, inactive connections
+
+
+	lvs-dr：vip, dip/rip
+		bridge, nat, host-only,
+
+lvs(3)
+
+	netfilter：
+		PREROUTING --> INPUT
+		PREROUTING --> FORWARD --> POSTROUTING
+		OUTPUT --> POSTROUTING
+
+		前提：在ipvs生效之前的netfilter的某hook function上定义iptables规则，实现给报文打上防火墙标记；
+
+	ipvs：INPUT
+
+	FWM：
+		PREROUTING：
+			-j MARK --set-mark 10
+				# iptables -t mangle -A PREROUTING -d 192.168.1.100 -p tcp --dport 80 -j MARK --set-mark 10
+
+		ipvs：
+			-A -f 10
+				# ipvsadm -A -f 10 -s rr
+				# ipvsadm -a -f 10 -r 192.168.1.97 -g
+				# ipvsadm -a -f 10 -r 192.168.1.98 -g
+
+
+	通过FWM定义集群的方式：
+		（1）在director上netfilter的mangle表的PREROUTING定义“打标”的规则
+			~]# iptables -t mangle -A PREROUTING -d $vip -p $protocol --dport $port -j MARK --set-mark #
+				$vip：VIP地址
+				$protocol：协议
+				$port：协议端口
+				＃：标记号
+
+				# iptables -t mangle -A PREROUTING -d 192.168.1.100 -p tcp --dport 80 -j MARK --set-mark 10
+
+		（2）基于FWM定义集群服务：
+			~]# ipvsadm -A -f # -s scheduler
+			~]# ipvsadm -a -f # -r $real-server -g|-i|-m -w #s
+
+				# ipvsadm -A -f 10 -s rr
+				# ipvsadm -a -f 10 -r 192.168.1.97 -g
+				# ipvsadm -a -f 10 -r 192.168.1.98 -g
+
+
+			功用：将共享一组RS的集群服务统一进行定义；统一调度；
+
+	session保持：
+		session绑定
+			session sticky：基于源IP绑定，基于cookie绑定；
+		session复制
+			session replicaton cluster：在各server之间以多播方式“复制”各session，从而每个server会持有所有的session；
+		session服务器
+			session server：引入第三方存储，专用于共享存储session信息；（redis，memcached）
+
+		session绑定：lvs sh算法
+			对某一特定服务；
+
+	lvs presistence：lvs的持久连接
+
+		功能：无论ipvs使用何种调度方法，其都能实现将来自于同一个Client的请求始终定向至第一次调度时挑选出的RS；
+
+			持久连接模版：独立于调度算法
+				sourceip rs timer
+
+		对多个共享同一组RS的服务器，需要统一进行绑定
+
+		持久连接的实现方式：
+			每端口持久：PPC，单服务持久调度；持久连接的生效范围仅为单个集群服务；如果有多个集群服务，每服务被单独持久调度；
+				# ipvsadm -A -t 192.168.1.100:80 -s rr -p 3600
+			每FWM持久：PFWMC，单FWM持久；将持久和防火墙标记结合起来就能够实现端口姻亲功能，只要是来自某一客户端的对某一特定服务（需要不同的端口）的访问都定义到同一台Real Server上去。
+				PORT AFFINITY
+					# ipvsadm -A -f 10 -s rr -p 3600
+			每客户端持久：PCC，单客户端持久调度；定义集群服务时，其TCP或UDP协议的目标端口要使用0； 
+				director会将用户的任何请求都识别为集群服务，并向RS进行调度；来自同一客户端所有服务的请求都被重定向到同一台Real Server上，以IP地址为准。
+					TCP：1-65535
+					UDP：1-65535
+						# ipvsadm -A -t 192.168.1.100:0 -s rr -p 3600
+
+		ipvsadm -A -t|-u|-f service-address -s SCHEDULER [-p [#]]
+			无-p选项：不支持持久连接
+			-p #：指定持久时长，省略时长，默认为300seconds
+
+lvs集群：
+	lvs本身不支持对RS的健康状态作检测；
+
+	健康：周期性检查机制
+		状态发生转变时，要做出相应处理
+			up --> down：建议要至少确认三次；
+			down --> up：建议一次以上（含一次）；
+
+		下线处理机制：
+			（1）设置权重为0；
+			（2）将相应的RS从ipvs的可用列表中移除；
+
+		上线处理机制：
+			（1）设置为正常权重；
+			（2）将相应的RS添加至ipvs的可用RS列表；
+
+		解决方案：
+			（1）写程序完成相应功能；
+			（2）keepalived
+
+		如何做健康状态检查：
+			三种方案：
+				IP层：ping等主机在线状态探查工具；
+				传输层：端口扫描工具探查服务在线状态；
+				应用层：请求专用于健康状态检查的资源或者某正常资源；
+
+		备用服务器：
+			sorry server, backup server
+			可以在Director上直接实现；即配置director成为web服务，仅提供有限资源，在所有RS都故障时，方才启用此server；
+
+	HA：
+		SPOF：Single Point of Failure
+
+		director：高可用集群；
+		realserver：让directory对其做健康状态检测，并且根据检测的结果自动完成添加或移除等管理功能；
+			1、基于协议层次检查
+				ip：icmp
+				传输层：检查端口的开放状态
+				应用层：请求获取关键性的资源
+
+			2、检查频度
+
+			3、状态判断
+				下线：ok --> failure --> failure --> failure
+				上线：failure --> failure --> ok --> ok
+
+			4、back server， sorry server
+
+	作业：写脚本，完成RS健康状态检查；
+
+		fwm=10
+		sorry_server=127.0.0.1
+		rs=('192.168.10.11' '192.168.10.12')
+		rw=('1' '1')
+		lvs_type='-m'
+		chkloop=3
+		rsstatus=(0 0)
+		logfile=/var/log/ipvs_health_check.log
+
+		addrs()、delrs()、chkrs()、initstatus()
+
+
+			#!/bin/bash
+			#
+			fwm=10
+			sorry_server='127.0.0.1'
+			lvstype='-m'
+			checkloop=3
+			logfile=/var/log/ipvs_health_check.log
+			rs=('192.168.10.11' '192.168.10.12')
+			rw=('1' '1')
+			rsstatus=(0 0)
+
+			addrs() {
+			    # $1: rs, $2: rs weight
+			    ipvsadm -a -f $fwm -r $1 $lvstype -w $2
+			    [ $? -eq 0 ] && return 0 || return 1
+			}
+
+			delrs() {
+			    # $1: rs
+			    ipvsadm -d -f $fwm -r $1
+			    [ $? -eq 0 ] && return 0 || return 1
+			}
+
+			chkrs() {
+			    # $1: rs
+			    local i=1
+			    while [ $i -le $checkloop ]; do
+				if curl --connect-timeout 1 -s http://$1/index.html | grep -i "real[[:space:]]* server" &> /dev/null; then
+				     return 0
+			        fi
+			        let i++
+				sleep 2
+			    done
+			    return 1
+			}
+			   
+			initstatus() {
+			    for host in `seq 0 $[${#rs[@]}-1]`; do
+				if chkrs ${rs[$host]}; then
+				    if [ ${rsstatus[$host]} -eq 0 ]; then
+					rsstatus[$host]=1
+			            fi
+			        else
+				    if [ ${rsstatus[$host]} -eq 1 ]; then
+					rsstatus[$host]=0
+			 	    fi
+				fi
+			    done
+			}
+
+			initstatus
+
+			while :; do
+			    for host in `seq 0 $[${#rs[@]}-1]`; do
+				if chkrs ${rs[$host]}; then 
+				    if [ ${rsstatus[$host]} -eq 0 ]; then
+					addrs ${rs[$host]} ${rw[$host]}
+					[ $? -eq 0 ] && rsstatus[$host]=1
+				    fi
+				else
+				    if [ ${rsstatus[$host]} -eq 1 ]; then
+					delrs ${rs[$host]}
+					[ $? -eq 0 ] && rsstatus[$host]=0
+				    fi
+				fi
+			    done
+			    sleep 10
+			done
+
+			作业：改进此脚本
+				(1) 启用在rs上下线时记录日志；
+				(2) 在所有rs下线时启用sorry_server；
+					~]# cat healthcheck.sh 
+					#!/bin/bash
+					#
+					#Description: Culster Real Server health status check!
+					#Date:2017/06/02
+
+					#Cluster IP
+					vip='192.168.10.100'
+					#real server
+					rs=('192.168.10.98' '192.168.10.97')
+					#service port
+					port=80
+					#weight
+					rw=('1' '1')
+					#fail server
+					sorry_server='127.0.0.1'
+					#sorry server status
+					sorry_status=0
+					#lvs type
+					lvs_type='-g'
+					#check count
+					chkloop=3
+					#real server init status
+					rsstatus=(0 0)
+					#log file path
+					logfile=/var/log/ipvs_health_check.log
+					#RS count
+					declare -i rs_count=0
+
+					#Add real server function
+					addrs(){
+						# $1：rs，$2：weight
+						ipvsadm -a -t  $vip:$port -r $1 $lvs_type -w $2
+						[ $? -eq 0 ] && return 0 || return 1
+					}
+
+					#Delete fail real server 
+					delrs(){
+						# $1：rs
+						ipvsadm -d -t $vip:$port -r $1
+						[ $? -eq 0 ] && return 0 || return 1
+					}
+
+					#Check real server healthy status
+					chkrs(){
+						# $1：rs
+						local i=1
+						while [ $i -le $chkloop ]; do
+							if curl --connect-timeout 1 -s http://$1 &> /dev/null; then
+								return 0
+							fi
+							let i++
+							sleep 2
+						done
+						return 1
+					}
+
+					#Init real server status
+					initstatus(){
+						for host in `seq 0 $[${#rs[@]}-1]`; do
+							if chkrs ${rs[$host]}; then 
+								if [ ${rsstatus[$host]} -eq 0 ]; then
+									rsstatus[$host]=1
+									let rs_count++
+								fi
+							else
+								if [ ${rsstatus[$host]} -eq 1 ]; then
+									rsstatus[$host]=0
+									let rs_count--
+								fi
+							fi
+						done
+					}
+
+					initstatus
+
+					while :; do 
+						for host in `seq 0 $[${#rs[@]}-1]`; do
+							if chkrs ${rs[$host]};then
+								if [ ${rsstatus[$host]} -eq 0 ]; then
+									addrs ${rs[$host]} ${rw[$host]}
+									[ $? -eq 0 ] && rsstatus[$host]=1 && let rs_count++ && echo "`date +'%F %H:%M:%S'`, ${rs[$host]} is added." >> $logfile
+								fi
+							else
+								if [ ${rsstatus[$host]} -eq 1 ]; then
+									delrs ${rs[$host]}
+									[ $? -eq 0 ] && rsstatus[$host]=0 && let rs_count-- && echo "`date +'%F %H:%M:%S'`, ${rs[$host]} is deleted." >> $logfile
+								fi	
+							
+							fi
+						done
+						
+						if [ $rs_count == 0 -a $sorry_status == 0 ]; then
+							addrs $sorry_server 1 
+							[ $? -eq 0 ] && sorry_status=1 && echo "`date +'%F %H:%M:%S'`, Sorry server is added." >> $logfile
+						elif [ $rs_count != 0 -a $sorry_status != 0 ]; then
+							delrs $sorry_server
+							[ $? -eq 0 ] && sorry_status=0 && echo "`date +'%F %H:%M:%S'`, Sorry server id deleted." >> $logfile
+						fi		
+
+						sleep 10
+					done
+
+	博客作业：lvs原理、lvs-nat的实现、lvs-dr的实现
+
+
+
+
+
+
+
+

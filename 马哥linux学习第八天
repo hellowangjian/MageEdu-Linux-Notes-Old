@@ -1,0 +1,856 @@
+回顾：
+	命令总结：fdisk, mkfs, mke2fs, mkswap, fsck, e2fsck, mount, umount, swapon, swapoff, tune2fs, dumpe2fs, df, du,mknod, ln, free, e2label, blkid, fuser, partx, kpartx, partprobe
+
+	/etc/fstab：
+		挂载的设备 挂载点 文件系统类型 挂载选项 转储频率 自检次序
+
+Linux RAID
+
+	硬盘设备常见的接口类型：
+		IDE
+		SCSI：15000rpm
+		SATA：6Gbps
+		SAS：
+		USB：
+
+	SCSI，IDE
+
+	RAID：Redundent Array Inexpensive Disks
+		廉价冗余磁盘阵列
+
+		Independent：独立的
+
+		性能：将I/O分散至多个设备；
+		冗余：将同一个数据至少存储在两个硬盘上；
+
+		异或运算：
+			1 1 0
+			0 1 1
+
+		chunk
+
+	RAID Level：仅用于表明其组合方式的不同
+		raid0：读、写均有提升；无冗余能力；N*disk;至少两块
+		raid1：写性能略有下降，读性能提升；有冗余能力；空间：disk；至少三块盘；
+		raid4：读、写性能提升；有冗余能力，但至多坏一块盘；空间：(n-1)*disk；至少三块盘；
+		raid5：比起RAID4而言，无专门校验盘；读、写性能提升；有冗余能力，但至多坏一块盘；空间：(n-1)*disk；至少三块盘；
+		raid6：有两个校验盘，至多允许同时损坏两块盘；读、写性能提升；有冗余能力；空间：(n-2)*disk；至少四块盘；
+		raid10：至多允许同时损坏半数的磁盘，但同一组镜像中两个磁盘不能同时损坏；读、写性能提升；有较好的冗余能力；空间：n/2*disk；至少需要四块盘；
+		raid50：至少需要6个盘；同组raid5不允许同时坏两个盘，但不同组raid5可同时各坏一个；读、写性能提升；有冗余能力；空间：
+
+	JBOD：将多块硬盘串联在一起，当一个设备使用；
+
+	md：multi disks 内核模块
+
+		mdadm：管理software RAID；
+			模式化的命令：
+
+			-A：装配模式
+			-C：创建模式
+			-F：监控模式
+
+				管理模式：-f, -r, a
+					-f：fault
+					示例：
+						mdadm -f /dev/md1 /dev/sda8
+					-r：拆除坏掉的磁盘,建议不要在新换上的磁盘修复时拆除；
+					示例：
+						mdadm -r /dev/md1 /dev/sda8
+					-a：add，向当前raid加入新的磁盘
+					示例：
+						mdadm -a /dev/mda1 /dev/sda10
+
+			-D：显示指定RAID设备的详细信息；
+				mdadm -D /dev/md1
+
+			-C：创建模式专用选项
+				-n #：用于创建RAID设备的磁盘设备的个数；
+				-l #：指明RAID级别；
+				-a yes|no：是否为正在创建的raid设备自动创建设备文件；
+				-c Chunk_Size：指明CHUNK大小；
+				-x #：对于有冗余能力的RAID级别，此选项为其指定可用的空闲盘的个数；
+
+				md设备的设备文件默认为/dev/md#：#仅设备编号，而与级别无关；
+
+				设备状态信息输出：/proc/mdstat
+
+				示例：创建一个大小为10G的RAID0：
+					注意：不应该使用同一个磁盘上的多个分区创建raid设备；
+					mdadm -C /dev/md0 -a yes -n 2 -l 0 /dev/sda8 /dev/sdb7
+
+				示例：创建一个大小为10G的RAID5;
+					mdadm -C /dev/md1 -a yes -n 3 -l 5 -c 256 /dev/sda{8,9} /dev/sdb7
+
+		watch命令的用法：
+			watch [-n #] 'COMMAND'
+				交互式查看，周期性地执行指定的COMMAND，
+					-n #：指明间隔时长
+						例如：watch -n1 '/proc/mdstat'
+
+			管理命令的使用：
+
+				mdadm -D /dev/md#：查看指定设备的详细信息；
+
+				mdadm -a /dev/md# /dev/DEVICE：在指定的md设备添加一个块设备；
+
+				mdadm -r /dev/md# /dev/DEVICE：在指定的md设备上移除余个块设备；
+
+				mdadm -f /dev/md# /dev/DEVICE：手动标记指定md设备上的某块设备为faulty状态；
+
+			停止软RAID：
+				mdadm -S /dev/md#：停止指定的RAID设备；将来使用时需要“装配(-A)”;
+
+			重新装配指定的软RAID：
+				mdadm -A /dev/md# /dev/DEVICES
+
+					可能会读取配置文件：/etc/mdadm.conf
+
+	练习：
+		1、创建一个大小为10G的RAID1，要求有一个空闲盘，而且CHUNK大小为128k；
+
+		2、创建一个大小为4G的RAID5设备，chunk大小为256k，格式化为ext4文件系统，要求可开机自动挂载至/backup目录，而且不更新访问时间戳，且支持ACL功能；
+		
+
+	注意：有冗余能力的RAID仅是为了避免因硬件损坏而导致业务终止，也能避免因硬件损坏而导致数据丢失；它不能取代备份的功能；
+
+bash脚本编程：
+	
+	流程控制语句：for循环
+
+		for Var_Name in List; do
+			循环体
+		done
+
+		List的生成方式：
+			1、整数序列：{start..end},例如：{1..10}
+			2、整数序列：seq start step end,例如：$(seq 1 2 10)
+			3、命令的执行结果：例如，$(ls /var)
+
+	变量类型：
+		位置参数变量：在脚本中用于引用传递给脚本的参数
+			$1, $2, ..., ${10}, ...
+				[root@vBird scripts]# vim pos1.sh
+				[root@vBird scripts]# chmod +x pos1.sh 
+				[root@vBird scripts]# ./pos1.sh hello world
+				first paramenter:hello
+				second paramenter:world
+				script name:./pos1.sh
+				[root@vBird scripts]# cat pos1.sh 
+				#!/bin/bash
+				#
+
+				echo "first paramenter:$1"
+
+				echo "second paramenter:$2"
+
+				echo "script name:$0"
+
+		特殊变量：
+			$?：保存上一条命令的执行结果成功与否的状态，用数字表示，0-255；0表示成功，非0均为失败；
+			$0：在脚本中用于引用传递给脚本名称本身；
+			$#：保存传递给当前脚本的参数的个数；
+				[root@vBird scripts]# cp pos1.sh pos2.sh
+				[root@vBird scripts]# vim pos2.sh 
+				[root@vBird scripts]# cat pos2.sh
+				#!/bin/bash
+				#
+
+				echo "first paramenter:$1"
+
+				echo "second paramenter:$2"
+
+				echo "script name:$0"
+
+				echo "there are $# parameter(s)."
+				[root@vBird scripts]# ./pos2.sh hello world 
+				first paramenter:hello
+				second paramenter:world
+				script name:./pos2.sh
+				there are 2 parameter(s).
+				[root@vBird scripts]# ./pos2.sh hello world  how are you
+				first paramenter:hello
+				second paramenter:world
+				script name:./pos2.sh
+				there are 5 parameter(s).
+
+			$*：保存传递给当前脚本的所有参数；
+				用单个字串保存传递给脚本的所有参数
+			$@：保存传递给当前脚本的所有参数；
+				用多个字串保存传递给脚本的所有参数
+
+	练习：写一个脚本
+		(1)接受一个以上文件路径作为参数；
+		(2)显示每个文件拥有的行数；
+		(3)总结说明本次共为几个文件统计了其行数；
+			#!/bin/bash
+			#
+			echo "Files:$@"
+			for file in $@; do
+			    lines=$(wc -l $file | cut -d' ' -f1)
+			    echo "$file has $lines line(s)."
+			done
+
+			echo "Total files:$#."
+
+			~]#./fileshow.sh /etc/fstab /etc/rc.d/rc.sysinit
+			
+	练习：写一个脚本
+		(1)传递两个以上字符串当作用户名；
+		(2)创建这些用户；且密码同用户名；
+		(3)总结说明共创建了几个用户；
+			#!/bin/bash
+			#
+			for user in $@; do
+			        useradd $user
+			        echo $user | passwd --stdin $user &> /dev/null
+			done
+			echo "Total Create User:$#."
+
+	算术运算：
+
+		如何定义整型变量？
+			(1)let Var_Name=INTEGER_VALUE
+				let num1=3
+
+			(2)declare -i Var_Name=INTEGER_VALUE
+				declare -i num2=6
+
+				两边：
+					declare -i num3
+					num3=7
+
+		注意：即使没有定义变量类型为整型，字符型的整数依然可以参与算术运算，是因为bash会进行隐式的数据类型转换；
+
+		bash的算术运算：
+			(1) let：let Var_Name=ARITHMATIC_EXPRESSION
+					示例：
+						# num1=3
+						# num2=4
+						# let sum=${num1}+${num3}
+						# echo $sum
+			(2) $[]：Var_Name=$[ARITHMATIC_EXPRESSION]
+					示例：
+						＃ sum=$[$num1+$num2]
+			(3) $(())：Var_Name=$((ARITHMATIC_EXPRESSION))
+					示例：
+						# sum=$(($num1+$num2))
+						or # echo $(($num1+$num2))
+			(4) expr命令：Var_Name=$(expr EXPREESSION)
+						 Var_Name=$(expr $ARGU1 operator $ARGU2)
+					示例：
+						# sum=$(expr $num1 + $num2)
+
+			算术运算：
+				+：加
+				-：减
+				*：乘
+				/：除
+				%：取模，取余数
+				**：幂运算
+
+			增强型赋值：
+				变量与自身做某种算术运算，而后将结果存回自身；
+					+=
+						let a+=2
+					-=
+					*=
+					/=
+					%=
+						
+
+					自加：++,例如let a++,相当于a=$[$a+1],也相当于let a+=1
+					自减：--
+
+			帮助：help let
+
+		示例：
+			计算100以内所有正整数之和：
+			#!/bin/bash
+			#
+			declare -i sum=0
+
+			for i in {1..100}; do
+			        let sum=$[$sum+$i]
+			done
+
+			echo "Summary is $sum"
+
+		练习：
+			计算100以内所有偶数之和；
+				#!/bin/bash
+				#
+				declare -i evensum=0
+
+				for i in $(seq 2 2 100); do
+					let evensum=$[$evensum+i]
+				done
+
+				echo "Sumary:$evensum"
+
+			计算100以内所有奇数之和；
+				#!/bin/bash
+				#
+				declare -i oddsum=0
+
+				for i in $(seq 1 2 100); do
+					let oddsum=$[$oddsum+i]
+				done
+
+				echo "Sumary:$oddsum"
+
+		练习：写一个脚本，新建20个用户，visitor1-visitor20;计算他们的ID之和；
+		练习：写一个脚本，分别统计/etc/rc.d/rc.sysinit、/etc/rc.d/init.d/functions和/etc/fstab文件中以#号开头的行数之和，以及总的空白行数；
+		练习：写一个脚本，显示当前系统上所有默认shell为bash的用户的用户名、UID以及此类所有用户的UID之和；
+		练习：写一个脚本，显示当前系统上所有，拥有附加组的用户的用户名；并说明共有多少个此类用户；
+
+回顾：RAID
+	RAID：独立冗余磁盘阵列（Redundant Array Of Independent Disks）
+		性能提升或提供冗余能力；
+		性能提升：0，5，10，50
+		冗余能力：1，5，10，50
+		空间利用率：
+			5：(n-1)*disk
+			6：(n-2)*disk
+			10：n*disk/2
+
+	bash编程：
+		特殊变量：$#,$*,$@
+		算术运算：
+			let， $[]，$(())，expr
+
+			操作符：
+				帮助：~]# help let
+				**,*,/,%,+,-,
+				*=,/=,%=,+=,-=
+
+LVM：Logical Volume Manager
+
+	lvm， lvm2
+
+	dm：device mapper
+
+	功用：将一个或多个底层块设备(包括RAID)组织一个逻辑存储空间；
+		其边界可动态扩展或缩减；
+
+	lv，multipath
+
+	PE，LE
+		Pysical Extent
+		Logical Extent
+
+	管理lv：
+		pv：pvcreate，pvdisplay，pvs，pvremove，pvmove
+		vg：vgcreate，vgdisplay，vgs，vgremove，vgextend，vgreduce
+		lv：lvcreate，lvdisplay，lvs，lvresize，lvextend，lvreduce，lvremove
+
+	示例：
+		创建一个10G vg：
+
+	PV：
+		创建pv：
+			准备块设备，调整其id为8e；
+			pvcreate [-f] /dev/DEVICE
+				[root@vBird ~]# pvcreate /dev/sdb{1,2}
+				  Physical volume "/dev/sdb1" successfully created
+				  Physical volume "/dev/sdb2" successfully created
+
+		查看：
+			# pvdisplay [/dev/DEVICE]
+			# pvs
+
+		移动pv上的pe到其它pv：
+			# pvmove
+
+		删除：pvremove
+			[root@vBird ~]# pvs
+			  PV         VG   Fmt  Attr PSize PFree
+			  /dev/sdb1       lvm2 a--  3.01g 3.01g
+			  /dev/sdb2  myvg lvm2 a--  7.00g 7.00g
+			[root@vBird ~]# pvremove /dev/sdb1
+			  Labels on physical volume "/dev/sdb1" successfully wiped
+			[root@vBird ~]# pvs
+			  PV         VG   Fmt  Attr PSize PFree
+			  /dev/sdb2  myvg lvm2 a--  7.00g 7.00g
+
+
+	VG：
+		创建vg：新增一个vg，并指明其包含哪个或哪些pv实现；
+			# vgcreate VolumeGroupName PhysicalDevicePath [PhysicalDevi-cePath...]
+				[-s|--physicalextentsize  PhysicalExtent-Size[bBsSkKmMgGtTpPeE]] 
+					[root@vBird ~]# vgcreate -s 16M myvg /dev/sdb{1,2}
+					  Volume group "myvg" successfully created
+					[root@vBird ~]# pvdisplay /dev/sdb1
+					  --- Physical volume ---
+					  PV Name               /dev/sdb1
+					  VG Name               myvg
+					  PV Size               3.01 GiB / not usable 10.75 MiB
+					  Allocatable           yes 
+					  PE Size               16.00 MiB
+					  Total PE              192
+					  Free PE               192
+					  Allocated PE          0
+					  PV UUID               q1ieG6-1y8c-SWIv-RSdx-ukiP-0KnQ-Ij0yCO
+
+					在CentOS6上PE默认大小为4M；
+						[root@vBird ~]# pvdisplay /dev/sdb1
+						  --- Physical volume ---
+						  PV Name               /dev/sdb1
+						  VG Name               myvg
+						  PV Size               3.01 GiB / not usable 2.75 MiB
+						  Allocatable           yes 
+						  PE Size               4.00 MiB
+						  Total PE              770
+						  Free PE               770
+						  Allocated PE          0
+						  PV UUID               q1ieG6-1y8c-SWIv-RSdx-ukiP-0KnQ-Ij0yCO
+
+       			[-t|--test] 
+       			[-v|--verbose]
+
+       			[root@vBird ~]# vgcreate myvg /dev/sdb{1,2}
+				  Volume group "myvg" successfully created
+				[root@vBird ~]# vgs
+				  VG   #PV #LV #SN Attr   VSize  VFree 
+				  myvg   2   0   0 wz--n- 10.02g 10.02g
+				[root@vBird ~]# 
+
+		查看：vgs
+				[root@vBird ~]# vgs
+				  VG   #PV #LV #SN Attr   VSize  VFree 
+				  myvg   2   0   0 wz--n- 10.02g 10.02g
+
+			 vgdisplay VGGROUPNAME
+			 	[root@vBird ~]# vgdisplay myvg
+				  --- Volume group ---
+				  VG Name               myvg
+				  System ID             
+				  Format                lvm2
+				  Metadata Areas        2
+				  Metadata Sequence No  1
+				  VG Access             read/write
+				  VG Status             resizable
+				  MAX LV                0
+				  Cur LV                0
+				  Open LV               0
+				  Max PV                0
+				  Cur PV                2
+				  Act PV                2
+				  VG Size               10.02 GiB
+				  PE Size               4.00 MiB
+				  Total PE              2564
+				  Alloc PE / Size       0 / 0   
+				  Free  PE / Size       2564 / 10.02 GiB
+				  VG UUID               7Nz06v-gC3k-NamL-kDx1-wZ3I-7aa2-8kDqZ6
+				   
+		删除：vgremove [option] VGGROUPNAME
+				[-t|--test] 
+					[root@vBird ~]# vgremove -t myvg
+					  TEST MODE: Metadata will NOT be updated and volumes will not be (de)activated.
+					  Volume group "myvg" successfully removed
+					[root@vBird ~]# vgremove myvg
+					  Volume group "myvg" successfully removed
+
+		缩减vg：通过从vg中移除pv实现
+			注意：计划移除移除的pv不能包含已经存储数据的pe；如果有需要先试用pvmove移动到同vg内其它pv上；
+
+			pvmove /dev/SOME_PV
+				[root@vBird ~]# pvmove /dev/sdb1
+				  No data to move for myvg
+
+			vgreduce VGGROUPNAME /dev/some_PV
+				[root@vBird ~]# vgreduce myvg /dev/sdb1
+				  Removed "/dev/sdb1" from volume group "myvg"
+				[root@vBird ~]# vgdisplay myvg
+				  --- Volume group ---
+				  VG Name               myvg
+				  System ID             
+				  Format                lvm2
+				  Metadata Areas        1
+				  Metadata Sequence No  2
+				  VG Access             read/write
+				  VG Status             resizable
+				  MAX LV                0
+				  Cur LV                0
+				  Open LV               0
+				  Max PV                0
+				  Cur PV                1
+				  Act PV                1
+				  VG Size               7.00 GiB
+				  PE Size               16.00 MiB
+				  Total PE              448
+				  Alloc PE / Size       0 / 0   
+				  Free  PE / Size       448 / 7.00 GiB
+				  VG UUID               kc9xAQ-dyUr-o9mn-bm7e-Bv8W-WaQY-o8T3bt
+
+		扩展vg：向vg中添加更多的pv实现
+
+			vgextend VGGROUPNAME /dev/some_PV...
+				[root@vBird ~]# vgextend myvg /dev/sdb1
+				  Volume group "myvg" successfully extended
+				[root@vBird ~]# vgdisplay myvg
+				  --- Volume group ---
+				  VG Name               myvg
+				  System ID             
+				  Format                lvm2
+				  Metadata Areas        2
+				  Metadata Sequence No  3
+				  VG Access             read/write
+				  VG Status             resizable
+				  MAX LV                0
+				  Cur LV                0
+				  Open LV               0
+				  Max PV                0
+				  Cur PV                2
+				  Act PV                2
+				  VG Size               10.00 GiB
+				  PE Size               16.00 MiB
+				  Total PE              640
+				  Alloc PE / Size       0 / 0   
+				  Free  PE / Size       640 / 10.00 GiB
+				  VG UUID               kc9xAQ-dyUr-o9mn-bm7e-Bv8W-WaQY-o8T3bt
+
+	LV：Logical Volume
+		创建lv：
+			lvcreate 
+				[-L|--size Logi-calVolumeSize[bBsSkKmMgGtTpPeE]]
+				[-n|--name  Logi-calVolume{Name|Path}]
+				VolumeGroup{Name|Path}[/ThinPoolLogicalVolumeName][PhysicalVolumePath[:PE[-PE]]...]
+					[root@vBird ~]# lvcreate -L 2G -n mylv myvg
+					  Logical volume "mylv" created
+					[root@vBird ~]# lvs
+					  LV   VG   Attr      LSize Pool Origin Data%  Move Log Cpy%Sync Convert
+					  mylv myvg -wi-a---- 2.00g      
+
+				设备路径：
+					(1) /dev/VGGROUPNAME/LVNAME
+						[root@vBird ~]# ls -l /dev/myvg/mylv 
+						lrwxrwxrwx. 1 root root 7 9月  29 01:55 /dev/myvg/mylv -> ../dm-0
+					(2) /dev/mapper/VGNAME-LVNAME
+					[root@vBird ~]# ls -l /dev/mapper/myvg-mylv 
+					lrwxrwxrwx. 1 root root 7 9月  29 01:55 /dev/mapper/myvg-mylv -> ../dm-0
+
+					实际路径：/dev/dm-#
+
+			注意：lv的大小必须为pe的整数倍
+
+        移除lv：
+        	lvremove LV_PATH
+        		[root@vBird ~]# lvremove -t /dev/myvg/mylv 
+				  TEST MODE: Metadata will NOT be updated and volumes will not be (de)activated.
+				Do you really want to remove active logical volume mylv? [y/n]: y
+				  Logical volume "mylv" successfully removed
+				[root@vBird ~]# lvs
+				  LV   VG   Attr      LSize Pool Origin Data%  Move Log Cpy%Sync Convert
+				  mylv myvg -wi-a---- 2.00g                                             
+				[root@vBird ~]# lvremove  /dev/myvg/mylv 
+				Do you really want to remove active logical volume mylv? [y/n]: y
+				  Logical volume "mylv" successfully removed
+				[root@vBird ~]# lvs
+
+		扩展lv：
+
+			存储设备有：物理边界
+			文件系统有：逻辑边界
+
+			扩展：先扩展物理边界，而后拉伸逻辑边界
+				lvextend，lvresize
+				resize2fs
+
+			如何扩展lv：
+				1、先确定目标大小：要确保此lv所在vg中有足够的空闲可用；
+					2G --> 4G
+						4G
+						+2G
+				2、扩展物理边界
+					lvextend -L [+]#[bBsSkKmMgGtTpPeE]] /dev/VGGROUPNAME/LVNAME
+						[root@vBird ~]# lvextend -L 5G /dev/myvg/mylv 
+						  Extending logical volume mylv to 5.00 GiB
+						  Logical volume mylv successfully resized
+
+				3、拉伸逻辑边界
+					resize2fs /dev/VGGROUPNAME/LVNAME 
+						[root@vBird ~]# df -h
+						文件系统	      容量  已用  可用 已用%% 挂载点
+						/dev/sda2             9.9G  3.6G  5.8G  39% /
+						tmpfs                 491M  372K  491M   1% /dev/shm
+						/dev/sda1             194M   29M  156M  16% /boot
+						/dev/mapper/myvg-mylv
+						                      2.0G   68M  1.9G   4% /users
+						[root@vBird ~]# vgdisplay myvg
+						  --- Volume group ---
+						  VG Name               myvg
+						  System ID             
+						  Format                lvm2
+						  Metadata Areas        2
+						  Metadata Sequence No  8
+						  VG Access             read/write
+						  VG Status             resizable
+						  MAX LV                0
+						  Cur LV                1
+						  Open LV               1
+						  Max PV                0
+						  Cur PV                2
+						  Act PV                2
+						  VG Size               10.00 GiB
+						  PE Size               16.00 MiB
+						  Total PE              640
+						  Alloc PE / Size       128 / 2.00 GiB
+						  Free  PE / Size       512 / 8.00 GiB
+						  VG UUID               kc9xAQ-dyUr-o9mn-bm7e-Bv8W-WaQY-o8T3bt
+						   
+						[root@vBird ~]# lvextend -L 5G /dev/myvg/mylv 
+						  Extending logical volume mylv to 5.00 GiB
+						  Logical volume mylv successfully resized
+						[root@vBird ~]# lvs
+						  LV   VG   Attr      LSize Pool Origin Data%  Move Log Cpy%Sync Convert
+						  mylv myvg -wi-ao--- 5.00g                                             
+						[root@vBird ~]# lvdisplay /dev/myvg/mylv 
+						  --- Logical volume ---
+						  LV Path                /dev/myvg/mylv
+						  LV Name                mylv
+						  VG Name                myvg
+						  LV UUID                PLWtsE-L8sB-99eP-52BQ-rlgi-gsdL-N7e07u
+						  LV Write Access        read/write
+						  LV Creation host, time vBird.com, 2016-09-29 02:54:43 +0800
+						  LV Status              available
+						  # open                 1
+						  LV Size                5.00 GiB
+						  Current LE             320
+						  Segments               1
+						  Allocation             inherit
+						  Read ahead sectors     auto
+						  - currently set to     256
+						  Block device           253:0
+						   
+						[root@vBird ~]# df -lh
+						文件系统	      容量  已用  可用 已用%% 挂载点
+						/dev/sda2             9.9G  3.6G  5.8G  39% /
+						tmpfs                 491M  372K  491M   1% /dev/shm
+						/dev/sda1             194M   29M  156M  16% /boot
+						/dev/mapper/myvg-mylv
+						                      2.0G   68M  1.9G   4% /users
+						[root@vBird ~]# resize
+						resize2fs   resizecons  
+						[root@vBird ~]# resize2fs /dev/myvg/mylv 
+						resize2fs 1.41.12 (17-May-2010)
+						Filesystem at /dev/myvg/mylv is mounted on /users; on-line resizing required
+						old desc_blocks = 1, new_desc_blocks = 1
+						Performing an on-line resize of /dev/myvg/mylv to 1310720 (4k) blocks.
+						The filesystem on /dev/myvg/mylv is now 1310720 blocks long.
+
+						[root@vBird ~]# df -lh
+						文件系统	      容量  已用  可用 已用%% 挂载点
+						/dev/sda2             9.9G  3.6G  5.8G  39% /
+						tmpfs                 491M  372K  491M   1% /dev/shm
+						/dev/sda1             194M   29M  156M  16% /boot
+						/dev/mapper/myvg-mylv
+						                      5.0G   68M  4.7G   2% /users
+
+			缩减lv：
+
+				注意：
+					1、缩减要离线！
+					2、先缩减文件系统大小，在缩减lv的大小；
+
+				过程：
+					1、先确定缩减后的目标大小；要确保缩减后的大小能够容纳现在的所有数据；
+						[root@vBird ~]# du -sh /users/
+						24K	/users/
+					2、先卸载逻辑卷，并强制做文件系统一致性检查；
+						e2fsck -f /dev/VGNAME/LVNAME
+							[root@vBird ~]# umount /users
+							[root@vBird ~]# e2fsck -f /dev/
+							Display all 193 possibilities? (y or n)
+							[root@vBird ~]# e2fsck -f /dev/myvg/mylv 
+							e2fsck 1.41.12 (17-May-2010)
+							第一步: 检查inode,块,和大小
+							第二步: 检查目录结构
+							第3步: 检查目录连接性
+							Pass 4: Checking reference counts
+							第5步: 检查簇概要信息
+							/dev/myvg/mylv: 12/327680 files (0.0% non-contiguous), 37983/1310720 blocks
+					3、缩减逻辑边界
+						resize2fs /dev/VGNAME/LVNAME #[bBsSkKmMgGtTpPeE]
+							[root@vBird ~]# resize2fs /dev/myvg/mylv 3G
+							resize2fs 1.41.12 (17-May-2010)
+							Resizing the filesystem on /dev/myvg/mylv to 786432 (4k) blocks.
+							The filesystem on /dev/myvg/mylv is now 786432 blocks long.
+					4、缩减物理边界
+						lvreduce -L [-]#[bBsSkKmMgGtTpPeE]] /dev/VGGROUPNAME/LVNAME
+							[root@vBird ~]# lvreduce -L 3G /dev/myvg/mylv 
+							  WARNING: Reducing active logical volume to 3.00 GiB
+							  THIS MAY DESTROY YOUR DATA (filesystem etc.)
+							Do you really want to reduce mylv? [y/n]: y
+							  Reducing logical volume mylv to 3.00 GiB
+							  Logical volume mylv successfully resized
+
+		快照卷：
+			访问原卷上数据另一的路径，备份工具可以通过此路径完成数据备份；
+			快照卷自身仅是为备份工具提供一个时间点一致的访问路径；
+
+			备份开始之前创建快照卷，完成之后即可删除之；快照卷的生命周期；
+
+			如何保证通过快照所访问到的数据的时间点一致？
+				通过把那些要发生发生改变的位于原卷上的数据自动复制月份至快照卷进行的，因此，快照卷上的数据如果有效，则必须能完成存储原卷即将发生改变的所有的数据的原有版本。
+
+			创建快照卷：
+				（1）快照卷要与原卷在同一卷组中，因此创建快照卷无须指定卷组；
+				（2）快照卷的大小要精心设定，另外，快照卷应该是只读的；
+
+			创建命令：
+				lvcreate -L SIZE -n -Name -p r -s /dev/VGNAME/LVNAME
+					[root@vBird ~]# lvcreate -L 50M -n mylv-snap -p r -s /dev/myvg/mylv 
+					  Rounding up size to full physical extent 64.00 MiB
+					  Logical volume "mylv-snap" created
+
+					[root@vBird ~]# mount -r /dev/myvg/mylv-snap /mnt/snap/
+					[root@vBird ~]# cd /mnt/snap/
+					[root@vBird snap]# ls
+					fstab  issue  lost+found  messages
+
+					[root@vBird snap]# mkdir /backup/
+					[root@vBird snap]# cp fstab issue  messages /backup/
+					[root@vBird snap]# cd
+					[root@vBird ~]# umount /mnt/snap/
+					[root@vBird ~]# lvremove /dev/myvg/mylv-snap 
+					Do you really want to remove active logical volume mylv-snap? [y/n]: y
+					  Logical volume "mylv-snap" successfully removed
+					
+	练习：
+		1、创建一个由两个物理卷组成的大小为20G的卷组；要求PE大小为8M，而在卷组中创建大小为5G的逻辑卷mylv1，格式化为ext4文件系统，开机自动挂载至/users目录，支持acl；
+		2、新建用户magedu；其家目录为/user/magedu，而后su切换至此用户，复制多个文件至家目录；
+		3、扩展mylv1至9G，确保扩展完成后原有数据完全可用；
+		4、缩减mylv1至7G，确保扩展完成后原有数据完全可用；
+		5、对mylv1创建快照，并通过备份数据，要求保留原有的属主数组等信息；
+
+	dd命令：
+		dd if= of= bs= count=
+			if：源文件，用于指定数据流来源
+			of：目标文件，用于指定数据流存储目标
+			bs：block size，一次io的数据量
+			count：复制多少个bs指定的block
+
+		两个设备文件：
+			/dev/null：bit bucket
+			/dev/zero：泡泡机，吐零设备
+
+		应用1:创建本地回环设备文件：
+			dd if=/dev/zero of/PATH/TO/SOMEFILE bs= count=
+				[root@vBird ~]# dd if=/dev/zero of=/tmp/myloopfile.1 bs=1M count=64
+				记录了64+0 的读入
+				记录了64+0 的写出
+				67108864字节(67 MB)已复制，0.216845 秒，309 MB/秒
+				[root@vBird ~]# ls -lh /tmp/myloopfile.1 
+				-rw-r--r--. 1 root root 64M 9月  29 05:18 /tmp/myloopfile.1
+				[root@vBird ~]# mkswap /tmp/myloopfile.1 
+				Setting up swapspace version 1, size = 65532 KiB
+				no label, UUID=4daad03c-8723-49ff-94e1-675a24e33705
+				[root@vBird ~]# free -m
+				             total       used       free     shared    buffers     cached
+				Mem:           981        797        183          0         56        419
+				-/+ buffers/cache:        321        659
+				Swap:         1023          0       1023
+				[root@vBird ~]# swapon /tmp/myloopfile.1 
+				[root@vBird ~]# free -m
+				             total       used       free     shared    buffers     cached
+				Mem:           981        797        183          0         56        419
+				-/+ buffers/cache:        321        659
+				Swap:         1087          0       1087
+				[root@vBird ~]# swapoff /tmp/myloopfile.1 
+				[root@vBird ~]# free -m
+				             total       used       free     shared    buffers     cached
+				Mem:           981        797        183          0         56        419
+				-/+ buffers/cache:        321        659
+				Swap:         1023          0       1023
+
+		应用2:备份MBR
+			dd if=/dev/sda of=/back/mbr.backup bs=512 count=1
+
+		应用3:破坏其MBR
+			dd if=/dev/zero of=/dev/sda bs=512 count=1
+				[root@vBird ~]# fdisk -l /dev/sdb
+
+				Disk /dev/sdb: 53.7 GB, 53687091200 bytes
+				255 heads, 63 sectors/track, 6527 cylinders
+				Units = cylinders of 16065 * 512 = 8225280 bytes
+				Sector size (logical/physical): 512 bytes / 512 bytes
+				I/O size (minimum/optimal): 512 bytes / 512 bytes
+				Disk identifier: 0x4e6783e1
+
+				   Device Boot      Start         End      Blocks   Id  System
+				/dev/sdb1               1         393     3156741   8e  Linux LVM
+				/dev/sdb2             394        1308     7349737+  8e  Linux LVM
+				
+				[root@vBird ~]# dd if=/dev/sdb of=/root/mbr.sdb bs=512 count=1
+				记录了1+0 的读入
+				记录了1+0 的写出
+				512字节(512 B)已复制，4.6838e-05 秒，10.9 MB/秒
+				[root@vBird ~]# dd if=/dev/zero of=/dev/sdb bs=512 count=1
+				记录了1+0 的读入
+				记录了1+0 的写出
+				512字节(512 B)已复制，0.00868447 秒，59.0 kB/秒
+				[root@vBird ~]# fdisk -l /dev/sdb
+
+				Disk /dev/sdb: 53.7 GB, 53687091200 bytes
+				255 heads, 63 sectors/track, 6527 cylinders
+				Units = cylinders of 16065 * 512 = 8225280 bytes
+				Sector size (logical/physical): 512 bytes / 512 bytes
+				I/O size (minimum/optimal): 512 bytes / 512 bytes
+				Disk identifier: 0x00000000
+
+				[root@vBird ~]# dd if=/root/mbr.sdb of=/dev/sdb count=1 bs=512
+				记录了1+0 的读入
+				记录了1+0 的写出
+				512字节(512 B)已复制，0.00176455 秒，290 kB/秒
+				[root@vBird ~]# fdisk -l /dev/sdb
+
+				Disk /dev/sdb: 53.7 GB, 53687091200 bytes
+				255 heads, 63 sectors/track, 6527 cylinders
+				Units = cylinders of 16065 * 512 = 8225280 bytes
+				Sector size (logical/physical): 512 bytes / 512 bytes
+				I/O size (minimum/optimal): 512 bytes / 512 bytes
+				Disk identifier: 0x4e6783e1
+
+				   Device Boot      Start         End      Blocks   Id  System
+				/dev/sdb1               1         393     3156741   8e  Linux LVM
+				/dev/sdb2             394        1308     7349737+  8e  Linux LVM
+
+
+文本比较、补丁制作及打补丁工具；
+
+	diff,patch
+
+	diff [-u] FILE.old FILE.new > FILE.patch
+		-u：以合并的方式来来显示文件内容的不同。
+		
+	ptch FILE.old < FILE.patch
+	
+		root@vBird ~]# diff -u functions functions.2 
+		--- functions	2016-09-29 05:32:20.061333673 +0800
+		+++ functions.2	2016-09-29 05:33:54.503380957 +0800
+		@@ -3,7 +3,8 @@
+		 # functions	This file contains functions to be used by most or all
+		 #		shell scripts in the /etc/init.d directory.
+		 #
+		-
+		+# Author:Jerry@google.com
+		+#
+		 TEXTDOMAIN=initscripts
+		 
+		 # Make sure umask is sane
+		[root@vBird ~]# diff -u functions functions.2 > functions.patch
+		[root@vBird ~]# patch functions < functions.patch 
+		patching file functions
+		[root@vBird ~]# diff -u functions functions.2 
+		[root@vBird ~]# 
+
+
+
+
+
+
+
+
+
+
+

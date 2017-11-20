@@ -1,0 +1,567 @@
+回顾：
+	bash特性之变量：
+		本地变量
+		环境变量
+		局部变量
+		位置参数变量
+		特殊变量：$?
+			0-255
+
+	bash的配置文件：
+		全局：
+			/etc/profile, /etc/profile.d/*.sh, /etc/bashrc
+		个人：
+			~/.bash_profile, ~/.bashrc
+
+		编辑/etc/profile.d/welcome.sh
+		echo "Welcome $(whoami), your user id is $UID."
+
+		编辑~/.bash_profile
+		echo "Date:$(date +%D), Time:$(date +%T)"
+
+		编辑/etc/bashrc
+		alias cls='clear'
+
+		交互式登录的shell
+			su - USERNAME 或 su －l USERNAME
+			通过终端登录
+
+			/etc/profile --> /etc/profile.d/*.sh --> ~/.bash_profile --> ~/.bashrc --> /etc/bashrc
+
+		非交互式shell
+			su USERNAME
+			GUI界面下打开命令提示符窗口
+			脚本
+
+			~/.bashrc --> /etc/bashrc --> /etc/profile.d/*.sh
+
+		注意：shell进程在启动时读取配置文件；
+			生效方式：
+				重启shell进程
+				让shell进程source配置文件
+
+Linux下的文本处理工具
+	
+	文本搜索工具：grep， egrep, fgrep
+
+	globbing：文件名通配
+		*, ?, [], [^]
+		p*[0-9]*[^0-9]
+
+		既限定了长度，又限定来可用的字符范围
+
+	过滤条件：以行为独立单位
+			The first line.
+
+			模式(pattern)以正则表达式的元字符，以及正常字符组合而成
+
+			文本处理工具：grep, egrep, sed, awk, vim, nginx
+
+	grep:
+		Global search REgular expression and Print out the line.
+
+		文本搜索工具，根据用户指定的文本模式(正则表达元字符以及正常字符组合而成)对目标文件进行逐行搜索，显示能匹配到的行；
+
+		grep命令：
+			grep [OPTIONS] PATTERN [FILE...]
+
+				--color[=WHEN], --colour[=WHEN]
+					auto：自动语法着色
+					always
+					never
+						例子：grep --color=auto "root" /etc/passwd
+
+				－o：只显示被模式匹配到的内容
+						例子：grep -o "[cC]a" /etc/rc.d/rc.sysinit 
+				－i：ignore case，不区分字符大小写
+						例子：grep -i "no" /etc/rc.d/rc.sysinit 
+				－v：显示不能够被模式匹配到的行
+				－E：使用扩展的正则表达式
+				－A #：after
+				－B #：before
+				－C #：context
+
+				
+
+		正则表达式；
+			是由元字符及正常字符所书写的模式，其中的元字符不表示字符本身的意义，而是用于表达控制或通配等功能；
+
+			基本正则表达式：grep
+			扩展正则表达式：grep －E，egrep
+				fgrep：fast，不支持使用正则表达式
+
+			基本正则表达式元字符：
+				字符匹配：
+					.：匹配任意单个字符
+					[]：匹配指定范围内的任意单个字符
+					[^]：匹配指定范围外的任意单个字符
+					[0-9], [[:digit:]], [^0-9], [^[:digit:]]
+					[a-z], [[:lower:]]
+					[A-Z], [[:upper:]]
+					[[:space:]]
+					[[:punct:]]
+					[0-9a-zA-Z], [[:alnum:]]
+					[a-zA-Z], [[:alpha:]]
+				次数匹配：在期望匹配字符后面提供一个控制字符，用于表达匹配其前面字符指定的次数
+					*：任意长度,表示0次、1次或多次
+						"ab*c"
+							abbc，ac  匹配
+							abb，   不匹配
+					.*：任意长度的任意字符
+						工作于贪婪模式：尽可能长的去匹配
+					\?：0次或1次：表示其左侧字符可有可无
+						"ab\?c"
+							ac, abc   匹配
+							abbc    不匹配
+					\+：1次或多次：表示其左侧字符至少出现一次
+						"ab\+c"
+							abc, abbc 匹配
+							ac      不匹配
+					\{m\}：m次：表示其左侧字符精确出现m次；
+					\{m,n\}：至少m次，至多n次；
+						"ab\{2\}c"
+							abbc      匹配
+							ac, abc, abbc  不匹配
+						"ab\{0,3\}c"
+							ac, abc, abbc, abbbc 匹配
+							abbbbc 不匹配
+					\{0,n\}：至多n次；
+					\{m,\}：至少m次；
+				位置锚定：
+					^：锚定行首
+						^PATTERN
+						例子：grep "^ro" /etc/passwd
+					$：锚定行尾
+						PATTERN$
+						例子：grep "sh$" /etc/passwd
+
+					^PATTERN$：用模式来匹配整行
+						例子：grep "^ro.*sh$" /etc/passwd
+							 grep "^[[:space:]]*$" /etc/rc.d/rc.sysinit
+					^$：匹配空白行
+
+					单词锚定：由非特殊字符组成的连续的字符串
+
+					\<：锚定词首,也可用\b
+						\<PATTERN 或\bPATTERN
+							例子：grep "\bsh" /etc/passwd
+					\>：锚定词尾，也可以用\b
+						PATTERN\>, 或PATTERN\b
+							例子：grep "sh\>" /etc/passwd
+					\<PATTERN\>：匹配PATTERN能匹配到的整个单词
+							例子：ifconfig | grep "\<[0-9]\{2\}\>"
+
+					分组：\(\)
+						将多个字符当成一个字符看待
+						\(PATTERN\）
+						例子：grep "\(ab\)*c" /tmp/grep.txt
+						注意：分组中的模式，在某次的具体匹配过程中所匹配到的字符，可以被grep记忆（保存于内置的变量中，这些变量是\1, \2, ...），因此，还可以被引用；
+							\1：引用，模式中自左而右，由第一个左括号以及与之对应的右括号中的模式所匹配到的内容；
+							\2：引用，模式中自左而右，由第二个左括号以及与之对应的右括号中的模式所匹配到的内容；
+								\(ab\(cd\)mn\)
+									\1：引用\(ab\(cd\)mn\)内容
+									\2：引用\(cd\)内容
+
+							He like his lover.
+							He like his liker.
+							She love her lover.
+							She love her like.
+
+								"\(l..e\).*\1"
+
+							"\(a.b\).*\1"
+								amb hello anb   不匹配
+
+							play.php?a.mp3?serarch?a.wmv
+							play.php?where.mp3?hello?when.wmv
+								\(.*\)\.mp3.*\1\.wmv
+
+		练习：
+			1、显示/proc/meminfo文件中以大写或小写S开头的行；用两种方式；
+				# grep "^[sS]" /proc/meminfo 
+				# grep -i "^s" /proc/meminfo
+
+			2、显示/etc/passwd文件中，其默认shell为非/sbin/nologin的用户；
+				# grep -v "/sbin/nologin" /etc/passwd | cut -d: -f1
+
+			3、显示/etc/passwd文件中其默认shell为/bin/bash的用户；
+				grep "/bin/bash$" /etc/passwd | cut -d: -f1
+
+			4、找出/etc/passwd文件中的一位数或两位数；
+				# grep "\<[0-9]\{1,2\}\>" /etc/passwd
+
+			5、显示/boot/grub/grub.conf中以至少一个空白字符开头的行；
+				# grep "^[[:space:]]\+" /boot/grub/grub.conf
+
+			6、显示/etc/rc.d/rc.sysinit文件中以＃开头，后面跟至少一个空白字符，而后又有至少一个非空白字符的行；
+				# grep "^#[[:space:]]\+[^[:space:]]\+" /etc/rc.d/rc.sysinit 
+
+			7、打出netstat －tan命令执行结果中以‘LISTEN’,后或跟空白字符结尾的行；
+				# netstat -tan | grep "LISTEN[[:space:]]*$"
+
+			8、添加用户bash，testbash，basher，nologin（此一个用户的shell为/sbin/nologin），而后找出当前系统上其用户名和默认shell相同的用户信息；
+				# grep "^\([[:alpha:]]\+\>\).*\1$" /etc/passwd
+
+		扩展的正则表达式：
+			字符匹配：
+				.
+				[]
+				[^]
+			次数匹配：
+				*：任意次
+				?：0或1次
+				＋：至少1次
+				{m}：精确匹配m次
+				{m,n}：至少m次，至多n次
+				{m,}：至少m次；
+				{0,n}：至多n次；
+			锚定字符：
+				^
+				$
+				\<,\b
+				\>,\b
+			分组：
+				()
+
+				引用：\1,\2 ...
+			或者：
+				a|b：a或者b
+					或者两侧的所有内容 ；
+					使用()
+						ab(c|C)Ba 只或者c或C
+			命令：
+				grep -E PATTERN FILE ...
+				egrep PATTERN FILE ...
+
+        练习：
+			1、显示/proc/meminfo文件中以大写或小写S开头的行；用三种方式；
+				# grep -E "^[sS]" /proc/meminfo 
+				# grep -i "^s" /proc/meminfo
+				# grep -E "^(s|S)" /proc/meminfo 
+
+			2、显示/etc/passwd文件中，其默认shell为非/sbin/nologin的用户；
+				# egrep -v "/sbin/nologin" /etc/passwd | cut -d: -f1
+
+			3、显示/etc/passwd文件中其默认shell为/bin/bash的用户；
+				# egrep "/bin/bash$" /etc/passwd | cut -d: -f1
+
+			4、找出/etc/passwd文件中的一位数或两位数；
+				# egrep "\<[0-9]\{1,2\}\>" /etc/passwd
+				#  egrep "\<[0-9]{1,2}\>" /etc/passwd
+
+			5、显示/boot/grub/grub.conf中以至少一个空白字符开头的行；
+				# grep "^[[:space:]]\+" /boot/grub/grub.conf
+				# egrep "^[[:space:]]+" /boot/grub/grub.conf
+
+			6、显示/etc/rc.d/rc.sysinit文件中以＃开头，后面跟至少一个空白字符，而后又有至少一个非空白字符的行；
+				# grep "^#[[:space:]]\+[^[:space:]]\+" /etc/rc.d/rc.sysinit 
+				# egrep "^#[[:space:]]+[^[:space:]]+" /etc/rc.d/rc.sysinit
+
+			7、打出netstat －tan命令执行结果中以‘LISTEN’,后或跟空白字符结尾的行；
+				# netstat -tan | egrep "LISTEN[[:space:]]*$"
+
+			8、添加用户bash，testbash，basher，nologin（此一个用户的shell为/sbin/nologin），而后找出当前系统上其用户名和默认shell相同的用户信息；
+				# grep "^\([[:alpha:]]\+\>\).*\1$" /etc/passwd
+
+				# egrep "^([[:alpha:]]+\>).*\1$" /etc/passwd
+
+			9、显示当前系统上root、fedora或user1用户的默认shell；
+				# egrep "^(root|fedora|user1)\>" /etc/passwd | cut -d: -f7
+
+			10、找出/etc/rc.d/init.d/functions文件中谋单词后面跟一组小括号，形如：hello()；
+				# grep -o -E "\<[[:alnum:]]+\>\(\)" /etc/rc.d/init.d/functions
+
+			11、使用echo命令输入出一个绝对路径，使用grep取出其基名；
+				扩展：取出其路径名
+				# echo /etc/rc.d/init.d/functions/ | grep -o -E "[[:alnum:]]+/?$" | cut -d/ -f1
+				# echo /etc/rc.d/init.d/functions/ | egrep -o "^/.*(/[[:alnum:]])" | grep -o "^/.*/" | grep -o "^/.*[[:alnum:]]"
+
+			12、找出ifconfig命令结果中的0-255之间数字
+				#  ifconfig | egrep "\<([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\>"
+
+			13、挑战题：写一个模式，能匹配合理的ip地址
+				1.0.0.1 －－ 239.255.255.255
+
+			14、挑战题：写一个模式，能匹配出所有的邮件地址
+
+回顾：
+	
+	基本正则表达式与grep
+		grep ［OPTIONS］ PATTERN [FILE]...
+			-v, -o, -i, --color, -E, -A #, -B #, -C #
+
+		基本正则表达式：
+			字符匹配：.，[]，［^］
+				[[:alnum:]\.]：指定字符集包含.
+			次数匹配：*，\+，\?， \{\}
+			锚定符：^，$，\<，\>
+			分组和后项引用：\(\),\1,\2, ...
+
+	扩展正则表达式与egrep
+
+		扩展正则表达式：
+			字符匹配：.，[]，[^]
+			次数匹配：*，+，?，{}
+			锚定符：^，$，\<，\>
+			分组和引用：()，\1,\2,...
+			或者：a|b
+
+	博客：grep，egrep及相应的正则表达式用法详解
+			图文并茂、示例
+
+			5w1h：what，why，when，who，where，how
+
+			把踩的坑打上标示，总结出来提醒大家
+
+文件查找工具：
+	
+	文件：根据文件的各种属性去找到相应文件
+
+	文件查找工具：locate，find
+
+	locate：根据此前updatedb命令生成的数据库来完成查找
+		查找速度很快
+
+		非实时查找,结果不精确：模糊查找
+			hello
+			/tmp/hello/hi/test.txt
+			/var/tmp/ehelloabc/hi/test.txt
+			locate passwd
+		必要时，可手动执行updatedb命令；
+
+	find命令：通过遍历指定的目标目录，实时查找符合指定属性的文件；
+
+		精确匹配：速度略慢；
+
+		find [OPTIONS] [查找路径] [查找条件] [处理动作]
+			查找路径：默认为当前路径；
+			查找条件：默认为指定路径下的所有文件；
+			处理动作：默认为打印至屏幕;
+
+			查找条件：
+				-name "文件名"：文件名支持使用globbing
+					*, ?, [], [^]
+					find /etc -name "passwd"
+					find /etc -name "passwd*"  //以passwd开头的文件
+					find /etc -name "*passwd"  //以passwd结尾的文件
+					find /etc -name "*passwd*" //包含passwd的文件
+				-iname "文件名"：不区分文件名大小写
+				-user USERNAME：根据属主查找
+				-group GROUPNAME：根据文件的属组查找
+				-uid UID：根据指定UID查找
+				-gid GID：根据指定GID查找
+
+				-nouser：查找没有属主的文件；
+				-nogroup：查找没有属组的文件；
+
+			组合查找条件：
+				与：-a，查找条件1 -a 查找条件2 -a ...
+					所有条件必须同时满足
+					# find /tmp -nouser -a -name "*centos*" -ls
+
+				或：-o，查找条件1 -o 查找条件2 -o ...
+					满足其中一个条件即可
+					# find /tmp -nouser -o -name "*centos*"
+
+				非：-not，!，
+					－not 查找条件
+					不满足条件既满足
+
+				# find -not -name "*.txt" -a -not -name "*.out"
+				# find /tmp -not \( -name "*.txt" -o -name "*.out" \)
+
+			查找条件(2)
+				-type TYPE：根据文件类型查找
+					f：普通文件
+					d：目录文件
+					l：符号链接文件
+					b：块文件
+					c：字符设备文件
+					p：命令名管道文件
+					s：套接字文件
+
+				-size[+ -]#UNIT：
+					常用单位有：k，M，G
+					 -size：表示文件大小，＋表示大于某个数，－表示小于某个数-1。c表示单位是字节，你可以将c换成k,M,G。
+
+					#UNIT：＃-1 <x<= #
+						2k：1.8k，1.9k，1.1k
+					-#UNIT：x <= #-1
+						-2k：1k，0.9k
+					+#UNIT：x > #
+						+2k：2.1k，3.1k
+
+				根据时间戳查找；
+					以"天"为单位
+						-atime [+ -]#
+							#：＃ =<x< #＋1
+							-#：x < # 
+							+#：x >= #+1
+
+						-mtime [+ -]#
+
+						-ctime [+ -]#
+
+					以"分钟"为单位
+						-amin [+ -]#
+						-mmin [+ -]#
+						-cmin [+ -]#
+
+				根据权限查找：
+					-perm [+|-]MODE
+						MODE：与MODE精确匹配
+							find /etc -perm 644 
+						+MODE：任何一类用户的权限只要能包含对其指定的任何一位权限即可；
+							find /etc -perm +222 -ls
+						-MODE：每一类用户的权限都包含对其指定的所有权限；
+							find /etc -perm -222 -ls
+
+			练习：
+				1、查找/var目录下属主为root，且属组为mail的所有文件或目录；
+					# find /var -user root -group mail -exec ls -ld {} \;
+
+				2、查找当前系统上没有属主或属组的文件；
+					进一步：查找当前系统上没有属主或属组，且最近3天内曾被访问过的文件或目录；
+					# find / \( -nouser -o -nogroup \) -a -atime -3
+
+				3、查找/etc目录下所有用户都有写权限的文件；
+					进一步：查找/etc目录下所有用户都没有写权限的文件；
+					# find /etc -perm -222 -exec ls -ld {} \;
+
+					# find /etc -not -perm +222 -exec ls -ld {} \;
+
+				4、查找/etc目录下大于1M，且类型为普通文件的所有文件；
+					# find /etc/ -size +1M -type f -exec ls -ldh {} \;
+
+				5、查找/etc/init.d目录下，所有用户都有执行权限，且其它用户有写权限的文件；
+					# find /etc/init.d -perm -113
+
+				6、查找/usr目录下不属于root，bin或hadoop的文件；
+					# find /usr -! \( -user root -o -user bin -o -user hadoop \) -ls
+
+				7、查找/etc目录下至少有一类用户没有写权限的文件；
+					# find /etc/ -not -perm -222 -ls
+
+				8、查找/etc目录下最近一周内其内容被修改过，且不属于root或hadoop的文件；
+					# find /etc/ -mtime -7 -! \( -user root -o -user hadoop \) -exec ls -ld {} \;
+
+			莫自怜；但行好事，莫问前程；
+
+			处理动作：
+				-print：默认动作，打印至屏幕；
+				-ls：显示找到的文件的详细属性；
+				-exec COMMAND {} \;
+				-ok COMMAND {} \;
+
+				注意：find命令会一次性找到所有符合条件的文件，并一同传递给后面的命令；但有些命令不能接受过长的参数；解决办法：
+
+						find | xargs COMMAND
+
+				# find /tmp/ -name mycentos.txt -exec mv {} {}.out \;
+	总结：
+		find [查找路径][查找条件][处理动作]
+			查找条件：-name, -iname, -user, -group, -uid, -gid, -nouser, -nogroup, -size, -type, -perm, -ctime, -mtime, -atime, -cmin, -mmin, -amin
+			组合：-a, -o, -not(!)
+			处理动作：-print, -ls, -exec. -ok
+
+文件的特殊权限：
+	
+	安全上下文：
+		1、进程以某用户的身份运行；进程是发起此进程的用户代理，其以对应用户的身份完成所需的操作；
+		2、权限匹配模型：
+			（1）进程的属主，是否是被访问的资源的属主；如果是，则应用属主权限；
+			（2）进程的属主，是否属于被访问资源的属组；如果是，则应用属组权限；
+			（3）否则，则应用其它权限
+
+		特殊权限：suid
+			展示于文件属主的执行权限位；
+				如果属主本来有执行权限，则展示为s；否则，展示为S；
+
+			功用：对于一个可执行文件来讲，任何用户运行此程序为进程时，进程的属主不在是发起者本人，而是可执行程序文件自己的属主；
+
+			管理文件添加SUID权限的方法：
+				chmod u+|-s FILE...
+
+		特殊权限：sgid 
+			展示于文件属组的执行权限位；
+				如果属组本来有执行权限，则展示为s；否则，展示为S；
+
+			功用：当目录属组有写权限，且有sgid权限时，那么所有属于此目录的属组，且以属组身份在此目录新建文件或目录时，新文件或目录的属组不是创建者所属的基本组，而是此目录自己的属组；
+
+				chmod g+|-s FILE...
+
+				演示过程：
+					Terminal 1:
+						# groupadd distro
+						# useradd -G distro gentoo
+						# useradd -G distro mageia
+						# mkdir /tmp/test
+						# chgrp distro /tmp/test
+						# chmod g+w /tmp/test
+
+						# chmod g+s /tmp/test
+					Terminal 2:
+						gentoo@host1$ touch /tmp/test/a.gentoo
+
+						gentoo@host1$ touch /tmp/test/b.gentoo
+
+					Terminal 3:
+						mageia@host1$ touch /tmp/test/a.mageia
+
+						mageia@host1$ touch /tmp/test/b.mageia
+
+		特殊权限：sticky
+			展示于目录其它用户的执行权限位；
+				如果其它用户本来有执行权限，则展示为t；否则，展示为T；
+
+			功用：对于全局可写，或某组全局可写目录，所有用户都于此目录创建文件或删除自己为属主的那些文件，但不能删除非自己为属主文件或目录；
+
+			chmod o+|-t FILE...
+
+			sst：
+				000 0
+				001 1
+				010 2
+				011 3
+				100 4
+				101 5
+				110 6
+				111 7
+
+			chmod 6664 file：文件拥有suid，sgid
+			chmod 1775 dir：目录拥有sitcky权限
+
+			umask 0002
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

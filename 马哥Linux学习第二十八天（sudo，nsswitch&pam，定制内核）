@@ -1,0 +1,355 @@
+马哥Linux学习第二十八天（sudo，nsswitch&pam，定制内核）
+
+回顾：awk
+	文本格式化工具：print, printf
+
+	awk [OPTIONS] 'program' FILE...
+		awk -f /PATH/FROM/AWK_SCRIPT [OPTIONS] FILE ...
+
+		program：'PATTERN{ACTION}'
+			PATTERN：empty、 /REGEXP/、relational expression、BEGIN/END、line ranges
+
+			awk -F: '{if($3%2==0) nets; print $1,$3}' /etc/passwd
+
+			netstat -tan | awk '/^tcp/{state[$NF]++}END{for(i in state) {print i,state[i]}}'
+
+		博客作业：awk的应用
+
+余下内容：sudo，pam，busybox，nsswitch
+
+sudo：
+	su：switch user
+		su -l USERNAME
+
+	centos：切勿以root登录系统；如果期望执行管理操作，可以su至管理员；
+
+	sudo：
+		1、授权指定用户在指定主机上运行指定的管理命令；
+		2、详细记录用户基于sudo之行命令的相关日志信息；
+		3、“检票系统”：时效性认证：用户第一次执行sudo时会要求输入密码来验证用户身份，成功后用户会获得一个有固定存活时长的“令牌”；5分钟；
+
+	如何实现sudo功能？
+		授权文件：/etc/sudoers
+			注意：仅管理员拥有编辑权限；而且不建议使用编辑器编辑，有专用的编辑工具visudo；
+
+			帮助文档：
+				man visudo
+				man visudoers
+
+	/etc/sudoers：
+		包含的内容：别名定义、授权
+
+		授权：
+			WHO		HOST=(WHOM)		COMMAND
+
+			例如：
+				centos 		ALL=(root)	/usr/sbin/useradd
+
+			标签：PASSWD，NOPASSWD
+				WHO HOST=(WHOM) NOPASSWD: CMND1, CMND2 ...
+
+				PASSWD：标签后的所有命令在使用时都需要“检票”
+				NOPASSWD：表示标签后的所有命令在使用时都无需“检票”
+
+				例：
+					centos 	ALL=(root) 		NOPASSWD: /usr/sbin/useradd, PASSWD: /bin/chown
+
+		别名：
+			别名名称：必须使用全大写字符；
+				WHO：User_Alias
+				HOST：Host_Alias
+				WHOM：Runal_Alias
+				COMMAND：Cmnd_Alias
+
+			User_Alias：
+				User_Alias NAME = item1, item2, ...
+					item：
+						用户名：如centos
+						%组名：如netadmins，是为系统组；
+						#UID：如#500
+						$#GID：如$#501
+						User_Alias：如NETADMINS
+					例：
+						User_Alias  NETADMINS = centos, %netadmins, #501
+						NETADMINS       ALL=(root)      /sbin/ifconfig
+
+					注意：用户别名必须为全大写字母组成；
+
+			Hos_Alias：
+				Hos_Alias NAME = item1, item2, ...
+					ALL：所有主机
+					item：
+						hostname
+						ip
+						network
+						Host_Alias
+
+					例：
+						Host_Alias  MYNET = 127.0.0.1,172.16.0.0/16
+						NETADMINS       MYNET=(root)    /sbin/ifconfig
+
+			Runal_Alias：
+				Runal_Alias NAME = item1, item2, ...
+					ALL：所有用户
+
+			Cmnd_Alias：
+				Cmnd_Alias NAME = item1, item2, ...
+					item:
+						命令文件路径
+						目录（意味授权此目录下的所有命令）
+						"sudoedit"（编辑sudoers文件）
+						Cmnd_Alias
+
+					例：
+						Cmnd_Alias NETADMINCMNDS = /sbin/ip, /use/sbin/ss, /sbin/ifconfig
+						NETADMINS       MYNET=(root)    NETADMINCMNDS
+
+					注意：开放给用户passwd权限时不要开放其可以更改root用户的密码，可以采用如下授权方式
+						 /usr/bin/passwd [A-Za-z]*, !/usr/bin/passwd root
+
+			sudo su -
+
+	sudo命令：
+		被授权用户应该以sudo命令来运行被授权运行的命令；
+			sudo [OPTIONS] COMMAND
+
+				-l：查看当前用户可以执行的sudo命令；
+				-k：清除此前记忆的“令牌”；
+				-u USERNAME COMMAND：以指定用户运行COMMAND命令，
+					# sudo -u gentoo /sbin/ip addr list
+						可以在/var/log/secure日志文件中产看相关记录
+
+	练习：
+		要求要验证授权成功：
+			1、授权centos用户可以运行fdisk命令完成磁盘管理，以及使用mkfs或mke2fs实现文件系统管理；
+				# visudo
+				centos  	ALL(root) 	/sbin/fdisk, /sbin/mkfs, /sbin/mke2fs
+
+			2、授权gentoo用户可以运行逻辑卷管理的相关命令。
+				# visudo
+				Cmnd_Alias LVMMGT = /sbin/pvcreate, /sbin/pvdisplay. /sbin/pvs, /sbin/pvremove, /sbin/pvmove, /sbin/vgcreate, /sbin/vgdisplay, /sbin/vgs, /sbin/vgremove, /sbin/vgextend, /sbin/vgreduce, /sbin/lvcreate, /sbin/lvdisplay, /sbin/lvs, /sbin/lvresize, /sbin/lvextend, /sbin/lvreduce, /sbin/lvremove
+
+				gentoo 	ALL=(root) 	LVMMGT
+
+nsswitch && pam
+
+	nsswitch：network service switch
+	名称解析：
+		root, 0
+		www.magedu.com, 172.16.100.6
+		http, 80/tcp
+		
+		login, httpd：共享库
+
+		解析：查找数据库，以已经的内容为键，找到与之对应的另一种名称；
+			数据库：
+				接口不同：文本文件，关系型数据库，ldap
+				数据集不同：/etc/hosts, /etc/passwd
+
+			用户名：文本文件，nis数据库，ldap数据库，MySQL数据库
+			
+		考量点：
+			1、有多种接口可选择，每种接口都需要专用驱动；
+				解决方案：提供多种驱动
+			2、即便为同一接口，而不同应用程序也可能会用到不同的数据集；
+				解决方案：在配置文件中定义不同应用程序的数据集
+
+		相关的库文件：
+			# ls -l /lib64/libnss* /usr/lib64/libnss*
+
+			libnss3.so, 及对应数据库接口的驱动；
+
+		nsswitch：
+			DATABASE：aliases, ethers, group, hosts, netgroup networks, passwd, protocols, rpm, services, shadow
+				上述DATABASE即为那些会用到解析库的应用；
+
+			解析库类型： files, dns, compat, dbm, hesiod, winbind, wins, nis, nisplus
+
+			nsswitch.conf
+				DATABASE：解析库类型
+					group：files
+					passwd：ldap [NOTFOUND=return] files
+					hosts：files dns
+
+				在解析库查询的返回值：
+					SUCCESS：service ok, found name
+					NOTFOUND：service ok, name not found
+					UNAVAL：service not avaliable
+					TRYAGAIN：temporay service failure
+
+					默认动作：在第一次遇到SUCCESS状态后，即return，否则，则contion
+
+						passwd：nis [NOTFOUND=return] files
+
+			libnss3.so  ---> libnss_files.so --> /etc/passwd
+
+			数据库条目获取命令：
+				getent DATABASE [key]
+					例：getent passwd root
+					root:x:0:0:root:/root:/bin/bash
+
+	pam：Pluggable Authentication Module
+
+		众多应用程序都需要用到认证机制时，认证功能可以由共享库来实现
+
+			模块文件：/lib64/security
+
+		考量点：
+			1、密码存储在何处，pam就要能够于对应存储接口进行通信，如ldap、shadow等；
+				
+			2、额外资源获取权限指派的模块，如pam_limits等；
+				
+			3、通过配置文件为每种应用定义其需要用到的模块，包括驱动、授权机制等等；
+
+		配置文件：
+			/etc/pam.conf：主配置文件
+				Service type control module-path module-arguments
+
+			/etc/pam.d/*：拆分成每个应用专用的配置文件
+				type control module-path module-arguments
+
+				type：（功能），包括：auth， account, password, session
+					account；与账号管理相关的非认证功能
+					auth：认证和授权；
+					password：只有在用户修改密码时使用；
+					session：用户获取到服务之前或使用服务完成之后要进行一些附属性操作；
+
+				control：同一种功能的多个检查之间如何进行组合；
+					有两种实现机制：
+						1、使用一个关键词来定义；
+						2、使用一到多组“return value=action”
+
+						简单机制：
+							required：成功或失败后都会继续检查；
+							requisite：一票否决；
+							sufficient：一票通过；
+							optional：年三十的饺子－－－可有可无，不影响最终结果，参考意见，默认为ignore；
+
+							include：使用其它的配置文件中同样功能的相关定义来进行检查；
+
+						复杂机制：
+							[value1=acton1 value2=acton2]
+
+							value：指此项检查的返回值，其可能的取值有多种，如success等；
+							action：采取的操作，其可能的取值常用的有6种，如ok,done,die,ignore,bad,reset;
+
+						module-path：模块路径
+							相对路径：/lib64/security
+							绝对路径
+
+						module-arguments：模块参数
+
+					模块：
+						pam_unix.so
+							nullok：允许使用空密码
+							try_first_pass：提示用户输入密码之前，首先检查此前栈中已经得到的密码；
+
+						pam_env.so：通过配置文件来为用户设定或撤销环境变量；
+							/etc/security/pam_env.conf
+
+						pam_shells.so；检查用户使用的是否为合法shell
+							/etc/shells
+
+						pam_limits.so：资源限制
+							/etc/security/limits.conf
+							/etc/security/limits.d/*
+
+							语法格式：
+								<domain> <type> <item> <value>
+
+								<domain>：资源限制应用于的对象
+									用户
+									@组名
+									*
+
+								<type>：
+									hard：不可超出的类型
+									soft：可以超出的类型
+									-：hard和soft都生效
+
+								<item>：限制的资源
+									nofile：所能够打开的最大文件数量；
+									nproc：所能够同时允许的最大进程数量；
+
+		练习：
+			1、基于pam_time.so模块，限制用户通过sshd服务远程登录只能在工作时间进行；
+				~]# vim /etc/pam.d/sshd 
+				#%PAM-1.0
+				auth       required     pam_sepermit.so
+				auth       include      password-auth
+				account    required     pam_nologin.so
+				account    required     pam_time.so
+				account    include      password-auth
+				password   include      password-auth
+				# pam_selinux.so close should be the first session rule
+				session    required     pam_selinux.so close
+				session    required     pam_loginuid.so
+				# pam_selinux.so open should only be followed by sessions to be executed in the user context
+				session    required     pam_selinux.so open env_params
+				session    required     pam_namespace.so
+				session    optional     pam_keyinit.so force revoke
+				session    include      password-auth
+
+				~]# /etc/security/time.conf
+				sshd;*;root;Wk0900-1800
+
+			2、基于pam_listfile.so模块，定义仅某些用户，或某些组内的用户可登录系统。
+				]# vim sshd 
+				#%PAM-1.0
+				auth       required     pam_sepermit.so
+				auth       include      password-auth
+				account    required     pam_nologin.so
+				account    required     pam_listfile.so item=user sense=allow  file=/etc/user_allow onerr=succeed
+				account    required     pam_time.so
+				account    include      password-auth
+				password   include      password-auth
+				# pam_selinux.so close should be the first session rule
+				session    required     pam_selinux.so close
+				session    required     pam_loginuid.so
+				# pam_selinux.so open should only be followed by sessions to be executed in the user context
+				session    required     pam_selinux.so open env_params
+				session    required     pam_namespace.so
+				session    optional     pam_keyinit.so force revoke
+				session    include      password-auth
+
+				~]# vim /etc/user_allow
+				root
+
+				~]#chmod 600 /etc/user_allow
+
+				http://blog.csdn.net/yueguanghaidao/article/details/7292065
+
+定制Linux内核和rootfs
+	
+	Linux系统启动流程：
+
+		POST --> BOIS（boot sequence）--> bootloader（MBR）--> kernel --> /sbin/init
+			设定默认运行级别
+			完成系统初始化
+			关闭对应级别下默认设定为关闭的服务，启动对应级别下默认设定为运行的服务
+			启动虚拟终端，打印登录提示
+			启动图形终端
+			
+
+		CentOS：
+			5:SysV init
+			6：upstart
+			7：systemd
+
+
+
+
+
+		
+
+
+
+
+
+
+
+
+
+
+
+

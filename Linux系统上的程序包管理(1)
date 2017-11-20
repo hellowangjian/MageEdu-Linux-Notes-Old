@@ -1,0 +1,656 @@
+Linux系统上的程序包管理(1)
+
+	程序包以源代码形式提供：
+		c语言
+		c++语言
+
+		perl语言
+		python语言
+		ruby语言
+
+	API：Application Programming Interface
+	ABI：Application Binary Interface
+
+	程序的组成部分：
+		编译之前：源代码
+		编译之后：
+			二进制程序
+			库文件
+			配置文件
+			帮助文件（手册、问答）
+
+			二进制程序放在：/bin, /sbin, /usr/bin, /usr/sbin, /usr/local/bin, /usr/local/sbin, /opt/bin, /opt/sbin
+			库文件文件路径：/lib, /lib64, /usr/lib, /usr/lib64, /usr/local/lib, /usr/local/lib64
+			配置文件路径：/etc, /etc/DIR, /usr/local/{etc,conf}
+			帮助文件：/usr/share/man, /usr/share/doc, /usr/local/share/man
+
+			httpd：/usr/local/apache
+				bin, sbin, conf, lib, lib64, share/man
+
+			注意：有些特殊的应用程序可能会将可执行文件放置于libexec目录；
+
+
+	程序包管理器：
+		应用程序打包：有特定格式
+		对兼容格式的程序包进行管理：
+			安装、卸载、升级、查询
+
+		注意：制作成的二进制格式程序与平台有相关性，所以，通常需要制作各种流行平台所兼容的版本；
+
+	编译：
+		c程序包
+			源代码（文本）--> 预处理 --> 编译 --> 汇编 --> 链接
+
+			编译时，根据是否将被调用的库文件直接打包进生成的二进制程序文件，编译方式可分为两类：
+				动态链接：不将被调用的库文件打包进来，而是运行时去装载它；
+				静态链接：将被调用的库文件打包进来，将来运行时，可自己完全独立运行，而无需外部库文件运行；
+
+	程序包：
+		源代码：appname-VERSION,tar.gz, appname-VERSION.tar.bz2, appnmae-VERSION.tar.xz
+		包管理器（rpm）格式：
+			appname-VERSION-RELEASE.ARCH.rpm
+
+	常见的包管理器：
+		.deb：Debian
+		.rpm：Red hat Package Manager，RPM is Package Manager
+
+	rpm包命名格式：
+		appname-VERSION-RELEASE.ARCH.rpm
+			VERSION：
+				major：主版本号
+				minor：此版本号
+				release：发行号
+
+			RELEASE：包自身的修订号；有时候还会包含适用于os的信息；比如bash-4.3.2-2.centos6.x86_64.rpm中的2.centos6
+			ARCH：适用的平台
+				x86：i386, i486, i586, i686
+				x86_64：x86_64, amd64
+				powerpc：ppc
+				noarch：跟平台无关
+
+	想象一种场景：testapp有30种功能，其中有10种常用，有6种次常用，余下的14种极少用；
+		分包机制：
+			核心包，主包：命名与源项目名称一致；
+				bash-4.3.2-2.centos6.x86_64.rpm
+			子包（支包）：命令为源项目名称后附加支包的文件提供的功能组成；
+				bash-devel-4.3.2-2.centos6.x86_64.rpm
+
+	获取程序包的途径：
+		1、系统的发行光盘镜像或官方站点（或站点镜像服务器）；
+
+			挂载光盘：mount -r /dev/cdrom /media/cdrom
+
+			官方站点，镜像：
+				mirrors.sohu.com
+				mirrors.163.com
+				mirrors.aliyum.com
+
+		2、程序包的官方站点
+
+		3、第三方组织
+				epel
+
+		4、搜索引擎
+			http://rpmfind.net
+			http://rpm.pbone.net
+			http://pkgs.org
+
+		建议：安装之前要验证的其合法性
+			来源合法；
+			包的完整性
+
+	CentOS系统上程序rpm包管理：
+		安装、升级、卸载、查询、校验
+
+		通过rpm命令完成
+
+	安装：
+		rpm {-i|--install} [install-options] PACKGE_FILE1...
+
+		-h:hash,以#来表示安装进度
+		-v, --verbose：显示安装过程中的详细信息
+			-vv
+			-vvv
+
+		安装时常用的组合： -ivh
+			rpm -ivh zsh-4.3.10-5.el6.x86_64.rpm
+
+		--test：测试安装，不执行真正的安装过程，而仅报告依赖关系及冲突信息等；
+			rpm -ivh --test zsh-4.3.10-5.el6.x86_64.rpm 
+
+			程序包之间存在依赖关系；
+				由众多目的单一的小程序组成；结果程序包之间存在相关性；
+					x --> y
+					x --> y --> (m,n) --> ...
+					x <--> y
+
+			忽略依赖关系：
+				副作用：能安装成功，但未必能成功运行；
+				--nodeps
+					rpm -ivh --nodeps php-5.3.3-22.el6.x86_64.rpm 
+
+			覆盖安装：重新安装并覆盖原有的文件
+				--replacepkgs
+					rpm -ivh zsh-4.3.10-5.el6.x86_64.rpm --replacepkgs
+
+			强制安装:
+				--force
+
+	升级：
+		rpm {-U|--upgrade} [install-options] PACKAGE_FILE ...
+			-U：升级或安装
+		rpm {-F|--freshen} [install-options] PACKAGE_FILE ...
+			-F：纯升级操作
+
+			组合：－Uvj, -Fvh
+
+			--test
+			--nodeps
+			--force
+			--oldpackage：降级到旧版本；
+			注意：一定不要对内核执行升级；Linux允许多内核共存，所以，可以直接安装多个不同版本内核；
+			注意：如果程序包的配置文件安装后曾被修改，升级时，新版本的文件不会覆盖老版本的配置文件，而是把新版本的配置文件重命名（加后缀.rpmnew)后保存；
+
+	卸载：
+		移除已经安装的程序包
+
+		rpm {-e|--erase} [--allmatches] [--nodeps] [--noscripts][--notriggers] [--test] PACKAGE_NAME ...
+			简单用法：rpm -e PACKAGE_NAME...
+			--nodeps：忽略依赖关系；
+			--test：测试卸载；dry－run模式；
+			--allmatches：如果一个程序包同时安装多个版本，则此选项一次全部卸载之；
+
+		注意：如果程序包的配置文件安装后曾被修改，卸载时，此文件通常不会被删除，而是被重命名（加后缀.rpmsave）后保存；
+
+	查询：
+		查询某包是否已经安装，以及检查安装的所有包；还可以查看某包的详细信息；
+
+		rpm {-q|--query} [select-options] [query-options]
+
+			[select-options]：
+				1、查询某包或某些包是否安装；
+					rpm -q PACKAGE_NAME...
+
+				2、查询已经安装的所有包：
+					rpm -qa
+
+				3、查询某文件是由哪个包安装生成；
+					rpm -qf /PATH/TO/SOMEFILE
+
+				4、查询尚未安装的包文件的相关信息；
+					-p
+					rpm -qpi PACKAGE_FILE
+						~]# rpm -qpi zsh-4.3.10-5.el6.x86_64.rpm 
+
+			[query-options]：
+				1、查询某包的简要说明信息；
+					rpm -qi PACKAGE_NAME
+						~]# rpm -qi zsh
+
+				2、查询某包安装生成的文件列表；
+					rpm -ql PACKAGE_NAME
+						~]# rpm -ql zsh | grep "/etc"
+
+				3、查询某包安装完成后生成的所有配置文件；
+					rpm -qc PACKAGE_NAME
+						~]# rpm -qc zsh
+
+				4、查询某包安装完成后生成的所有帮助文件；
+					rpm -qd PACKAGE_NAME
+						~]# rpm -qd zsh
+
+				5、查询某包制作时随版本变化的changelog信息；
+					rpm -q --changelog PACKAGE_NAME
+						~]# rpm -q --changelog zsh
+
+				6、查询某包提供的capabilities；
+					rpm -q --provides PACKAGE_NAME
+						~]# rpm -q --provides zsh
+
+				7、查询某包所依赖的capabilities；
+					rpm -q --requires PACKAGE_NAME
+						~]# rpm -q --requires zsh
+
+				8、查询某包安装或卸载时执行的脚本：
+					rpm -q --scripts PACKAGE_NAME
+
+						脚本有四类：
+							preinstall：安装过程开始之前执行的脚本；
+							postinstall：安装过程完成之后执行的脚本；
+							preuninstall：卸载开始之前执行的脚本；
+							postuninstall：卸载过程完成之后执行的脚本；
+
+	校验：
+		查询安装之后生成的文件是否发生了改变；
+
+			rpm {-V|--verify} [select-options] [verify-options]
+
+			常见用法：rpm -V PACKAGE_NAME
+
+				S file Size differs
+       			M Mode differs (includes permissions and file type)
+		       	5 digest (formerly MD5 sum) differs
+		       	D Device major/minor number mismatch
+		       	L readLink(2) path mismatch
+		       	U User ownership differs
+		       	G Group ownership differs
+		       	T mTime differs
+		       	P caPabilities differ
+
+	程序包的合法性验证：
+		来源合法：
+			由我们信任的制作者提供；
+			依赖于：制作者的数字签名；签名是作者使用自己的私钥加密程序包的特征码进行的；
+		内容合法：
+			包未被二次修改；完整性校验成功；
+			依赖于：制作者提供的程序特征码；
+				验证方式：安装者用同样的特征码提取算法提取程序包的特征码，并与原作者提供的相比较；
+
+		验证其光盘中程序包的来源及完整性：
+			导入安装光盘提供的公钥：
+				rpm --import /path/to/RPM-GPG-KEY-FILE
+					例如：~]# rpm --import /media/CentOS_6.4_Final/RPM-GPG-KEY-CentOS-6
+			验证包特征码：
+				rpm {-K|--checksig} PACKAGE_FILE
+					例如：
+						~]# rpm -K zsh-4.3.10-5.el6.x86_64.rpm 
+						zsh-4.3.10-5.el6.x86_64.rpm: rsa sha1 (md5) pgp md5 OK
+
+					--nosignature：不检查来源合法性
+					--nodigest：不检查完整性
+
+	rpm管理数据库：/var/lib/rpm
+		重建数据库：
+			rpm {--initdb|--rebuilddb} [-v] [--dbpath DIRECTORY]
+
+			--initdb：初始化数据库，即数据库完全不存在时，可新建之；
+
+			--rebuilddb：无论当前数据库存在与否，都会直接重建此库；
+
+	总结：
+		基本管理：安装、升级、卸载、查询和校验；
+		合法性验证；
+		数据库管理；
+
+博客作业：rpm程序包管理
+
+回顾：
+	程序包的组成部分：二进制程序、库文件、配置文件、帮助文件
+	API, ABI
+
+	appname-VERSION.tar.{gz,bz2,xz}，源代码
+	打包：使用包管理器
+		deb,rpm
+	管理：
+		安装：-ivh
+		升级：-Uvh, -Fvh
+		查询：-q, -qp
+			-i, -l, -f, -c, -d, -scripts, -changelog
+		卸载：-e
+		校验：-v
+
+	合法性：
+		--import
+		--checksig,-K
+
+	数据库重建：--initdb, --rebuilddb
+
+Linux程序包管理(2)
+
+	update，yellowdog update modifier = yum
+
+	yum：自行解决依赖关系
+		X --> Y
+
+		c/s架构
+
+		文件服务的服务器
+			ftp服务
+			http服务
+			本地文件目录
+			NFS服务
+
+	yum相对应于rpm来说：
+		rpm为基础包管理器
+		yum则是rpm的前端工具
+
+		仓库指向的路径：repodata目录所在的父目录
+			http://172.16.0.1/cobbler/ks_mirror/CentOS-6.7-x86_64/
+
+	yum命令行工具：
+		配置文件：指向仓库的位置以及相关的各种配置信息；每个yum命令行可以同时指向多个仓库，仓库间可以有优先级等相关的配置；
+		有两部分组成：
+			主配置文件：/etc/yum.conf
+				为各仓库指向提供公共配置文件；
+	
+			各仓库的定义：/etc/yum.repos.d/*.repo
+
+				directive=VALUE
+
+				Note：文件以.repo结尾；每个repo配置文件中可以配置一至多个仓库；
+
+				[main]：提供公共配置信息
+
+			man yum.conf
+
+		各仓库配置
+		[repositoryid]
+			# 对于当前系统的yum来讲，此repositoryid用于惟一标识此repository指向，因此其必须惟一；
+		name=
+			# 当前仓库描述信息；
+		baseurl=url://path/to/repository/
+			# 指明repository的访问路径；通常为一个文件服务器上输出的某repository;
+				url:
+					ftp服务
+						ftp://SERVER/PATH/TO/REPOSITORY
+					http服务
+						http://SERVER/PATH/TO/REPOSITORY
+					nfs服务：
+						nfs://SERVER/PATH/TO/REPOSITORY
+					本地目录：
+						file:///SERVER/PATH/TO/REPOSITORY
+
+		enabled={1|0}
+			此仓库是否可被使用
+
+		gpfcheck={1|0}
+			是否对程序包做校验
+		gpgkey=url://path/to/keyfile
+			指明gpgkey文件路径；
+		cost=
+			指明当前repository的访问开销，默认为1000；
+
+		教室环境中可用的仓库：
+			DVD1：http://172.16.0.1/cobbler/ks_mirror/CentOS-6.6-x86_64/
+			DVD2：http://172.16.0.1/centos/6/extras/x86_64/
+			epel：http://172.16.0.1/fedora-epel/6/x86_64/
+
+	yum命令：
+		yum [options] [command] [package ...]
+
+		command is one of:
+        * install package1 [package2] [...]
+        * update [package1] [package2] [...]
+        * update-to [package1] [package2] [...]
+        * check-update
+        * upgrade [package1] [package2] [...]
+        * upgrade-to [package1] [package2] [...]
+        * distribution-synchronization [package1] [package2] [...]
+        * remove | erase package1 [package2] [...]
+        * list [...]
+        * info [...]
+        * provides | whatprovides feature1 [feature2] [...]
+        * clean [ packages | metadata | expire-cache | rpmdb | plugins | all ]
+        * makecache
+        * groupinstall group1 [group2] [...]
+        * groupupdate group1 [group2] [...]
+        * grouplist [hidden] [groupwildcard] [...]
+        * groupremove group1 [group2] [...]
+        * groupinfo group1 [...]
+        * search string1 [string2] [...]
+        * shell [filename]
+        * resolvedep dep1 [dep2] [...]
+        * localinstall rpmfile1 [rpmfile2] [...]
+           (maintained for legacy reasons only - use install)
+        * localupdate rpmfile1 [rpmfile2] [...]
+           (maintained for legacy reasons only - use update)
+        * reinstall package1 [package2] [...]
+        * downgrade package1 [package2] [...]
+        * deplist package1 [package2] [...]
+        * repolist [all|enabled|disabled]
+        * version [ all | installed | available | group-* | nogroups* |  grou-
+       plist | groupinfo ]
+           *   history   [info|list|packages-list|packages-info|summary|addon-
+       info|redo|undo|rollback|new|sync|stats]
+        * load-transaction [txfile]
+        * check
+        * help [command]
+
+	仓库管理：
+		repolist：列出已经配置的所有可用仓库			
+			repolist [all|enabled|disabled]
+
+	缓存管理：
+		clean：清理缓存
+			缓存目录：/var/cache/yum/
+			clean [ packages | metadata | expire-cache | rpmdb | plugins | all ]
+		makecache：缓存创建
+			自动连接至每一个可用仓库，下载其源数据，将其创建为缓存；
+
+	程序包查看：
+		yum list [all | glob_exp1] [glob_exp2] [...]
+			 ~]# yum list php???
+
+		yum list {available|updates|installed|extras|obsoletes|recent [glob_exp1] [...]}
+
+		grouplist [hidden] [groupwildcard] [...]
+
+	程序包安装：
+		install package1 [package2] [...]
+			~]# yum install php
+
+		Note：只需要提供包名；
+		如果某包有在不同仓库中有多个不同版本，默认会安装最新版本；
+		如果要安装指定版本：intsll PACKAGE-VERSION ...
+
+	重新安装（覆盖安装）
+		reinstall package1 [package2] [...]
+
+	程序包升级：
+		update [package1] [package2] [...]
+
+	程序包降级：
+		downgrade package1 [package2] [...]
+
+	检查有哪些升级可用：
+		check-update
+
+	卸载：
+		remove | erase package1 [package2] [...]
+
+		所有依赖于正卸载的程序包的程序会被一并卸载；
+
+	查询：
+		查询程序的相关简要信息：info PACKAGE [...]
+
+		在包名和sumary信息中搜索指定的关键字：search KEYWORD ...
+
+		查询指定文件由哪个程序包安装生成：privodes｜whatprovides /PATh/TO/SOMEFILE
+
+	安装或升级本地的程序包文件：
+		localinstall rpmfile1 [rpmfile2] [...]
+
+		用于安装仓库中并不存在的程序文件；这些程序包有可能有依赖于仓库中的某些程序包；
+
+		localupdate rpmfile1 [rpmfile2] [...]
+
+	包组管理：
+		列出所有包组：grouplist
+		显示指定包组详情：groupinfo group1 [...]
+
+		安装：
+			groupinstall group1 [group2] [...]
+		卸载：
+			groupremove group1 [group2] [...]
+		升级：
+			groupupdate group1 [group2] [...]
+
+		Note：可直接用install、remove或update来管理包组；
+			@GROUP_NAME
+
+			yum install @"Server Platform Development"
+
+	yum命令的可用选项：
+		-y：自动回答为“yes”
+		--disablerepo=：临时禁用在配置文件中配置并启动的某repository；
+		--enablerepo=：临时启用指定的某repo；
+		--nogpgcheck：禁止做包校验；
+
+	练习：配置实用epel源，而后安装zabbix程序包；
+		http://172.16.0.1/
+
+	yum有内置变量，用于保存当前平台的相关信息
+		(1) $releasever：当前OS发行版的主版本号；
+			例如，对CentOS 6.6 x86_64，主版本号为6；
+		(2) $arch：平台
+			i386,i486
+		(3) $basearch：基础平台，例如i686,i586,i486以及i386的基础平台同为i386;
+		(4) $YUM0-$YUM9
+
+		假如：
+			baseurl=http://repo.magedu.com/centos/$releasever/$basearch
+			当前系统为CentOS 6.6 x86_64
+				http://repo.magedu.com/centos/6/x86_64/
+
+	如何使用发行版光盘作为yum repository
+		(1)挂载光盘到到指定挂在点，如/media/cdrom
+		(2)新建yum repo配置文件；类似如下所示
+			[basedvd]
+			name=CentOS 6.6 x86_64 on dvd1
+			baseurl=ftp:///media/cdrom
+			enabled=1
+			gpgcheck=0
+
+	自己建立yum仓库：
+		(1)先基于发行版安装树安装createrepo程序包
+			createrepo命令：创建程序包源数据
+				- Create repomd (xml-rpm-metadata) repository
+					~]#createrepo /var/test/yum/xen4
+		(2)确定repository输出方式：
+				本地路径：提供一个放置rpm包的本地路径；
+				网络输出：提供一个文件服务器，配置好ftp服务或http服务；
+					ftp服务：
+						安装程序包：vsftpd
+						文件存放路径：/var/ftp/pub
+						启动服务：service vsftpd start
+					http服务：
+					 	安装程序包：httpd
+					 	文件存放路径：/var/www/html
+					 	启动服务：service httpd start
+				Note：确保防火墙服务关闭；
+		(3)在准备好的目录中放置rpm程序包文件
+		(4)对此目录运行createrepo命令即可
+					
+	练习：创建xen4仓库，分别通过本地及ftp或http服务输出；
+
+bash脚本编程的for循环：
+	
+	过程式编程：
+		顺序执行
+		选择执行
+		循环执行
+
+	for的语法格式：
+		for Var_Name in LIST;do
+			循环体
+		done
+
+		循环要有进入条件；退出条件；
+			列表不空
+			列表元素遍历结束；
+
+		LIST的生成方式：
+			(1) 直接给出：user1 user2 user3
+			(2) 数值列表：
+				(a) {start..end}
+				(b) seq [start [step]] end
+			(3) 变量引用：$*, $@
+			(4) 返回列表命令
+				for i in $(cut -d: -f3 /etc/passwd);do
+			(5) globbing
+				for i in /var/*;
+
+	练习：写一个脚本，完成以下功能
+		(1)假设某目录(/etc/rc.d/rc3.d/)下分别有k开头的文件和s开头的文件若干；
+		(2)显示所有以k开头的文件的文件名，并且给其附加一个stop字符串；
+		(3)显示所有以s开头的文件的文件名，并且给其附加一个start字符串；
+		(4)分别统计s开头和k开头的文件各有多少；
+		#!/bin/bash
+		#
+
+		declare -i kfile=0
+		declare -i sfile=0
+
+		for svc in /etc/rc.d/rc3.d/K*;do
+			echo "$svc stop"
+			let kfile++
+		done
+
+		for svc in /etc/rc.d/rc3.d/S*;do
+			echo "$svc start"
+			let sfile++
+		done
+		echo "K file's：$kfile "
+		echo "S file's：$sfile"
+
+	练习2：写一个脚本，完成以下功能
+		（1）脚本能接受用户名作为参数；
+		（2）计算此些用户的ID之和；
+			#!/bin/bash
+			#
+
+			declare -i sum=0
+			for i in $@; do
+				if id $i &> /dev/null;then
+				userid=$(id -u $i)
+				sum+=$userid
+				else
+				echo "user $i is not user"
+				fi
+			done
+			echo "idsum=$sum"
+
+
+	for的几种特殊情况：
+		（1）省略for的列表，其会自动获取脚本参数作为列表；
+		（2）c编程风格的for循环：用到一个控制变量
+			for((变量初始值赋值；循环条件；变量的修正表达式));do
+				循环体
+			done
+
+			例如：计算100以内所有正整数之和；
+				#!/bin/bash
+				#
+
+				declare -i sum=0
+				for ((i=1;i <=100;  i++));do
+					let	sum+=$i
+				done
+				echo "sum=$sum"
+
+		（3）循环嵌套
+			外层循环体中，又有循环；
+				for i in LIST1;do
+					for j in LIST2;do
+					循环体
+					done
+					COMMAND
+				done
+
+		例子：使用ping命令探测172.16.0.0/16网络内的所有主机；
+			for ((i=1;i<=255;i++));do
+				for ((j=1;j<=255;j++));do
+					ping -c 1 -w 1 172.26.$i.$j
+				done
+			done
+
+		练习：写一个脚本
+			（1）传递一些目录给此脚本；
+			（2）逐个显示每个目录的所有一级文件或子目录的内容类型；
+			（3）统计一共有多少个目录，且一共显示了多少个文件的内容类型；
+				#!/bin/bash
+				#
+
+				declare -i filesum=0
+
+				for i in $*;do
+					for j in $(ls $i);do
+						echo  "$j"	
+						echo "$(file $i$j)"
+						let filesum++
+					done
+				done
+				echo "dirctory is：$#"
+				echo "file is：$filesum"
+
+		博客作业：yum的用法；

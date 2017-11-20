@@ -1,0 +1,377 @@
+马哥Linux学习第二十四天（防火墙及netfilter基础、iptables基本用法2、iptables基本用法3）
+
+回顾：文件共享服务
+	ftp：应用层协议，C/S
+		Server：vsftpd，proftpd，filezilla server
+		Client：ftp，lftp，wget，curl
+
+		vsftpd：/etc/vsftpd/vsftpd.conf
+			匿名用户
+			本地用户
+			虚拟用户：mysql，pam(mysql)
+
+	nfs：Network File System
+		rpc：半随机端口
+
+		/etc/exports
+		目录		客户端列表(配置权限及法则)
+
+		exportfs, showmount
+
+	samba：smb(service message block)，CIFS(Common Internet File System)
+		smbd, nmbd, winbindd
+
+		UNC路径：\\SERVER\shared_name
+
+		mount -t CIFS
+
+	博客作业：上述各服务
+
+
+iptables
+	
+	firewall：
+		主机防火墙
+		网络防火墙
+
+		工作于主机或网络的边缘，对于进出的报文根据事先定义的规则做检查，将那些能够被规则所匹配到的报文做出相应处理的组件。
+
+		网络防火墙：
+			专业的硬件防火墙：
+				checkpoint，netscreen
+			主机：软件防火墙
+
+		iptables：程序
+			iptables：规则编写工具
+			netfilter：网络过滤器，内核中工作在TCP/IP网络协议栈上的框架；
+
+		IDS：Intrusion Detecting System
+			NIDS
+			HIDS
+
+		IPS：Intrusion Protection System
+
+		HoneyPot：蜜罐
+
+	OpenBSD：
+		ipfw
+		ipchains
+
+		kernel, framework
+
+		hooks functon：
+				prerouting：进入本机后路由发生之前
+				input：到达本机内部
+				output：由本机发出
+				forward：由本机转发
+				postrouting：路由功能发生之后，即将离开本机之前
+
+		路由发生的时刻：
+			报文进入本机后：
+				判断目标地址；
+			报文离开本机之前：
+				判断经由哪个接口发出；
+
+		报文流向经由的位置：
+			到本机内部：prerouting, input
+			由本机发出：output， postrouting
+			由本机转发：prerouting，forward，postrouting
+
+		规则的功能：
+			过滤：firewall，
+			地址转换：NAT Server
+				Network Address Translation
+			Mangle：拆解报文，做出修改，并重新封装起来；
+			raw：关闭nat表上启用的连接追踪机制；
+
+		filter：input, forward, output
+		nat：prerouting, output, postrouting
+		mangle：prerouting, input, forward, output, postrouting
+		raw：prerouting, output
+
+		iptables：每个钩子函数上可放置n条规则；对应于每个钩子上的多条规则就称为一个链（CHAIN）
+			每个功能有多个链，所以，就称作表；
+
+		链：链上的规则次序即为检查次序，因此有一定的法则：
+			（1）同类规则，匹配范围小的放上面；
+			（2）不同类规则，匹配到报文频率较大的放在上面；
+			（3）将哪些可由一条规则描述的多个规则合并起来；
+			（4）应该设置默认策略；
+
+	iptables/netfilter
+		netfilter：framework in kernel
+			tcp/ip协议栈
+
+		iptables有4表5链
+			添加规则时的考量点：
+				（1）要实现的功能：判断添加在哪个表上；
+				（2）报文流向及经由路径：判断添加在哪个链上
+
+			功能的优先级：
+				由高而低：
+					raw --> mangle --> nat --> filter
+
+			规则的组成部分：
+				报文的匹配条件，匹配之后如何处理
+
+				匹配条件：基本匹配条件、扩展匹配条件
+				如何处理：内建处理机制、自定义处理机制（自定义的链）
+
+				注意：报文不可能经由自定义链，只有在被内置链上的引用才能生效（即做为自定义目标）
+
+			iptables：规则管理工具
+				自动实现规则的语法检查
+
+			规则和链有计数器：
+				pkts：由规则或链匹配到的报文的个数；
+				bytes：由规则或链匹配到的所有报文大小之和；
+
+			链：应该有默认策略；
+
+	iptables命令生成规则，送往netfilter; 
+		规则通过内核接口直接送至内核，因此，会立即生效。但不会永久有效；
+		如果期望有永久有效，需要保存至配置文件中，此文件还开机时加载或由用户手工加载；
+
+		iptables [-t TABLE] SUBCOMMAND CHAIN CRITERIA -j TARGET
+
+			-t TABLE:
+				默认为filter, 共有filter, nat, mangle, raw四个可用；
+
+			SUBCOMMAND：
+				链：
+					-F：flush，清空指定表的指定链上所有规则；省略链名时，清空表中的所有链；
+					-N：new, 新建一个用户自定义的链；自定义链只能作为默认链上的跳转对象，即在默认链通过引用来生效自定义链；
+						~]# iptables -N webrules
+						~]# iptables -L -n
+						Chain INPUT (policy ACCEPT)
+						target     prot opt source               destination         
+
+						Chain FORWARD (policy ACCEPT)
+						target     prot opt source               destination         
+
+						Chain OUTPUT (policy ACCEPT)
+						target     prot opt source               destination         
+
+						Chain webrules (0 references)
+						target     prot opt source               destination     
+					-X：drop，删除用户自定义的空链；非空自定义链和内置链无法删除；
+						~]# iptables -X httprules
+					-Z：zero，将规则的计数器置0；
+						~]# iptables -Z
+					-P：policy，设置链的默认处理机制；当所有都无法匹配或有匹配有无法做出有效处理机制时，默认策略即生效；
+						filter表的可用策略：ACCEPT, DROP, REJECT
+						~]# iptables -t filter -P INPUT DROP
+					-E：rename，重命名自定义链；
+						~]# iptables -E webrules httprules
+						~]# iptables -L -n
+						Chain INPUT (policy ACCEPT)
+						target     prot opt source               destination         
+
+						Chain FORWARD (policy ACCEPT)
+						target     prot opt source               destination         
+
+						Chain OUTPUT (policy ACCEPT)
+						target     prot opt source               destination         
+
+						Chain httprules (0 references)
+						target     prot opt source               destination   
+
+					注意：被引用中的链，无法删除和改名
+
+				规则：
+					-A：append，在链尾追加一条规则；
+					-I：insert，在指定位置插入一条规则；
+					-D：delete，删除指定的规则；
+					-R：replace，替换指定的规则；
+				查看：
+					-L：list，列出指定链上的所有规则；
+						-n: numeric，以数字格式显示地址和端口号，即不反解；
+						-v: verbose，详细格式，显示规则的详细信息，包括规则计数器等；
+						-vv:
+						-vvv:
+						--line-numbers: 显示规则编号；
+						-x: exactly，显示计数器的精确值；
+							~]# iptables -L -n -v -x
+
+
+					pkts bytes target     prot opt in     out     source               destination
+						pkts: 被本规则所匹配到的包个数；
+						bytes：被本规则所匹配到的所包的大小之和；
+						target: 处理目标 （目标可以为用户自定义的链）
+						prot: 协议 {tcp, udp, icmp}
+						opt: 可选项
+						in: 数据包流入接口
+						out: 数据包流出接口
+						source: 源地址
+						destination: 目标地址；
+
+			CRETERIA: 匹配条件
+				检查IP首部，检查TCP、UDP或ICMP首部；
+				基于扩展机制，也可以进行额外的检查；如做连接追踪；
+
+				注意：可同时指定多个条件，默认多条件要同时被满足；
+
+				匹配条件：
+
+					通用匹配：
+						[!] -s, --src, --source  IP|Network：检查报文中的源IP地址；
+							~]# iptables -t filter -A INPUT -s 172.16.227.1 -d 172.16.227.153 -j ACCEPT
+						-d, --dst, --destination：检查报文中的目标IP地址；
+						-p, --protocol：检查报文中的协议，即ip首部中的protocols所标识的协议；tcp、udp或icmp三者之一；
+							~]# iptables -t filter -R INPUT 1 -s 172.16.227.1 -d 172.16.227.153 -p tcp -j ACCEPT
+						-i, --in-interface：数据报文的流入接口；通常只用于PREROUTING, INPUT, FORWARD链上的规则；
+							~]# iptables -t filter -R INPUT 1 -s 172.16.200.6 -d 172.16.100.67 -p icmp -i eth0 -j REJECT
+						-o, --out-interface：检查报文的流出接口；通常只用于FORWARD, OUTPUT, POSTROUTING链上的规则；
+
+					扩展匹配：使用iptables的模块实现扩展性检查机制
+						隐式扩展：如果在通用匹配上使用-p选项指明了协议的话，则使用-m选项指明对其协议的扩展就变得可有可无了；
+							tcp: 
+								--dport PORT[-PORT]
+									~]# iptables -t filter -R INPUT 1 -s 172.16.227.1 -d 172.16.227.156 -p tcp -m tcp --dport 80 -j ACCEPT 
+									可以省略-m选项：
+									~]# iptables -t filter -R INPUT 1 -s 172.16.227.1 -d 172.16.227.156 -p tcp --dport 80 -j ACCEPT 
+								--sport PORT[-PORT]
+									~]# iptables -t filter -A OUTPUT -s 172.16.227.156 -p tcp --sport  22 -j ACCEPT
+								--tcp-flags LIST1 LIST2
+									LIST1: 要检查的标志位；
+									LIST2：在LIST1中出现过的，且必须为1标记位；而余下的则必须为0; 
+									例如：--tcp-flags syn,ack,fin,rst syn
+										表示：要检查的标识位为SYN,ACK,FIN,RST SYN四个，其中SYN必须为1，余下的必须为0；
+								--syn：用于匹配tcp会话三次握手的第一次；相当于--tcp-flags SYN,ACK,FIN,RST SYN；
+
+							udp:
+								--sport PORT[-PORT]
+								--dport PORT[-PORT]
+
+							icmp:
+								--icmp-type
+									8: echo request
+										~]# iptables -t filter -A OUTPUT -s 172.16.227.156 -p icmp --icmp-type 8 -j ACCEPT
+									0：echo reply
+										~]# iptables -t filter -A INPUT -d 172.16.227.156 -p icmp --icmp-type 0 -j ACCEPT
+
+							练习：
+								1、放行本机上的ssh和http服务；要求input和output策略默认均为DROP；
+									INPUT：
+									~]# iptables -t filter -A INPUT -d 172.16.227.153 -p tcp --dport 80 -j ACCEPT
+									~]# iptables -t filter -A INPUT -d 172.16.227.153 -p tcp --dport 22 -j ACCEPT
+									OUTPUT：
+									~]# iptables -t filter -A OUTPUT -s 172.16.227.153 -p tcp --sport 80 -j ACCEPT
+									~]# iptables -t filter -A OUTPUT -s 172.16.227.153 -p tcp --sport 22 -j ACCEPT
+									默认策略：
+									~]# iptables -t filter -P INPUT DROP
+									~]# iptables -t filter -P OUTPUT DROP
+
+								2、开放本机对ping的响应，和ping请求；
+									ping的响应
+										~]# iptables -t filter -A INPUT -d 172.16.227.153 -p icmp --icmp-type 8 -j ACCEPT
+										~]# iptables -t filter -A OUTPUT -s 172.16.227.153 -p icmp --icmp-type 0 -j ACCEPT
+									ping的请求
+										~]# iptables -t filter -A OUTPUT -s 172.16.227.153 -p icmp --icmp-type 8 -j ACCEPT
+										~]# iptables -t filter -A INPUT -d 172.16.227.153 -p icmp --icmp-type 0 -j ACCEPT
+
+
+						显式扩展：必须指明使用的扩展机制；
+							-m 模块名称
+								每个模块会引入新的匹配机制；
+
+								想知道有哪些模块可用：
+									rpm -ql iptables
+
+									小写字母，以.so结尾；
+
+							multiport扩展：
+								以离散定义多端口匹配；最多指定15个端口；
+
+								专用选项：
+									--source-ports, --sports PORT[,PORT,...]
+									--destination-ports, --dports PORT[,PORT,...]
+									--ports PORT[,PORT,...] 源和目标端口相同都匹配
+
+								例子：
+								iptables -I INPUT 1 -d 172.16.100.11 -p tcp -m multiport --dports 22,80,443 -j ACCEPT
+								iptables -I OUTPUT 1 -s 172.16.100.11 -p tcp -m multiport --sports 22,80,443 -j ACCEPT
+
+							iprange扩展：
+								指定连续的ip地址范围；在匹配非整个网络地址时使用；
+
+								专用选项：
+									[!] --src-range IP[-IP]
+									[!] --dst-range IP[-IP]
+
+								示例：
+								iptables -A INPUT -d 172.16.100.11 -p tcp --dport 23 -m iprange --src-range 172.16.100.1-172.16.100.100 -j ACCEPT
+								iptables -A OUTPUT -s 172.16.100.11 -p tcp --sport 23 -m iprange --dst-range 172.16.100.1-172.16.100.100 -j ACCEPT
+
+							string扩展：
+								检查报文中出现的字符串，与给定的字符串作匹配；
+
+								字符串匹配检查算法：
+									kmp, bm
+
+								专用选项：
+									--algo {kmp|bm}
+									--string "STRING"
+									--hex-string "HEX_STRING"：HEX_STRING为编码成16进制格式的字串；
+
+
+								示例：
+								iptables -I OUTPUT 1 -s 172.16.100.11 -p tcp --sport 80 -m string --string "sex" --algo kmp -j REJECT
+
+							time扩展：
+								基于时间区间做访问控制
+
+								专用选项：
+									--datestart YYYY[-MM][-DD][hh[:mm[:ss]]]
+									--dattestop
+
+									--timestart
+									--timestop
+
+									--weekdays DAY1[,DAY2,...]
+
+								示例：
+									# iptables -R INPUT 1 -d 172.16.100.11 -p tcp --dport 80 -m time --timestart 08:30 --timestop 18:30 --weekdays Mon,Tue,Thu,Fri -j REJECT
+
+							connlimit扩展：
+								基于连接数作限制；对每个IP能够发起的并发连接数作限制；
+
+								专用选项：
+									--connlimit-above [n]
+
+								# iptables -I INPUT 2 -d 172.16.100.11 -p tcp --dport 22 -m connlimit --connlimit-above 5 -j REJECT
+
+							limit扩展：
+								基于发包速率作限制；
+
+								专用选项：令牌桶算法
+									--limit  n[/second|/minit|/hour|/day]
+									--limit-burst n
+
+								iptables -R INPUT 3 -d 172.16.100.11 -p icmp --icmp-type 8 -m limit --limit 10/minute --limit-burst 5 -j ACCEPT
+
+							state扩展：
+
+						练习：
+							(1) 配置本机的dns服务，并放行之；默认策略为drop；
+							(2) 配置本机的telnet服务，要求只允许来自于172.16.0.0/16网络中的主机访问，且只允许工作时间访问，而且，每个来源IP最多的并发连接数不能超过2个；
+
+						博客：iptables
+
+
+			TARGET：
+				-j: jump，跳转目标
+					内置目标：
+						ACCEPT：接受
+						DROP：丢弃
+						REJECT：拒绝
+						
+					自定义链：
+
+
+
+
+
+
+
+

@@ -1,0 +1,449 @@
+马哥linux学习第三天
+
+回顾：
+          stat：
+          文本查看工具：cat，tac，more，less，tail，head
+
+          FHS:
+                /bin, /sbin, /lib, lib64, /etc，/usr/share/
+                /proc, /sys
+                /home
+                /media, /mnt
+                /var
+                /tmp
+                /dev
+                /boot
+          
+           程序的组成部分：
+                            二进制程序、库、配置文件、帮助文件
+
+        bash重要特性之五：命令别名和命令引用
+
+                    命令别名的定义方式：alias ALIAS='COMMMAND'
+                        撤销方式：unalias ALIAS
+                                -a：撤销所有的定义过的命令别名
+
+                        命令别名与命令名称相同时，可使用\COMMAND来调用命令本身，而非命令别名；
+                                    另一种方式：使用命令程序的绝对路径；
+
+                        命令引用：
+                                强引用：' '
+                                弱引用：" "
+                                命令引用：``,$()
+                                    引用一个命令的执行结果，而非命令本身；
+                                                    file 'ls /var'
+         bash重要特性之六：文件名通配(globbing)
+                    文件名中可用的通配符：
+                        *：匹配任意长度的任意字符
+                                    p*d：pad, paaabcd, pd
+                        ?：匹配任意单个字符
+                                    ?d
+                        []：字符范围，匹配指定字符集合中的任意单个字符；
+                                [a-z], [0-9], [a-z0-9]
+                        [^]：字符范围，匹配指定字符集合外的任意单个字符；
+                                [^0-9]
+                        字符集合表示方式：
+                                    [:lower:]：所有的小写字母；
+                                    [:upper:]：所有的大写字母；
+                                    [:alpha:]：所有的字母；
+                                    [:digit:]：所有数字；
+                                    [:alnum:]：所有的字母和数字；
+                                    [:punct:]：所有的标点符号；
+                                    [:space:]：所有的空白字符；
+
+                                    [^[:###:]]：取反
+
+                练习：
+                        1、显示/var目录下所有以l开头，以一个小写字母结尾，且中间出现一位数字(可以有其它字符)的文件或目录；
+                                ls -d /var/l*[0-9]*[[:lower:]]
+                         2、显示/etc目录下，以任意一个数字开头，且以非数字结尾的文件或目录；
+                                ls -d /etc/[0-9]*[^[:digit:]]
+                         3、显示/etc目录下，以非字母开头，后面跟一个字母以及其它任意长度字符的文件或目录
+                                ls -d /etc/[^[:alpha:]][[:alpha:]]*
+                         4、在/tmp目录下，创建以tfile开头，后跟当前日期和时间的文件，文件名形如：tfile-2015-03-27-09-32-22
+                                 touch tfile-$(date +%F-%H-%M-%S)
+
+     echo命令：
+            echo [OPTIONS] [STRING]...
+               -n：关闭自动换行功能
+               -e：启用转义符
+                    \t：tab键
+                    \n：new line
+
+                    \033[
+                        一个数字 另一个数字 m
+                            第一个数字：
+                                        3:字体前景色
+                                        4:背景色
+                            第二个数字：
+                                         颜色：0-7
+
+首先熟悉一下echo命令
+
+名称
+       echo - 显示一行文本
+概要
+       echo [选项]... [字符串]...
+描述
+       向标准输出输出字符串。
+       -n     不输出换行符
+       -e     打开反斜杠ESC转义
+       -E     取消反斜杠ESC转义 (默认)
+       --help 显示帮助
+       --version 显示版本
+
+注意: 要输出颜色必须有 -e 选项。
+
+然后说一下重点：ANSI控制码在输出有颜色文本方面应用。
+
+-e 用来开启echo中的转义
+\e 或 \033 来输出Esc符号
+设置颜色的格式： \e[背景色;前景色;高亮m
+恢复默认为 \e[0m
+其中:
+            背景色可以被以下数字替换
+            0 透明（使用终端颜色）, 40 黑, 41 红, 42 绿, 43 黄, 44 蓝 45 紫, 46 青绿, 47白（灰）
+
+            前景色（也就是文本的颜色）可以被以下数字替换
+            30 黑 31 红, 32 绿, 33 黄, 34 蓝, 35 紫, 36 青绿, 37 白（灰）
+
+            高亮是1，不高亮是0
+            注意m后面紧跟字符串。
+
+            比如:
+            lonelycorn@untbook:~$ echo -e '\033[0;33;1mabc\033[0m'
+            输出
+            abc
+            
+                     3＃：31
+                     4＃：41
+            \033[0m：关闭字体功能
+               \033[31mHello,world.\033[0m
+
+          单个数字，用于控制字体的加粗，下划线等功能
+
+           echo "$SHELL"：回显变量
+
+人的所有的愤怒，都是自己无能为力控诉
+
+          文件管理类命令：cp，mv，rm
+                cp：copy简写
+                        cp SRC DEST
+                                SRC是文件：
+                                        如果DEST不存在，则新建之，并将SRC的内容填充至新文件中；
+                                        如果DEST存在：
+                                                            如果DEST是个文件：则覆盖之
+                                                            如果DEST是个目录：则保持原文件名复制到目标目录中；
+                        cp SRC... DEST
+                                SRC是多个文件：目标只能有一个，且必须是目录，还得事先存在
+                        如果SRC是目录：
+                                        -R, -r, --recursive：递归复制
+                                        -P, --no-dereference：不跟踪符号链接指向的源文件
+                                        --preserve={mode|ownership|timestamps|links|xattr|context|all}：保留原文件的属性信息
+                                        -a,--archive：归档，常用于备份时保留原文件的所有属性；相当于-dR --preserve=all
+                                        -i,--interactive：覆盖目标文件之前提醒用户
+                                        -f,--force：强制覆盖；
+                                        -l,--link：为文件创建硬链接而不是复制文件；
+                                        -v：verbose
+
+君子不立于危墙之下！！
+
+              练习：
+                        1、复制/etc目录下所有以p开头，以非数字结尾的文件或目录到/tmp/mytest1目录中；
+                                       mkdir /tmp/mytest1
+                                       cp  -rv /etc/p*^[0-9] /tmp/mytest1
+                        2、复制/etc目录下所有以.d结尾的文件或目录至/tmp/mytest2目录中；
+                                        mkdir /tmp/mytest2
+                                        cp -r /etc/*.d /tmp/mytest2
+                        3、复制/etc目录下所有以l或n或m开头，以.conf结尾的文件至/tmp/mytest3目录中；
+                                        mkdir /tmp/mytest3
+                                        cp -r /etc/{l,m,n}*.conf /tmp/mytest3
+                                        cp -r /etc/[lmn]*.conf /tmp/mytest3
+
+          mv命令：move
+                      mv SRC DEST
+                      mv SRC... DEST
+                                -i：交互式
+                                -f：强制覆盖
+                                -v：显示过程
+
+           rm命令：remove
+                       -r：递归删除
+                       -f：强制删除
+
+    文本管理类命令：
+                        nano：全屏幕文本编辑器
+
+                        wc：word count
+                                    wc [OPTION]... [FILE]...
+                                        -l，--lines：仅统计行数
+                                        -w，words：仅统计单词数
+                                        -c，--bytes：仅统计字节数
+                        
+                        cut：
+                                    cut [OPTION]... [FILE]...
+                                                -d：指明分隔符
+                                                                -d' '：表示以空格为分隔符；
+                                                                -f：指明要保留的字段；
+                                                                            单个：＃
+                                                                            离散的多个：＃，＃，＃
+                                                                            连续的多个：＃-＃
+    
+                        sort：排序
+                              sort [OPTION]... [FILE]...
+                                        -r：逆序；
+                                        -f：忽略字符的大小写；
+                                        -t：指定字段分隔符
+                                        -k：指明分隔以后的字段
+                                        -n：按数值大小排序
+                                                     sort -t: -k3  -n /etc/passswd
+                                        -u：排序之后去重
+
+                        uniq：
+                                -i：忽略大小写
+                                -d：仅显示重复了的行；
+                                -u：仅显示不曾重复的行；
+                                -c：去重后显示每一行出现的次数；
+                               
+ bash特性之七：输入、输出重定向和管道
+
+                        程序：指令＋数据
+                                        算法＋数据结构
+
+                                数据输入：交互式、文件、进程
+                                数据输出：监视器、文件、进程
+
+                                file descriptor：fd
+
+                                标准输入(stdin)：0，键盘
+                                标准输出(stdout)：1，监视器
+                                错误输出(stderr)：2，监视器
+
+                                正常输出和错误输出是两个不同的数据流；
+
+                        重定向：
+                                输出重定向：>，>>
+                                            COMMAND > NEW_POSITION：覆盖重定向，会清空文件中原有的数据；
+                                                        注意：危险操作；关闭此功能，可使用“set -C”，相反操作为“set +C”
+                                            COMMAND >>NEW_POSITION：追加重定向，新数据会被附加在原文件数据的后面；
+                        
+                                错误输出重定向：2>, 2>>
+                                            COMMAND 2> NEW_OUTPUT
+                                            COMMAND 2>> NEW_OUTPUT
+
+                                同时定向两种输出数据流
+                                            方法一：
+                                            COMMAND > OUT_FILE 2>&1
+                                            COMMAND >> OUT_FILE 2>&1
+
+                                            方法二：
+                                            COMMAND &> OUT_FILE
+                                            COMMAND &>> OUT_FILE
+
+                                 输入重定向：
+                                            COMMAND < NEW_IN
+
+                                            tr 命令：
+                                                     tr [OPTION]... SET1 [SET2]
+                                                                    把输入数据中的，在SET1中的每个字符对应地替换为SET2中的每个字符；
+                                                                    -d：删除在输入的数据流中出现的属于SET1的每个对应的字符；
+                                            COMMAND << EOF
+                                                    Here Document
+
+                                管道：｜
+                                          COMMAND1 | COMMAND2 | COMMAND3 | ...
+                                最难的不是管道，而是对命令的掌握
+
+                                多到输出：
+                                            COMMAND | tee /PATH/TO/SOMEFILE
+                                                        COMMAND的输出既能至监视器，又能保存至/PATH/TO/SOMEFILE指向的文件中；
+
+                            
+                练习：
+                        1、列出当前系统上所有已登陆的用户名；
+                                注意：同一个用户登录多次，则只显示一次即可；
+                            [root@vBird ~]# who | cut -d' ' -f1 | sort -u
+                            root
+                            vBird
+                            [root@vBird ~]# 
+
+                        2、取出最后登录到当前系统的用户的相关信息；
+                            [root@vBird ~]# who | tail -1
+                            root     pts/1        2015-11-04 12:25 (192.168.0.111)
+                        3、取出当前系统上被用户当作其默认使用的最多的那个shell；
+                            [root@vBird ~]# cut -d: -f7 /etc/passwd | sort | uniq -c | sort -n | tail -1
+                                 29 /sbin/nologin
+                            [root@vBird ~]# 
+
+                        4、将/etc/passwod中的第三个字段数值最大的后10个用户的信息全部改为大写后保存至/tmp/maxuser.txt文件中
+                            [root@vBird ~]# sort -t: -k3 -n /etc/passwd | tail -n 10 | tr 'a-z' 'A-Z' > /tmp/maxuser.txt
+                            [root@vBird ~]# cat /tmp/maxuser.txt 
+                            POSTFIX:X:89:89::/VAR/SPOOL/POSTFIX:/SBIN/NOLOGIN
+                            NOBODY:X:99:99:NOBODY:/:/SBIN/NOLOGIN
+                            USBMUXD:X:113:113:USBMUXD USER:/:/SBIN/NOLOGIN
+                            AVAHI-AUTOIPD:X:170:170:AVAHI IPV4LL STACK:/VAR/LIB/AVAHI-AUTOIPD:/SBIN/NOLOGIN
+                            ABRT:X:173:173::/ETC/ABRT:/SBIN/NOLOGIN
+                            PULSE:X:497:496:PULSEAUDIO SYSTEM DAEMON:/VAR/RUN/PULSE:/SBIN/NOLOGIN
+                            SASLAUTH:X:498:76:"SASLAUTHD USER":/VAR/EMPTY/SASLAUTH:/SBIN/NOLOGIN
+                            RTKIT:X:499:497:REALTIMEKIT:/PROC:/SBIN/NOLOGIN
+                            VBIRD:X:500:500:VBIRD CHAI:/HOME/VBIRD:/BIN/BASH
+                            NFSNOBODY:X:65534:65534:ANONYMOUS NFS USER:/VAR/LIB/NFS:/SBIN/NOLOGIN
+                            [root@vBird ~]# 
+
+                        5、取出当前主机的ip地址
+                            提示：对ifconfig命令的结果进行划分：
+                            [root@vBird ~]# ifconfig | head -2 | tail -1 | cut -d: -f2 | cut -d' ' -f1
+                            192.168.0.116
+                            [root@vBird ~]# 
+
+                练习：
+                        1、列出/etc目录下所有以.conf结尾的文件的文件名，并将其名字转换为大写后保存至/tmp/etc.conf文件中；
+                            [root@vBird ~]# ls -d /etc/*.conf | tr 'a-z' 'A-Z' > /tmp/etc.conf
+                                                    2、显示/var目录下一级子目录或文件的总个数；
+                            [root@vBird ~]# ls  /var/ | wc -l
+                            21
+                            [root@vBird ~]# 
+                        3、取出/etc/group文件中第三个字段数值最小的10个组的名字；
+                            [root@vBird ~]# sort -t: -k3 -n /etc/group | head | cut -d: -f1
+                            root
+                            bin
+                            daemon
+                            sys
+                            adm
+                            tty
+                            disk
+                            lp
+                            mem
+                            kmem
+                        4、将/etc/fstab和/etc/issue文件的内容合并为同一个内容后保存至/tmp/etc.test文件中；                                
+                            [root@vBird ~]# cat /etc/fstab /etc/issue > /tmp/etc.test
+                              cat /etc/{fstab,issue} > /tmp/etc.test
+
+用户、组和权限的管理：
+                    用户：
+                            表示符：
+                                        用户名，用户ID
+
+                            登录：
+                                        用户名，密码
+
+                            认证机制：
+                                    生物特征识别
+
+                            认证、授权、审计
+                                            authentication
+                                            authorizaton
+                                            audition
+
+                            进程(动态的)：以特定用户身份运行
+                            文件(静态的)：以属主、属组等从属关系
+
+                    组：将多个用户与权限建立关联关系的容器；
+                        组有两类：
+                                    管理员组：root，0
+                                    普通组：1-65535
+                                            系统组：1-499
+                                            普通组：500+                            
+
+                    权限：资源的支配边界；
+
+                    用户有两类：
+                                   管理员：root，0
+                                    普通用户：1-65535（使用16位二进制表示每一位用户的id号）                
+                                            系统用户：1-499
+                                                         仅用于运行某些服务类进程而存在，一般不用于登陆系统；
+                                            普通用户：500+
+                                                        交互式登录
+
+                     权限：
+                            r：readable
+                            w：writable
+                            x：executable
+
+                  三种权限相互独立
+
+                                文件：
+                                        r：可使用查看工具查看其内容；
+                                        w：可编辑其内容；
+                                        x：可将此文件向内核提请启动为进程
+
+                                目录：
+                                        r：可以使用ls命令列出其内部所有文件或子目录的相关信息；
+                                        w：在此目录内创建或删除文件；
+                                        x：可以cd进此目录，可以使用ls -l查看其内部所有文件或子目录的相关详细信息；
+
+                用户启动某进程访问某文件资源时，权限匹配机制；
+                                    1、首先查看此进程的属主，与被访问的文件的属主是否是同一个用户；
+                                                        如果是：则以被访问的文件的属主的身份来访问它；从而应用权限为属主的权限；
+                                                        如果不是：则查看此进程的属组
+                                    2、查看此进程的属组，是否属于被访问的文件的属组；
+                                                        如果是：则以被访问的文件的属组的身份来访问它；从而应用的权限为属组的权限；
+                                                        否则：则应用的是其它类别的权限；
+
+                    组的类别：一个用户可同时属于多个组
+                            以用户为中心：
+                                            基本组
+                                            附加组
+
+                    管理用户和组：useradd, passwd, userdel ,usermod,groupadd,gpasswd,groupdel,
+
+                                    useradd：
+                                            useradd [OPTIONS] LOGIN
+                                                    -u UID：指明UID
+                                                    -g GID ：指明基本组的GID；GID对应的组需要事先存在；
+                                                    -c 'COMMENT'：指明注释信息
+                                                    -d /path/to/somedir：指明家目录；
+                                                    -s /bin/shell：指明默认使用的shell；
+                                                    -D：修改添加用户的默认信息
+                                                            修改/etc/default/useradd中的信息
+                                                                        例子:useradd －D －s /bin/bash     将添加用户默认信息shell改为/bin/bash            
+
+                                            注意：创建用户时如果没有指定基本组，则useradd会自动为其添加一个与当前用户同名的组；且其GID一般痛UID；
+
+                                    passwd：修改密码
+                                                用法：
+                                                    passwd：修改自己的密码；
+                                                    passwd USERNAME：修改指定用户的吗；只有管理员root有此权限；
+
+                                                                 好密码：
+                                                                            1、使用四类字符至少三类；
+                                                                            2、长度不宜太短；
+                                                                            3、好密码策略：定期更换密码，但不要重复使用最近用过的密码；
+                                                                            
+                                    usermod：修改用户属性
+                                            
+                                    userdel：删除用户
+                                                    userdel [-r] LOGIN
+                                                        -r：删除用户的同时，删除其家目录；
+                                                        
+                                    groupadd：添加组
+                                                groupadd [OPTIONS] group
+                                                        -g GID：指明要使用的GID；
+
+                                    gpasswd：为组添加密码
+
+                                    groupdel：删除组
+                                                 groupdel GROUP
+
+                                    groupmod：修改组属性
+                                                -g GID：修改GID
+                                                -n NEWNAME：修改组名；
+
+                练习：
+                        1、创建组distro，其GID为2015
+                            [root@vBird ~]# groupadd -g 2015 distor
+                                   
+                         2、创建用户mandriva，其ID号为1005； 基本组为distro
+                            [root@vBird ~]# useradd -u 1005 -g distro mandriva
+
+                         3、创建用户mageia，其ID号为1100，家目录为/home/linux;
+                            [root@vBird ~]# useradd -u 1100 -d /home/linux mageia
+
+                         4、给用户mageia添加密码，密码为mageedu；
+                            [root@vBird ~]# passwd mageia
+                    
+                         5、删除mandriva，但保留其家目录；
+                            [root@vBird ~]# userdel mandriva
+
+        
+

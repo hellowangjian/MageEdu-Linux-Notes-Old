@@ -1,0 +1,348 @@
+马哥Linux2016全新学习第33天（dhcp、ansible、tftp及pxe）
+
+DHCP：
+
+	DHCP：Dynamic Host Configuration Protocol
+		IP/Netmask
+		Gateway
+		DNS Server
+
+	bootp：boot protocol --> dhcp
+		租约：
+			2hours：
+				50%：1hours --> 2hours
+					50%：1hours --> 2hours
+						75%：0.5hours --> 2hours
+							87.5%：0.25hours --> 2hours
+	
+		1、Client：dhcp discover：发现，广播
+		2、Server：dhcp offer：(IP/netmask,gw)，单播
+		3、Client：dhcp request
+		4、Server：dhcp ack
+
+		续租：
+			Client：dhcp request
+			Server：dhcp ack
+
+			Server：dhcp nak
+
+		Linux DHCP协议的实现程序：dnsmasq、dhcp
+
+		dhcp：
+			/usr/sbin/dhcpd
+				/etc/dhcp/dhcpd.conf --> /etc/rc.d/init.d/dhcpd
+				/etc/dhcp/dhcpd6.conf --> /etc/rc.d/init.d/dhcpd6
+			/usr/sbin/dhcrelay
+				/etc/rc.d/init.d/
+
+			Server：67/udp
+			dhclient：68/udp
+
+			地址分配记录：
+				 /var/lib/dhcpd/dhcpd.leases
+
+		dhcpd.conf
+			option domain-name：搜索域
+				option domain-name "magedu.com";
+			option domain-name-servers：非配给client的dns server；
+				option domain-name-servers 210.22.70.3,8.8.8.8;
+			default-lease-time：默认租约期限，单位为秒
+				default-lease-time 42300;
+			max-lease-time：最大租约期限，单位为秒
+				max-lease-time 84600;
+			option routers：网关，一般配置在subnet{
+				option routers 192.168.100.254;
+			}中
+
+			subnet {
+				...
+			}
+
+			host {
+
+			}
+
+		其它配置选项：
+			# man dhcpd.conf
+			filename：指明引导文件名称；
+			next-server：提供引导文件的服务器IP地址；通常为tftp server；
+			group {
+	         filename "Xncd19r";
+	         next-server ncd-booter;
+
+	         host ncd1 { hardware ethernet 0:c0:c3:49:2b:57; }
+	         host ncd4 { hardware ethernet 0:c0:c3:80:fc:32; }
+	         host ncd8 { hardware ethernet 0:c0:c3:22:46:81; }
+	       }
+
+	tftp:
+		/var/lib/tftpboot：根目录；
+
+	    安装tftp：
+	    	# yum install xinetd.x86_64
+	    	# yum install tftp-server
+	    	# rpm -ql tftp-server
+			/etc/xinetd.d/tftp
+			/usr/lib/systemd/system/tftp.service
+			/usr/lib/systemd/system/tftp.socket
+
+		启动：
+			# systemctl start tftp.socket
+			# systemctl start tftp.service
+			# netstat -unlp
+			Active Internet connections (only servers)
+			Proto Recv-Q Send-Q Local Address           Foreign Address         State       PID/Program name    
+			        
+			udp6       0      0 :::69                   :::*                                1/systemd           
+   	
+   			CentOS 7上超级守护进程已经被systemd代替；
+
+		CentOS 6启动方式：
+			# vim /etc/xinetd.d/tftp
+			service tftp
+			{
+			        socket_type             = dgram
+			        protocol                = udp
+			        wait                    = yes
+			        user                    = root
+			        server                  = /usr/sbin/in.tftpd
+			        server_args             = -s /var/lib/tftpboot
+			        disable                 = no                            #默认为yes,这里我们将其更改为no
+			        per_source              = 11
+			        cps                     = 100 2
+			        flags                   = IPv4
+			} 
+
+			# service xinetd start
+			# netstat -unlp 
+			Active Internet connections (only servers)
+			Proto Recv-Q Send-Q Local Address           Foreign Address         State       PID/Program name    
+			udp        0      0 0.0.0.0:69              0.0.0.0:*                           4704/xinetd   
+
+	PXE：preboot execute environment, Intel公司研发；
+		依赖：dhcp，tftp，file server（yum repository）
+
+		syslinux：
+			SYSLINUX is a suite of bootloaders；
+
+		CentOS 6 PXE：
+			# yum install syslinux
+			# cp /usr/share/syslinux/pxelinux.0 /var/lib/tftpboot/
+
+			# mount -r -t iso9660 /dev/cdrom /media/cdrom
+			# cd /media/cdrom/images/pxeboot/
+			pxeboot]# cp vmlinuz initrd.img /var/lib/tftpboot/
+			# cd /media/cdrom/isolinux/
+			isolinux]# cp boot.cat vesamenu.c32 splash.png /var/lib/tftpboot/
+			# mkdir /var/lib/tftpboot/pxelinux.cfg
+			isolinux]# cp isolinux.cfg /var/lib/tftpboot/pxelinux.cfg/default
+
+			# vim /etc/dhcp/dhcpd.conf
+			subnet 192.168.10.0 netmask 255.255.255.0 {
+			        range 192.168.10.151 192.168.10.200;
+			        option routers 192.168.10.1;
+			        filename "pxelinux.0";
+			        next-server 192.168.10.26;
+			}
+
+
+
+		CentOS 7 PXE
+			# yum install syslinux
+			# cp /usr/share/syslinux/pxelinux.0 /var/lib/tftpboot/
+
+			# mount -r -t iso9660 /dev/cdrom /media/cdrom
+			# cd /media/cdrom/images/pxeboot/
+			pxeboot]# cp vmlinuz initrd.img /var/lib/tftpboot/
+			# cp /usr/share/sysliux/{chain.c32,mboot.c32,menu.c32,memdisk} /var/lib/tftpboot
+			# mkdir /var/lib/tftpboot/pxelinux.cfg
+			
+			创建/var/lib/tftpboot/pxelinux.cfg/default
+			内容类似如下
+				default menu.c32
+				prompt 5
+				timeout 30
+				MENU TITLE CentOS 7 PXE Menu
+
+				LABEL LINUX
+				MENU LABEL INSTALL CentOS 7 x86_64
+				KERNEL vmlinuz
+				APPEND initrd=initrd.img inst.repo=http://172.16.100.67/centos7 ks=http://172.16.100.67/centos7.cfg
+
+Ansible：
+	
+	运维工作：系统安装（物理机、虚拟机） --> 程序包安装、配置、服务启动 --> 批量操作 --> 程序发布 --> 	监控
+
+	OS Provisioning：
+		物理机：PXE、Cobbler
+		虚拟机：Image Templates
+	Configration：
+		puppet (ruby)
+		saltstack (python)
+		chef
+		chengine
+	Command and Control：
+		fabric
+		func
+
+	预发布验证：
+		新版本的代码先发布到服务器（跟线上环境配置完全相同，只是未接入到调度器）；
+
+	程序发布：
+		不能影响用户体验；
+		系统不能停机；
+		不能导致系统故障或造成系统完全不可用；
+
+	灰度发布：
+		非批次调度下线
+
+		发布路径：
+			/webapp/tuangou-1.1
+			/web/app/tuangou
+			/webapp/tuangou-1.2
+
+		在调度器上下线一批主机（maintanance）--> 关闭服务 --> 部署新版本的应用程序 --> 启动服务 --> 再调度器上启用这一批服务器；
+
+		自动化灰度发布：脚本、发布平台；
+
+	运维工具的分类：
+		agent：puppet,func
+		agentless：ansible, fabric
+			ssh
+
+	ansible:
+		模块化：调用特定的模块，完成特定的任务；
+		基于Python语言实现，由Paramiko、PyYAML和Jinja2三个关键模块；
+		部署简单，agentless；
+		主从模式
+		支持自定义模块
+		支持Playbook
+
+		幂等性；
+
+		安装ansible：epel源
+			# yum install ansible -y
+
+		配置文件：
+			/etc/ansible/ansible.cfg
+			/etc/ansible/hosts
+
+回顾：pxe，ansible
+	
+	pxe：
+		网卡支持网络引导；
+		dhcp，filename，next-server
+		tftp-server
+			pxelinux.0  #bootstrap(bootloader)
+			vmlinuz,initrd.img  # linux内核，出自安装光盘
+			menu.c32			# 显示菜单
+			pxelinux.cfg/default # 引导信息配置文件
+
+		system-config-kickstart
+		ksalidator
+
+	ansible：
+		os provision：
+			物理机：pxe, cobbler
+			虚拟机：image file template
+		configuration：
+			程序包管理、用户管理、配置文件、服务管理、cron任务等等；
+			puppt, saltstack, chef, cfengine
+		task exec：
+			command and control
+			func, fabric
+
+		程序发布：恢复模型
+
+	agent
+	agentless：
+		ssh服务；
+
+ansible：
+	
+	ansible <host-pattern> [-m module_name] [-a args] [options]
+		args：
+			key=value
+
+			注意：comman模块要执行的命令无需为key=value模式，而是直接给出要执行的命令即可；
+
+		常用模块：
+			command
+				-a 'COMMAND'
+				# ansible webservs -m command -a 'ifconfig'
+			user
+				-a 'name stat={present|absent} system= uid='
+				# ansible webservs -m user -a "name=hacluster state=present"
+				# ansible webservs -m user -a "name=hacluster state=absent"
+			group
+				-a 'name= gid= state= system='
+			cron 
+				-a 'name= minute= hour= day= mounth= weekday= job= user= state='
+				# ansible all -m cron -a 'name="sysnc time form ntpserver"  minute="*/10" job="/sbin/ntpdata 192.168.10.1 &> /dev/null"'
+			copy
+				-a 'dest=  src= mode= owner= group='
+				# ansible webservs -m copy -a 'src=/etc/fstab dest=/tmp/fstab.tmp mode=600'
+			file：Sets attributes of files
+				-a 'path= mode= owner= group= state={directory|like|present|absent} src='
+				# ansible webservs -m file -a 'path=/tmp/fstab.symlink state=link src=/tmp/fstab.tmp'
+				# ansible webservs -m file -a 'path=/tmp/fstab.symlink state=absent'
+			ping
+				无参数
+				# ansible all -m ping
+					192.168.10.77 | SUCCESS => {
+					    "changed": false, 
+					    "ping": "pong"
+					}
+					192.168.10.66 | SUCCESS => {
+					    "changed": false, 
+					    "ping": "pong"
+					}
+			yum 
+				-a 'name= state='{present|latest|absent}'
+					# ansible webservs -m yum -a 'name=nginx state=latest'
+			service
+				-a 'name= state={started|stopped|restarted} enabled='
+				# ansible webservs -m service -a 'name=httpd state=started enabled=yes'
+				# ansible webservs -m service -a 'name=httpd state=stopped enabled=no'
+			shell
+				-a 'COMMAND'
+				# ansible webservs -m shell -a 'echo centos | passwd --stdin centos'
+			script
+				Runs a local script on a remote node after transferring it
+				-a '/path/to/script'
+				# ansible webservs -m script -a '/tmp/test.sh'
+			setup
+				无参数
+				Gathers facts about remote hosts
+				# ansible webservs -m setup
+
+	playbook的核心元素：
+		tasks：任务
+		variables：变量
+		templates：模版
+		handlers：处理器
+		roles：角色
+
+	变量：
+		facts
+		--extra-vars "name=value name=value"
+		role定义
+		Inverntory中的变量
+			主机变量
+				hostname name=value name=vale
+			组变量
+				[groupname:vars]
+				name=value
+				name=value
+
+	Inventory的高级用法：
+		1、主机可以分组
+		2、可以向主机传递变量
+		3、可以向主机传递参数
+		4、组可以嵌套
+		5、向组传递参数
+
+
+
+
+

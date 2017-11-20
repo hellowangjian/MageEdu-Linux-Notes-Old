@@ -1,0 +1,915 @@
+马哥Linux学习第三十七天（varnish、vcl）
+
+回顾：
+	haproxy：
+		tcp lb, http reverse proxy
+
+
+		配置：
+			global
+			proxies：
+				defaults
+				frontend
+				backend
+				listen
+
+				参数：bind，mode，cookie，balance，server，log，maxcon，use_backend，default_backend，acl
+
+			balance：
+				roundrobin，static-rr，leastconn，source，uri，url_param，hdr(HEADER)，rdp
+				hash-type：
+					map-based
+					consistent
+
+			acl:
+				acl <name> creterion flags operator value
+					path, path_beg, path_end, src, src_port, dst, dst_port, url_beg, url_end, url_reg, path_reg, hdr(HEADER)
+
+web Cache
+
+	程序具有局部性：
+		时间局部性
+		空间局部性
+
+		key-value：
+			key：访问路径，URL，hash
+			value：web content
+
+		热点数据：
+
+	命中率：hit/(hit+miss)
+		文档命中率：从文档个数进行衡量；
+		字节命中率：从内容大小进行衡量；
+
+	注意：
+		缓存对象：生命周期；
+		缓存空间耗尽：LRU（最近最少使用）
+		可缓存，不可缓存（用户私有数据）
+
+	缓存处理的步骤：
+		接受请求 --> 解析请求 （提取请求的URL及各首部）--> 查询缓存 --> 新鲜度检测 --> 创建响应报文 --> 发送响应 --> 记录日志
+
+	新鲜度检测机制：
+		过期日期：
+			HTTP/1.0 Expires 
+				Expires:Fri, 16 Jun 2017 14:50:58 GMT
+			HTTP/1.1 Cache-Control：max-age
+				Cache-Control:max-age=600
+
+		有效性再验证：revalidate
+			如果原始内容未改变，则仅响应首部（不附带body部分），响应码304（Not Modified）
+			如果原始内容发生改变，则正常响应，响应码200；
+			如果原始内容消失，则响应404，此时缓存中的cache object也应该被删除；
+
+		条件式请求首部：
+			If-Modified-Since：基于请求内容的时间戳作验证；
+			If-Unmodified-Since：
+			If-Match
+			If-None-Match：
+				Etag：faiy89345
+
+
+	常见的缓存服务开源解决方案：
+		varnish，squid （类似nginx --> apache）
+		nginx，apache
+
+	varnish：
+		http://www.varnish-cache.org
+
+		管理进程：编译VCL并应用新配置、监控varnish、初始化varnish，并提供一个CLI；
+		Child/Cache线程有几类：
+			Acceptor：接收新的连接请求；
+			Worker：用于处理并响应用户请求；
+			Expiry：从缓存中清理过期cache object
+
+		日志：Shared Memory Log,  共享内存内存日志大小一般90MB；分为两部分：前一部分为计数器、后一部分为客户请求相关的数据；
+
+		vcl：Varnish Configuration Language
+			缓存策略配置工具；
+			基于“域”的简单编程语言；
+
+			state engine：
+				vcl配置的缓存策略在此些state engine发挥作用；
+					vcl的配置语法：
+						(1) //, #, /*comment*/用于注释；
+						(2) sub $NAME 用于定义函数；
+						(3) 不支持循环；
+						(4) 有众多内置变量；
+						(5) 支持终止语句，没有返回值；
+						(6) “域”专用语言；
+						(7) 操作符: =, ==, ~, !, &&, ||
+
+				state engine之间有相关性，上级engine通过return指明下级engine；
+					vcl_recv
+					vcl_pipe
+					vcl_pass
+					vcl_hash
+					vcl_hit
+					vcl_miss
+					vcl_fetch
+					vcl_deliver
+					vcl_error
+
+			varnish支持后端缓存存储机制：
+				-s type
+					malloc[,size]
+					file[,path[,size[,granularity]]]
+					persistent,path,size
+
+			1、安装varnish
+				# yum install gcc  #依赖gcc编译vcl配置文件
+				# rpm -ivh varnish-3.0.7-1.el6.x86_64.rpm varnish-libs-3.0.7-1.el6.x86_64.rpm
+
+			2、相关配置文件：
+				# rpm -ql varnish
+				/usr/sbin/varnishd   #主程序
+				/etc/sysconfig/varnish  #varnish工作特性配置文件
+				/etc/varnish/default.vcl 	#配置缓存策略
+				/etc/rc.d/init.d/varnish  #服务脚本
+				/etc/rc.d/init.d/varnishlog #日志保存服务脚本
+				/etc/rc.d/init.d/varnishncsa #日志保存服务脚本
+				/var/lib/varnish  #varnish运行状态数据文件目录
+
+			3、varnishd
+				HTTP accelerator daemon
+
+				 -a address[:port][,address[:port][...]：监听的地址和端口，默认6081/tcp
+				 -b host[:port]：指定后端服务器。一般在vcl配置文件中配置。
+				 -d：dubg模式
+				 -h：指明hash算法
+				 -s type：使用指定的存储后端
+					malloc[,size]
+						size：K,M,G,T
+					file[,path[,size[,granularity]]]
+					persistent,path,size
+				-T address[:port]：监听的管理端口，默认6082/tcp
+
+			4、/etc/sysconfig/varnish 
+				NFILES=131072：能够打开的最大文件数，自动调整。
+				MEMLOCK=82000：锁定的内存空间，自动调整。
+				NPROCS="unlimited"：能够运行的线程/进程数量。
+				RELOAD_VCL=1：是否自动重新装置VCL配置文件。
+
+				## Alternative 3, Advanced configuration
+				VARNISH_VCL_CONF=/etc/varnish/default.vcl  #缓存策略配置文件。
+				VARNISH_LISTEN_PORT=80  #varnish监听的端口。默认为6081.
+				VARNISH_ADMIN_LISTEN_ADDRESS=127.0.0.1	#监听的管理地址
+				VARNISH_ADMIN_LISTEN_PORT=6082		#监听的管理端口
+				VARNISH_SECRET_FILE=/etc/varnish/secret #密钥文件路径
+				VARNISH_MIN_THREADS=50	#varnish在启动时，启动的空闲线程。
+				VARNISH_MAX_THREADS=1000	#varnish最多启动的线程。
+				VARNISH_THREAD_TIMEOUT=120	#线程空闲超时时间。
+				VARNISH_STORAGE_FILE=/var/lib/varnish/varnish_storage.bin	#缓存文件路径。
+				VARNISH_STORAGE_SIZE=1G  #缓存文件大小。
+					VARNISH_STORAGE_SHM=64
+				VARNISH_STORAGE="file,${VARNISH_STORAGE_FILE},${VARNISH_STORAGE_SIZE}"
+					VARNISH_STORAGE="malloc,${VARNISH_STORAGE_SHM}"
+
+			5、启动varnish服务
+				# service varnish start
+				# ss -tnl
+				State      Recv-Q Send-Q                      Local Address:Port                        Peer Address:Port 
+				LISTEN     0      10                              127.0.0.1:6082                                   *:*     
+				LISTEN     0      128                                    :::80                                    :::*     
+				LISTEN     0      128                                     *:80                                     *:*     
+
+			6、配置后端backend主机
+				# cp /etc/varnish/default.vcl /etc/varnish/default.vcl.bak
+				# vim /etc/varnish/default.vcl 
+					backend default {
+					  .host = "172.16.100.6";
+					  .port = "80";
+					}
+				# service varnish reload
+				Loading vcl from /etc/varnish/default.vcl
+				Current running config name is boot
+				Using new config name reload_2017-06-14T08:36:40
+				VCL compiled.
+
+				available       0 boot
+				active          0 reload_2017-06-14T08:36:40
+
+				Done
+
+			7、varnishadm
+				专用的varnish命令行管理工具
+				# varnishadm -S /etc/varnish/secret -T 127.0.0.1:6082
+				vcl.list：查看当前使用的配置
+					varnish> vcl.list
+					200        
+					available       0 boot
+					available       0 reload_2017-06-14T08:36:40
+					active          2 test1
+
+				vcl.load <configname> <filename>：加在新的配置，指明配置名和vcl配置文件路径；
+					varnish> vcl.load test1 default.vcl
+					200        
+					VCL compiled.
+
+				vcl.use <configname>：使用指定的可用配置；
+					varnish> vcl.use test1
+					200        
+
+
+	测试是否命中：
+	sub vcl_deliver {
+	        set resp.http.X-Age = resp.http.Age;
+	        unset resp.http.Age;
+
+	        if (obj.hits > 0) {
+	                set resp.http.X-Cache = “HIT”;
+	        } else {
+	                set resp.http.X-Cache = “MISS”;
+	        }
+	}
+
+	https://www.varnish-cache.org/docs/3.0/reference/vcl.html#varnish-configuration-language
+
+
+回顾：
+
+	http cache：
+		Expires
+		Cache-Control: max-age
+			s-maxage
+
+		Cache-Control: no-cache
+			no-store
+			must-revalidate：要求服务器重新验证缓存的有效性；
+
+		条件式请求：
+			If-Modified-Since
+			If-None-Match
+
+		与缓存相关的方法：GET, HEAD
+
+		缓存时需要考虑到首部：Authorization, Cookie, Vary: accept-encoding=
+
+	varnish: 
+		vcl: varnish配置语言，配置varnish缓存策略；
+		“域”类型：
+			state engine:
+				vcl_recv
+				vcl_pipe
+				vcl_pass
+				vcl_hash
+				vcl_hit
+				vcl_miss
+				vcl_fetch
+				vcl_deliver
+				vcl_error
+
+			/etc/varnish/default.vcl
+
+			varnishadm
+				-S /etc/varnish/secret -T IP:PORT
+
+				vcl.load
+				vcl.use
+				vcl.show
+				vcl.discard
+
+		backend storage:
+			malloc
+			file
+			persistent	
+
+varnish：
+	
+	在vcl中使用条件判断：
+
+		单分支：
+			if (CONDITION) {
+				...;
+			}		
+
+		双分支：
+			if (CONDITION) {
+				...;
+			} else {
+				...;
+			}
+
+		多分支：
+			if (CONDITION1) {
+				...
+			} elseif (CONDITION2) {
+				...
+			} else {
+				...
+			}
+
+		if(obj.hits>0) {
+			set resp.http.X-Cache = "HIT";
+		} else {
+			set resp.http.X-Cache = "MISS";
+		}
+
+	常用变量：
+		1、在任何引擎中均可使用：
+			now, .host, .port
+
+		2、用于处理请求阶段：vcl_recv,vch_hach,vcl_pipe,vcl_pass
+			client.ip, server.hostname, server.ip, server.port
+			req.request：请求方法
+			req.url: 请求的URL
+			req.proto: HTTP协议版本
+			req.backend: 用于服务此次请求的后端主机；
+			req.backend.healthy: 后端主机健康状态；
+			req.http.HEADER: 引用请求报文中指定的首部; 
+			req.can_gzip：客户端是否能够接受gzip压缩格式的响应内容；
+			req.restarts: 此请求被重启的次数；
+
+		3、varnish向backend主机发起请求前可用的变量
+			bereq.request: 请求方法
+			bereq.url:
+			bereq.proto:
+			bereq.http.HEADER
+			bereq.connect_timeout: 等待与be建立连接的超时时长
+
+		4、backend主机的响应报文到达本主机(varnish)后，将其放置于cache中之前可用的变量
+			beresp.do_stream: 流式响应；
+			beresp.do_gzip：是否压缩之后再存入缓存；
+			beresp.do_gunzip：是否解压缩后再存入缓存；
+			beresp.http.HEADER：
+			beresp.proto: 
+			beresp.status：响应状态码
+			beresp.response：响应时的原因短语
+			beresp.ttl：响应对象剩余的生存时长，单位为second；
+			beresp.backend.name: 此响应报文来源backend名称；
+			beresp.backend.ip
+			beresp.backend.port
+			beresp.storage：强制响应的内容存储至指定的存储中；
+
+		5、缓存对象存入cache之后可用的变量
+			obj.proto
+			obj.status
+			obj.response
+			obj.ttl
+			obj.hits：缓存对象被命中的次数；
+			obj.http.HEADER
+
+		6、在决定对请求键做hash计算时可用的变量
+			req.hash
+
+		7、在为客户端准备响应报文时可用的变量
+			resp.proto
+			resp.status
+			resp.response
+			resp.http.HEADER
+
+	状态引擎：
+		vcl_init：在装载vcl，用其处理任何请求之前；
+		vcl_recv：请求被接入，但在其被分析、处理完成之前；
+			是否服务此请求、如何服务、使用哪个后端主机为其提供服务；
+
+
+	示例：
+	# Drop any cookies sent to Wordpress.
+		sub vcl_recv {
+			if (!(req.url ~ "wp-(login|admin)")) {
+				unset req.http.cookie;
+			}
+		}
+
+		sub vcl_recv {
+		  if (req.http.host ~ "(?i)^(www.)?magedu.com$") {
+		    set req.http.host = "www.magedu.com";
+		    set req.backend = www;
+		  } elsif (req.http.host ~ "(?i)^images.magedu.com$") {
+		    set req.backend = images;
+		  } else {
+		    error 404 "Unknown virtual host";
+		  }
+		}
+
+		sub vcl_recv {
+			if (client.ip == "172.16.100.1"){
+				error 404 "Liangshan"
+			}
+		}
+
+
+		
+		# Drop any cookies Wordpress tries to send back to the client.
+		sub vcl_fetch {
+			if (!(req.url ~ "wp-(login|admin)")) {
+				unset beresp.http.set-cookie;
+			}
+		}
+
+	vcl_fetch状态引擎：
+		从backend主机收到响应报文之前被调用；可return的值：
+			deliver
+			error code [reason]
+			restart
+
+
+
+
+
+	移除单个缓存对象
+
+		purge用于清理缓存中的某特定对象及其变种(variants)，因此，在有着明确要修剪的缓存对象时可以使用此种方式。HTTP协议的PURGE方法可以实现purge功能，不过，其仅能用于vcl_hit和vcl_miss中，它会释放内存工作并移除指定缓存对象的所有Vary:-变种，并等待下一个针对此内容的客户端请求到达时刷新此内容。另外，其一般要与return(restart)一起使用。下面是个在VCL中配置的示例。
+
+		acl purgers {
+			"127.0.0.1";
+			"192.168.0.0"/24;
+		}
+
+		sub vcl_recv {
+			if (req.request == "PURGE") {
+				if (!client.ip ~ purgers) {
+					error 405 "Method not allowed";
+				}
+				return (lookup);
+			}
+		}
+		sub vcl_hit {
+			if (req.request == "PURGE") {
+				purge;
+				error 200 "Purged";
+			}
+		}
+		sub vcl_miss {
+			if (req.request == "PURGE") {
+				purge;
+				error 404 "Not in cache";
+			}
+		}
+		sub vcl_pass {
+			if (req.request == "PURGE") {
+				error 502 "PURGE on a passed object";
+			}
+		}
+
+		客户端在发起HTTP请求时，只需要为所请求的URL使用PURGE方法即可，其命令使用方式如下：
+		# curl -I -X PURGE http://varniship/path/to/someurl
+
+		启用默认vcl_recv默认配置时使用的方式：
+			sub vcl_recv {
+			     if (req.restarts == 0) {
+			        if (req.http.x-forwarded-for) {
+			            set req.http.X-Forwarded-For =
+			                req.http.X-Forwarded-For + ", " + client.ip;
+			        } else {
+			            set req.http.X-Forwarded-For = client.ip;
+			        }
+			     }
+			     if (req.request == "PURGE" ) {
+			        if (!client.ip ~ purgers) {
+			            error 405 "Method not allowed.";
+			        }
+			     }
+			     if (req.request != "GET" &&
+			       req.request != "HEAD" &&
+			       req.request != "PUT" &&
+			       req.request != "POST" &&
+			       req.request != "TRACE" &&
+			       req.request != "OPTIONS" &&
+			       req.request != "DELETE" &&
+			       req.request != "PURGE" ) {
+			         /* Non-RFC2616 or CONNECT which is weird. */
+			         return (pipe);
+			     }
+			     if (req.request != "GET" && req.request != "HEAD" && req.request != "PURGE") {
+			         /* We only deal with GET and HEAD by default */
+			         return (pass);
+			     }
+			     if (req.http.Authorization || req.http.Cookie) {
+			         /* Not cacheable by default */
+			         return (pass);
+			     }
+			     return (lookup);
+			}
+
+		练习：当客户端访问test.html，拒绝从cache查询并响应；
+			sub vcl_recv {
+		      if (req.url ~ "test.html"){
+		        error 303 "Permiss denied";
+		      }
+		    }
+
+
+		定义要使用后端主机：
+			backend NAME {
+				.host = 
+				.port =
+			}
+
+			vcl_recv {
+				...
+				if (CONDITION) {
+					set req.backend = BE_NAME;
+				}
+			}
+
+				 sub vcl_recv {
+			      if (req.url ~ "test.html"){
+			        set req.backend = web1;
+			      } else {
+			        set req.backend = web2;
+			      }
+
+
+
+	Varnish检测后端主机的健康状态
+
+		Varnish可以检测后端主机的健康状态，在判定后端主机失效时能自动将其从可用后端主机列表中移除，而一旦其重新变得可用还可以自动将其设定为可用。为了避免误判，Varnish在探测后端主机的健康状态发生转变时(比如某次探测时某后端主机突然成为不可用状态)，通常需要连续执行几次探测均为新状态才将其标记为转换后的状态。
+
+		每个后端服务器当前探测的健康状态探测方法通过.probe进行设定，其结果可由req.backend.healthy变量获取，也可通过varnishlog中的Backend_health查看或varnishadm的debug.health查看。
+
+		backend web1 {
+			.host = "www.magedu.com";
+			.probe = {
+				.url = "/.healthtest.html";
+				.interval = 1s;
+				.window = 5;
+				.threshold = 2;
+			}
+		}
+
+		.probe中的探测指令常用的有：
+		(1) .url：探测后端主机健康状态时请求的URL，默认为“/”；
+		(2) .request: 探测后端主机健康状态时所请求内容的详细格式，定义后，它会替换.url指定的探测方式；比如：
+			.request =
+				"GET /.healthtest.html HTTP/1.1"
+				"Host: www.magedu.com"
+				"Connection: close";
+		(3) .window：设定在判定后端主机健康状态时基于最近多少次的探测进行，默认是8；
+		(4) .threshold：在.window中指定的次数中，至少有多少次是成功的才判定后端主机正健康运行；默认是3；
+		(5) .initial：Varnish启动时对后端主机至少需要多少次的成功探测，默认同.threshold；
+		(6) .expected_response：期望后端主机响应的状态码，默认为200；
+		(7) .interval：探测请求的发送周期，默认为5秒；
+		(8) .timeout：每次探测请求的过期时长，默认为2秒；	
+
+
+		probe healthcheck {
+		   .url = "/status.cgi";
+		   .interval = 60s;
+		   .timeout = 0.3 s;
+		   .window = 8;
+		   .threshold = 3;
+		   .initial = 3;
+		   .expected_response = 200;
+		}
+
+		backend www {
+		  .host = "www.example.com";
+		  .port = "http";
+		  .probe = healthcheck;
+		}
+
+
+
+
+
+	Varnish使用多台后端主机
+
+		Varnish中可以使用director指令将一个或多个近似的后端主机定义为一个逻辑组，并可以指定的调度方式(也叫挑选方法)来轮流将请求发送至这些主机上。不同的director可以使用同一个后端主机，而某director也可以使用“匿名”后端主机(在director中直接进行定义)。每个director都必须有其专用名，且在定义后必须在VCL中进行调用，VCL中任何可以指定后端主机的位置均可以按需将其替换为调用某已定义的director。
+
+		backend web1 {
+			.host = "backweb1.magedu.com";
+			.port = "80";
+		}
+
+		director webservers random {
+		  .retries = 5;
+		  {
+		    .backend = web1;
+		    .weight  = 2;
+		  }
+		  {
+		    .backend  = {
+		      .host = "backweb2.magedu.com";
+			  .port = "80";
+		    }
+		  	.weight         = 3;
+		  }		}
+
+
+		如上示例中，web1为显式定义的后端主机，而webservers这个directors还包含了一个“匿名”后端主机(backweb2.magedu.com)。webservers从这两个后端主机中挑选一个主机的方法为random，即以随机方式挑选。
+
+		Varnish的director支持的挑选方法中比较简单的有round-robin和random两种。其中，round-robin类型没有任何参数，只需要为其指定各后端主机即可，挑选方式为“轮叫”，并在某后端主机故障时不再将其视作挑选对象；random方法随机从可用后端主机中进行挑选，每一个后端主机都需要一个.weight参数以指定其权重，同时还可以director级别使用.retires参数来设定查找一个健康后端主机时的尝试次数。
+
+		Varnish 2.1.0后，random挑选方法又多了两种变化形式client和hash。client类型的director使用client.identity作为挑选因子，这意味着client.identity相同的请求都将被发送至同一个后端主机。client.identity默认为client.ip，但也可以在VCL中将其修改为所需要的标识符。类似地，hash类型的director使用hash数据作为挑选因子，这意味着对同一个URL的请求将被发往同一个后端主机，其常用于多级缓存的场景中。然而，无论是client还hash，当其倾向于使用后端主机不可用时将会重新挑选新的后端其机。
+
+		另外还有一种称作fallback的director，用于定义备用服务器，如下所示：
+
+		director b3 fallback {
+		  { .backend = www1; }
+		  { .backend = www2; } // will only be used if www1 is unhealthy.
+		  { .backend = www3; } // will only be used if both www1 and www2
+		                       // are unhealthy.
+		}
+
+
+		在vcl_recv上，一般要用
+			set req.backend = DIRECTOR
+
+
+		例子：
+
+		backend www {
+		  .host = "www.magedu.com";
+		  .port = "80";
+		}
+
+		backend images {
+		  .host = "images.magedu.com";
+		  .port = "80";
+		}
+
+		sub vcl_recv {
+		  if (req.http.host ~ "(?i)^(www.)?magedu.com$") {
+		    set req.http.host = "www.magedu.com";
+		    set req.backend = www;
+		  } elsif (req.http.host ~ "(?i)^images.magedu.com$") {
+		    set req.backend = images;
+		  } else {
+		    error 404 "Unknown virtual host";
+		  }
+		}
+
+
+
+	sub vcl_deliver {
+
+	  if (obj.hits > 0) {
+	    set resp.http.X-Cache = "HIT";
+	  } else {
+	    set resp.http.X-Cache = "MISS";
+	  }
+	}
+
+	sub vcl_deliver {
+	        if (obj.hits > 0) {
+	                set resp.http.X-Cache = "HIT via" + " " + server.hostname;
+	        } else {
+	                set resp.http.X-Cache = "MISS via" + " " + server.hostname;
+	        }
+	}
+
+
+
+	sub vcl_recv {
+	        if (req.url ~ "^/test.html$") {
+	                return(pass);
+	        }
+	}
+
+	sub vcl_fetch {
+
+	        if (req.request == "GET" && req.url ~ "\.(html|jpg|jpeg)$") {
+	                set beresp.ttl = 3600s;
+	        }
+	}
+
+
+
+	sub vcl_fetch {
+		if (beresp.http.cache-control !~ "s-maxage") {
+			if (req.url ~ "\.jpg(\?|$)") {
+				set beresp.ttl = 30s;
+				unset beresp.http.Set-Cookie;
+			}
+			if (req.url ~ "\.html(\?|$)") {
+				set beresp.ttl = 10s;
+				unset beresp.http.Set-Cookie;
+			}
+		} else {
+			if (beresp.ttl > 0s) {
+				unset beresp.http.Set-Cookie;
+			}
+		}
+	}
+
+
+
+	sub vcl_error {
+		synthetic "<html><body><!-- Something was wrong! --></body></html>";
+		set obj.status = 200;
+		return (deliver);
+	}
+
+
+	生产环境案例一则：
+
+		acl purge {
+		  "localhost";
+		  "127.0.0.1";
+		  "10.1.0.0"/16;
+		  "192.168.0.0"/16;
+		}
+
+		sub vcl_hash {
+		  hash_data(req.url);
+		  return (hash);
+		}
+
+		sub vcl_recv {
+		  set req.backend = shopweb;
+		#  set req.grace = 4h; 
+		  if (req.request == "PURGE") {
+		    if (!client.ip ~ purge) {
+		      error 405 "Not allowed.";
+		    }
+		    return(lookup);
+		  }
+		  if (req.request == "REPURGE") {
+		    if (!client.ip ~ purge) {
+		      error 405 "Not allowed.";
+		    }
+		    ban("req.http.host == " + req.http.host + " && req.url ~ " + req.url);
+		    error 200 "Ban OK";
+		  }
+		  if (req.restarts == 0) {
+		    if (req.http.x-forwarded-for) {
+		      set req.http.X-Forwarded-For = req.http.X-Forwarded-For + ", " + client.ip;
+		    } 
+		    else {
+		      set req.http.X-Forwarded-For = client.ip;
+		    }
+		  }
+		  if (req.request != "GET" &&
+		    req.request != "HEAD" &&
+		    req.request != "PUT" &&
+		    req.request != "POST" &&
+		    req.request != "TRACE" &&
+		    req.request != "OPTIONS" &&
+		    req.request != "DELETE") {
+		    /* Non-RFC2616 or CONNECT which is weird. */
+		    return (pipe);
+		  }
+		  if (req.request != "GET" && req.request != "HEAD") {
+		    /* We only deal with GET and HEAD by default */
+		    return (pass);
+		  }
+		  if (req.http.Authorization) {
+		    /* Not cacheable by default */
+		    return (pass);
+		  }
+		 
+
+		  if ( req.url == "/Heartbeat.html" ) {
+		    return (pipe);
+		  }
+		  if ( req.url == "/" ) {
+		    return (pipe);
+		  }
+		  if ( req.url == "/index.jsp" ) {
+		    return (pipe);
+		  }
+
+		  if (req.http.Cookie ~ "dper=") {
+		    return (pass);
+		  }
+		  if (req.http.Cookie ~ "sqltrace=") {
+		    return (pass);
+		  }
+		  if (req.http.Cookie ~ "errortrace=") {
+		    return (pass);
+		  }
+		#   if ( req.request == "GET" && req.url ~ "req.url ~ "^/shop/[0-9]+$" ) {
+		  if ( req.url ~ "^/shop/[0-9]+$" || req.url ~ "^/shop/[0-9]?.*" ) {
+		    return (lookup);
+		  }
+
+		 if ( req.url ~ "^/shop/(\d{1,})/editmember" || req.url ~ "^/shop/(\d{1,})/map" || req.url ~ "^/shop/(\d+)/dish-([^/]+)" ) {
+		    return (lookup);
+		  } 
+
+		  return (pass);
+		#   return (lookup);
+		}
+
+		sub vcl_pipe {
+		  return (pipe);
+		}
+
+		sub vcl_pass {
+		  return (pass);
+		}
+
+		sub vcl_hit {
+		  if (req.request == "PURGE") {
+		    purge;
+		    error 200 "Purged.";
+		  }
+		  return (deliver);
+		}
+
+		sub vcl_miss {
+		  if (req.request == "PURGE") {
+		    error 404 "Not in cache.";
+		  }
+		#   if (object needs ESI processing) {
+		#     unset bereq.http.accept-encoding;
+		#   }
+		  return (fetch);
+		}
+
+
+		sub vcl_fetch {
+		  set beresp.ttl = 3600s;
+		  set beresp.http.expires = beresp.ttl;
+		  #set beresp.grace = 4h;
+		#   if (object needs ESI processing) {
+		#     set beresp.do_esi = true;
+		#     set beresp.do_gzip = true;
+		#   }
+
+		  if ( req.url ~ "^/shop/[0-9]+$" || req.url ~ "^/shop/[0-9]?.*" ) {   
+		    set beresp.ttl = 4h;
+		  }
+
+		 if ( req.url ~ "^/shop/(\d{1,})/editmember" || req.url ~ "^/shop/(\d{1,})/map" || req.url ~ "^/shop/(\d+)/dish-([^/]+)" ) {
+		     set beresp.ttl = 24h;
+		  } 
+
+		  if (beresp.status != 200){
+		    return (hit_for_pass);
+		  }
+		  return (deliver);
+		}
+
+		sub vcl_deliver {
+		  if (obj.hits > 0){
+		    set resp.http.X-Cache = "HIT";
+		  } 
+		  else {
+		    set resp.http.X-Cache = "MISS";
+		  }
+		  set resp.http.X-Powered-By = "Cache on " + server.ip;
+		  set resp.http.X-Age = resp.http.Age;
+		  return (deliver);
+		}
+
+		sub vcl_error {
+		  set obj.http.Content-Type = "text/html; charset=utf-8";
+		  set obj.http.Retry-After = "5";
+		  synthetic {""} + obj.status + " " + obj.response + {""};
+		  return (deliver);
+		}
+
+		sub vcl_init {
+		  return (ok);
+		}
+
+		sub vcl_fini {
+		  return (ok);
+		}
+
+	博客作业：varnish及其应用；
+
+	varnish的线程模型：
+		cache-worker线程
+		cache-main线程：此线程只有一个，用于启动cache；
+		ban luker：清理缓存；
+		acceptor：接收用户请求
+		epoll：线程池管理器
+		expire：清理过期缓存
+
+		varnish定义其最大并发连接数：线程池模型：
+			thread_pools：线程池个数；默认为2；
+			thread_pool_max：每个线程池内允许启动的最多线程个数；
+			thread_pool_min：每个线程池内虽少启动的线程个数；
+			thread_pool_timeout：多于thread_pool_min的线程空闲此参数指定的时长后即被purge；
+
+	varnish的param查看及改变：
+		varnish> param.show [-l] [param]
+			param.show thread_pool_max
+		varnish> param.set [param] [value]
+			param.set thread_pool_max 200
+
+	varnish的命令行工具：
+		varnishadm, 
+
+		varnishtop: 内存日志区域查看工具
+			RxHeader User-Agent: Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/43.0.2357.81 Safari/537.36
+
+			其中：
+				RxHeader：称为tag, 基于tag过滤，可使用-i或-x选项；
+					# varnishtop -i "RxHeader"
+				User-Agent起始的内容：称为日志信息，可使用-I或-X选项进行过滤；
+
+				-I regexp: 仅显示被模式匹配到的条目
+					# varnishtop -I "^User-Agent"
+				-X regexp：仅显示不被模式匹配到的条目
+				-C: 忽略字符大小写；
+				-d: 显示已有日志；
+
+		varnishstat：
+			-f field, field, ...
+				# varnishstat -f client_conn
+			-l: 列出所有可用字段
+			-x: xml输出格式 
+			-j: json输出格式
+
+		varnishlog, varnishncsa
+
+
+
+
+
+

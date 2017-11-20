@@ -1,0 +1,199 @@
+鸟哥 SELiux 学习笔记
+
+1、查看当前SELinux模式：
+	[root@CentOS7 ~]# getenforce
+	Enforcing
+
+2、查看SELinux的策略（Policy）：
+	sestatus - SELinux status tool
+
+	sestatus [-v] [-b]
+		-v：检查列于/etc/sestatus.conf内的文件与程序的安全上下文内容；
+		-b：将目前策略的规则布尔值列出，即某些规则（rule）是否要启动（0／1）之意；
+
+		例：
+		[root@CentOS7 ~]# sestatus
+		SELinux status:                 enabled
+		SELinuxfs mount:                /sys/fs/selinux
+		SELinux root directory:         /etc/selinux
+		Loaded policy name:             targeted
+		Current mode:                   enforcing
+		Mode from config file:          enforcing
+		Policy MLS status:              enabled
+		Policy deny_unknown status:     allowed
+		Max kernel policy version:      28
+
+3、SELinux的启动与关闭
+	setenforce - modify the mode SELinux is running in
+
+	setenforce [Enforcing|Permissive|1|0]
+		0：转成Permissive宽容模式；
+		1：转成Enforcing强制模式
+
+		例：
+		[root@CentOS7 ~]# setenforce 0
+		[root@CentOS7 ~]# getenforce
+		Permissive
+		[root@CentOS7 ~]# setenforce 1
+		[root@CentOS7 ~]# getenforce
+		Enforcing
+
+		注意：setenforce无法在Disabled的模式下面进行模式的切换。
+
+4、SELinux配置文件
+	/etc/selinux/config
+		SELINUX=enforcing <==调整enforcing|disabled|permissive
+		SELINUXTYPE=targeted <==目前仅有targeted,mls,minimum三种策略
+
+
+SELinux策略内的规则管理：
+	1、SELinux各个规则的布尔值查询：
+		getsebool - get SELinux boolean value(s)
+
+		getsebool [-a] [boolean]
+			-a：列出目前系统上面的所有布尔值条款设置为开启或关闭值。
+
+		例：
+		[root@CentOS7 ~]# getsebool ftp_home_dir
+		ftp_home_dir --> off
+
+		[root@CentOS7 ~]# getsebool -a
+		abrt_anon_write --> off
+		abrt_handle_event --> off
+		abrt_upload_watch_anon_write --> on
+		antivirus_can_scan_system --> off
+		antivirus_use_jit --> off
+		auditadm_exec_content --> on
+		authlogin_nsswitch_use_ldap --> off
+		authlogin_radius --> off
+		authlogin_yubikey --> off
+		awstats_purge_apache_log_files --> off
+		boinc_execmem --> on
+		cdrecord_read_content --> off
+		...
+
+		另外：sestatus -b也可查询SELinux各个规则的布尔值：
+			[root@CentOS7 ~]# sestatus -b
+			SELinux status:                 enabled
+			SELinuxfs mount:                /sys/fs/selinux
+			SELinux root directory:         /etc/selinux
+			Loaded policy name:             targeted
+			Current mode:                   enforcing
+			Mode from config file:          enforcing
+			Policy MLS status:              enabled
+			Policy deny_unknown status:     allowed
+			Max kernel policy version:      28
+
+			Policy booleans:
+			abrt_anon_write                             off
+			abrt_handle_event                           off
+			abrt_upload_watch_anon_write                on
+			antivirus_can_scan_system                   off
+			antivirus_use_jit                           off
+			auditadm_exec_content                       on
+			...
+
+	2、安装seinfo，sesearch
+		[root@CentOS7 ~]# yum install setools-console-*
+
+	3、SELinux策略查询工具：
+		seinfo - SELinux policy query tool
+
+		seinfo [OPTIONS] [EXPRESSION] [POLICY ...]
+			OPTIONS：
+				--all：列出SELinux的状态、规则布尔值、身份识别、角色、类别等所有信息；
+				-u：列出SELinux的所有身份识别（user）种类；
+				-r：列出SELinux的所有角色（role）种类；
+				-t：列出SELinux的所有类别（type）种类；
+				-b：列出所有规则的种类（布尔值）；
+
+			例：
+			[root@CentOS7 ~]# seinfo
+
+			Statistics for policy file: /sys/fs/selinux/policy
+			Policy Version & Type: v.28 (binary, mls)
+
+			   Classes:            83    Permissions:       255
+			   Sensitivities:       1    Categories:       1024
+			   Types:            4597    Attributes:        356
+			   Users:               8    Roles:              14
+			   Booleans:          303    Cond. Expr.:       354
+			   Allow:           95604    Neverallow:          0
+			   Auditallow:        152    Dontaudit:        8384
+			   Type_trans:      17365    Type_change:        74
+			   Type_member:        35    Role allow:         30
+			   Role_trans:        412    Range_trans:      5639
+			   Constraints:       103    Validatetrans:       0
+			   Initial SIDs:       27    Fs_use:             28
+			   Genfscon:          102    Portcon:           579
+			   Netifcon:            0    Nodecon:             0
+			   Permissives:        12    Polcap:              2
+
+
+		sesearch - SELinux policy query tool
+
+		sesearch [-A][-s 主题类别][-t 目标类别][-b 布尔值]
+			-A：列出后面资料中，允许“读取或放行”的相关资料；
+			-t：后面还要接类别，例如 -t httpd_t
+			-b：后面还要接SELinux的规则，例如 -b httpd_enable_ftp_server
+
+			例：
+			[root@CentOS7 ~]# sesearch -A -s crond_t | grep spool
+		   allow crond_t system_cron_spool_t : file { ioctl read write create getattr setattr lock append unlink link rename open } ; 
+		   allow crond_t var_spool_t : dir { ioctl read getattr lock search open } ; 
+		   allow crond_t user_cron_spool_t : file { ioctl read write create getattr setattr lock append unlink link rename open } ; 
+		   allow crond_t system_cron_spool_t : dir { ioctl read getattr lock search open } ; 
+		   ...
+
+	4、修改SELinux规则的布尔值
+		setsebool - set SELinux boolean value
+
+		setsebool [-P] 规则名称 [0|1]
+			-P：直接将设定值写入配置文件，改设置数据将来会生效的！
+
+			例：
+			[root@CentOS7 ~]# getsebool ftpd_full_access
+			ftpd_full_access --> off
+			[root@CentOS7 ~]# setsebool ftpd_full_access 1
+			[root@CentOS7 ~]# getsebool ftpd_full_access
+			ftpd_full_access --> on
+
+	5、使用chron手动修改文档的SELinux type
+		chcon - change file SELinux security context
+
+		chcon [-R][-t type][-u user] [-r role] 文件
+		chcon [-R] --reference=范例文件 文件
+			-R：连同该目录下的子目录也同时修改；
+			-t：后面接安全上下文的类型字段！例如 ftpd_full_access；
+			-u：后面接身份识别，例如 system_u；
+			-r：后面接角色，例如 system_r；
+			-v：若有变化成功，请将变动的结果列出来；
+			--reference=范例文件：拿某个文件当范例来修改后续接的文件的类型；
+
+			范例一：查询一下/etc/hosts的SELinux type，并将该类型用到/etc/cron.d/checktime上  
+			[root@CentOS7 ~]# ll -Z /etc/hosts
+			-rw-r--r--. root root system_u:object_r:net_conf_t:s0  /etc/hosts 
+			[root@CentOS7 ~]# chcon -v -t net_conf_t /etc/cron.d/checktime 
+			正在更改"/etc/cron.d/checktime" 的安全环境
+			[root@CentOS7 ~]# ll -Z /etc/cron.d/checktime 
+			-rw-r--r--. root root unconfined_u:object_r:net_conf_t:s0 /etc/cron.d/checktime
+			
+			范例二：直接以/etc/shadow SELinux type套用到/etc/cron.d/checktime上！
+			[root@CentOS7 ~]# chcon -v --reference=/etc/shadow /etc/cron.d/checktime 
+			正在更改"/etc/cron.d/checktime" 的安全环境
+			[root@CentOS7 ~]# ll -Z /etc/shadow /etc/cron.d/checktime 
+			-rw-r--r--. root root system_u:object_r:shadow_t:s0    /etc/cron.d/checktime
+			----------. root root system_u:object_r:shadow_t:s0    /etc/shadow
+
+	6、使用restorecon让文件恢复成正确的SELinux type
+		restorecon [-Rv] 文件或目录
+			-R：连同次目录一起修改；
+			-v：将过程显示到屏幕上；
+
+			范例一：将/etc/cron.d底下的文件通通恢复成预设的SELinux type！
+			[root@CentOS7 ~]# ls -Z /etc/cron.d/
+			-rw-r--r--. root root system_u:object_r:shadow_t:s0    checktime
+			[root@CentOS7 ~]# restorecon -Rv /etc/cron.d/
+			restorecon reset /etc/cron.d/checktime context system_u:object_r:shadow_t:s0->system_u:object_r:system_cron_spool_t:s0
+			[root@CentOS7 ~]# ls -Z /etc/cron.d/
+			-rw-r--r--. root root system_u:object_r:system_cron_spool_t:s0 checktime

@@ -1,0 +1,119 @@
+回顾：
+	Debian:
+		Ubuntu
+		Knopix
+	Slackware:
+		S.u.S.E
+			openSUSE
+	RedHat:
+		Fedora
+		CentOS
+
+	Linux：内核
+		Application
+
+		GNU/Linux：通常以源码（文本格式）方式提供；
+			自由、灵活；
+
+Linux基础：
+	CPU架构：
+		x86
+		x64（amd64）
+		m68000，m68k
+		arm
+		ultrasparc solaris
+		power aix
+		powrpc,ppc
+		MIPS
+		HP alpha hp-ux
+		...
+
+	POS：POSIX
+		API：Application Program Interface
+
+	ABI：Application Binary Interface
+
+	Linux，BSD，AIX，...：Unix-like
+		Unix类的系统：
+			API
+			ABI
+
+	Gentoo
+	ArchLinux
+
+	Stallman：GNU
+		闭源：
+		开源：提供源代码；
+			开源协定：
+				GPL：General Public License
+					copyright, copyleft
+
+					LGPL：Lesser GPL
+					GPLv2，GPLv3
+
+					FSF：Free
+				BSD：
+				Apache：
+					ASF：Apache Software Foundation
+
+			双线授权：
+				Community：遵循开源协定；
+				Enterprise：提供服务
+
+	程序管理：
+		程序的组成部分：
+			二进制程序；
+			配置文件；
+			库文件；
+			帮助文件；
+
+		X, Y, Z
+
+		程序包管理器：
+			X:
+				程序的组成文件打包成一个或有限几个文件；
+				安装：
+				卸载：
+				查询：
+
+		Debian：dpkg，apt－get
+		RedHat：rpm，yum --> dnf
+		S.u.S.E：rpm，zypper
+		ArchLinux：packman
+		Gentoo：
+		LFS：Linux From Scratch
+		kali:
+
+		一个人缺少什么，就会炫耀什么
+
+	安装Linux：
+		虚拟机：Linux
+			计算机：cpu，内存，IO
+
+		虚拟化软件程序：
+			vmware workstation
+			virtualbox
+
+	CentOS的镜像站点：
+		http://mirrors,aliyun.com
+		http://mirrors.163.com
+		http://mirrors.sohu.com
+
+
+	启动GUI:
+		在某一虚拟终端接口运行命令：statx &
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
